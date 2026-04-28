@@ -1,0 +1,18 @@
+# Core pipeline
+anthropic>=0.25.0
+flask>=3.0.0
+requests>=2.31.0
+
+# YouTube upload
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.125.0
+
+# Captions (runs locally, free)
+openai-whisper>=20231117
+
+# Free local TTS — no API key needed (replaces ElevenLabs for $0 publishing)
+TTS>=0.22.0
+
+# Audio utilities
+pydub>=0.25.1

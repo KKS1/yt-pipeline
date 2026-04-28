@@ -1,0 +1,10 @@
+Place your media assets here. See docs/SETUP.md Step 5 for what goes in each folder.
+
+assets/
+├── background_music.mp3     ← royalty-free ambient MP3 (Pixabay Music)
+├── lofi_loop.mp4            ← looping lofi animation (Pixabay Videos)
+├── lofi/                    ← MP3 tracks from Suno/Udio (10-15 files)
+│   ├── track_01.mp3
+│   └── ...
+├── client_secrets.json      ← from Google Cloud Console (gitignored)
+└── yt_credentials_*.json    ← auto-generated after OAuth (gitignored)

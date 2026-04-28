@@ -1,0 +1,30 @@
+# Secrets — never commit these
+.env
+assets/client_secrets.json
+assets/yt_credentials_*.json
+
+# Generated output — too large for git
+output/
+temp/
+
+# Media assets — download separately per SETUP.md
+assets/background_music.mp3
+assets/lofi_loop.mp4
+assets/lofi/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Logs
+*.log
+nohup.out
+
+# OS
+.DS_Store
+Thumbs.db

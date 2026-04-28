@@ -1,0 +1,363 @@
+{
+  "name": "YouTube Autonomous Pipeline",
+  "nodes": [
+
+    {
+      "name": "Daily Trigger — 6AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 6 * * *" }]
+        }
+      }
+    },
+
+    {
+      "name": "Fetch Google Trends RSS",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 200],
+      "parameters": {
+        "url": "https://trends.google.com/trends/trendingsearches/daily/rss?geo=US",
+        "method": "GET",
+        "options": { "response": { "response": { "responseFormat": "text" } } }
+      }
+    },
+
+    {
+      "name": "Fetch Reddit Hot Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 340],
+      "parameters": {
+        "url": "https://www.reddit.com/r/popular/hot.json?limit=25",
+        "method": "GET",
+        "headers": {
+          "parameters": [{ "name": "User-Agent", "value": "yt-pipeline-bot/1.0" }]
+        }
+      }
+    },
+
+    {
+      "name": "Fetch YouTube Trending",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 480],
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=US&maxResults=20&key={{$env.YOUTUBE_API_KEY}}",
+        "method": "GET"
+      }
+    },
+
+    {
+      "name": "Parse & Merge Trends",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 340],
+      "parameters": {
+        "jsCode": "// Parse Google Trends RSS\nconst googleRaw = items[0].json.body || '';\nconst googleTopics = [];\nconst titleMatches = googleRaw.matchAll(/<title>([^<]+)<\\/title>/g);\nfor (const m of titleMatches) {\n  if (m[1] !== 'Google Trends' && m[1].length > 3) {\n    googleTopics.push(m[1].trim());\n  }\n}\n\n// Parse Reddit\nconst redditData = items[1].json.data?.children || [];\nconst redditTopics = redditData\n  .filter(p => p.data.score > 5000 && !p.data.over_18)\n  .map(p => p.data.title)\n  .slice(0, 10);\n\n// Parse YouTube Trending\nconst ytItems = items[2].json.items || [];\nconst ytTopics = ytItems\n  .map(v => v.snippet?.title || '')\n  .filter(t => t.length > 5)\n  .slice(0, 10);\n\n// Merge and deduplicate\nconst allTopics = [...new Set([\n  ...googleTopics.slice(0, 10),\n  ...redditTopics,\n  ...ytTopics\n])];\n\n// Score by source diversity (appears in multiple = higher score)\nconst scored = allTopics.map(topic => {\n  let score = 0;\n  if (googleTopics.includes(topic)) score += 3;\n  if (redditTopics.some(r => r.toLowerCase().includes(topic.toLowerCase()))) score += 2;\n  if (ytTopics.some(y => y.toLowerCase().includes(topic.toLowerCase()))) score += 2;\n  return { topic, score };\n});\n\nscored.sort((a, b) => b.score - a.score);\n\nreturn [{ json: {\n  topics: scored.map(s => s.topic).slice(0, 15),\n  timestamp: new Date().toISOString(),\n  source_counts: {\n    google: googleTopics.length,\n    reddit: redditTopics.length,\n    youtube: ytTopics.length\n  }\n}}];"
+      }
+    },
+
+    {
+      "name": "Score Topics — Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [940, 200],
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1000,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"You are a YouTube content strategist. From these trending topics, pick the 3 best for a faceless narrated YouTube channel (finance, health, AI, lifestyle, true crime). Score each on: search volume, low competition, monetization, evergreen potential. Return ONLY JSON array with no markdown: [{\\\"topic\\\": \\\"...\\\", \\\"angle\\\": \\\"unique hook\\\", \\\"score\\\": 0-100, \\\"channel\\\": \\\"trending|family\\\", \\\"keywords\\\": []}]. Topics: {{$node['Parse & Merge Trends'].json.topics.join(', ')}}\"\n  }]\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Parse Scored Topics",
+      "type": "n8n-nodes-base.code",
+      "position": [1180, 200],
+      "parameters": {
+        "jsCode": "const raw = items[0].json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet topics;\ntry {\n  topics = JSON.parse(cleaned);\n} catch(e) {\n  // Fallback extraction\n  const match = raw.match(/\\[.*\\]/s);\n  topics = match ? JSON.parse(match[0]) : [];\n}\n\n// Sort by score, take top 3\ntopics.sort((a, b) => b.score - a.score);\nconst selected = topics.slice(0, 3);\n\n// Add metadata for downstream nodes\nreturn selected.map((t, i) => ({\n  json: {\n    ...t,\n    video_index: i + 1,\n    scheduled_for: new Date(Date.now() + i * 4 * 3600000).toISOString(), // Space 4hrs apart\n    status: 'pending'\n  }\n}));"
+      }
+    },
+
+    {
+      "name": "Generate Script — Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1420, 200],
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Write a complete YouTube script for a faceless narrated channel. Topic: {{$json.topic}}. Angle: {{$json.angle}}. Keywords: {{$json.keywords.join(', ')}}. Style: engaging documentary narrator. Length: 10-12 minutes (1400-1680 words). Structure: HOOK (30s, provocative fact or question), INTRO (45s), 5 SECTIONS with punchy headings, CTA (30s). Use [PAUSE] for drama, [VISUAL: description] for B-roll cues, [EMPHASIS] before stressed words. No filler like 'in today\\u0027s video'. Return ONLY valid JSON: {\\\"title_options\\\": [\\\"t1\\\", \\\"t2\\\", \\\"t3\\\"], \\\"description\\\": \\\"150 words with keywords\\\", \\\"tags\\\": [\\\"t1\\\",...,\\\"t8\\\"], \\\"thumbnail_text\\\": \\\"3-5 bold words\\\", \\\"script\\\": \\\"full script\\\", \\\"word_count\\\": 0}\"\n  }]\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Parse Script Response",
+      "type": "n8n-nodes-base.code",
+      "position": [1660, 200],
+      "parameters": {
+        "jsCode": "const raw = items[0].json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet script;\ntry {\n  script = JSON.parse(cleaned);\n} catch(e) {\n  const match = raw.match(/\\{.*\\}/s);\n  script = match ? JSON.parse(match[0]) : { error: 'parse_failed', raw };\n}\n\nreturn [{ json: {\n  ...script,\n  topic: $('Parse Scored Topics').first().json.topic,\n  channel_type: 'trending',\n  generated_at: new Date().toISOString()\n}}];"
+      }
+    },
+
+    {
+      "name": "Call Assembly Server",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1900, 200],
+      "parameters": {
+        "url": "=http://localhost:5001/assemble",
+        "method": "POST",
+        "headers": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"channel_type\": \"{{$json.channel_type}}\",\n  \"title\": \"{{$json.title_options[0]}}\",\n  \"script\": \"{{$json.script}}\",\n  \"description\": \"{{$json.description}}\",\n  \"tags\": {{$json.tags}},\n  \"thumbnail_text\": \"{{$json.thumbnail_text}}\",\n  \"keywords\": [\"{{$('Parse Scored Topics').first().json.keywords[0]}}\"]\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2140, 200],
+      "parameters": {
+        "url": "=http://localhost:5001/upload",
+        "method": "POST",
+        "headers": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"video_path\": \"{{$json.video_path}}\",\n  \"title\": \"{{$json.title}}\",\n  \"description\": \"{{$json.description}}\",\n  \"tags\": {{$json.tags}},\n  \"thumbnail_path\": \"{{$json.thumbnail_path}}\",\n  \"channel\": \"trending\",\n  \"schedule_time\": \"{{$('Parse Scored Topics').first().json.scheduled_for}}\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2380, 200],
+      "parameters": {
+        "url": "=https://api.airtable.com/v0/{{$env.AIRTABLE_BASE_ID}}/Videos",
+        "method": "POST",
+        "headers": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.AIRTABLE_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"fields\": {\n    \"Title\": \"{{$('Parse Script Response').first().json.title_options[0]}}\",\n    \"Channel\": \"Trending\",\n    \"Topic\": \"{{$('Parse Scored Topics').first().json.topic}}\",\n    \"YouTube ID\": \"{{$json.youtube_id}}\",\n    \"Status\": \"Scheduled\",\n    \"Scheduled For\": \"{{$('Parse Scored Topics').first().json.scheduled_for}}\",\n    \"Created At\": \"{{new Date().toISOString()}}\"\n  }\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "position": [1420, 500],
+      "parameters": {
+        "jsCode": "// Log the error and send alert email\nconst error = items[0].json.error || 'Unknown error';\nconst node = items[0].json.failedNode || 'Unknown node';\n\nconsole.error(`Pipeline error at ${node}: ${error}`);\n\n// Prepare alert for next node\nreturn [{ json: {\n  alert_type: 'pipeline_error',\n  node,\n  error,\n  timestamp: new Date().toISOString(),\n  action_needed: 'Check n8n execution log'\n}}];"
+      }
+    },
+
+    {
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [1660, 500],
+      "parameters": {
+        "fromEmail": "pipeline@yourdomain.com",
+        "toEmail": "={{$env.ALERT_EMAIL}}",
+        "subject": "=⚠️ YouTube Pipeline Error — {{$json.node}}",
+        "text": "=Pipeline failed at node: {{$json.node}}\n\nError: {{$json.error}}\nTime: {{$json.timestamp}}\n\nCheck n8n dashboard: http://your-vps-ip:5678"
+      }
+    },
+
+    {
+      "name": "Weekly Digest Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 700],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1" }]
+        }
+      }
+    },
+
+    {
+      "name": "Fetch Weekly Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 700],
+      "parameters": {
+        "url": "=https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D{{$env.YT_CHANNEL_ID}}&startDate={{$now.minus({days: 7}).toFormat('yyyy-MM-dd')}}&endDate={{$now.toFormat('yyyy-MM-dd')}}&metrics=views,estimatedMinutesWatched,subscribersGained,estimatedRevenue&dimensions=video&sort=-views&maxResults=10",
+        "method": "GET",
+        "headers": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.YT_OAUTH_TOKEN}}" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "Generate Digest — Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 700],
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 800,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Write a concise weekly YouTube channel digest for the owner. They want to spend under 2 minutes reading. Analytics data: {{JSON.stringify($json)}}. Format: subject line, 3 bullet highlights, top 3 videos with view counts, one actionable recommendation. Plain text only.\"\n  }]\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Send Weekly Digest",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [940, 700],
+      "parameters": {
+        "fromEmail": "pipeline@yourdomain.com",
+        "toEmail": "={{$env.DIGEST_EMAIL}}",
+        "subject": "=📊 Weekly YouTube Report — {{$now.toFormat('MMM d')}}",
+        "text": "={{$json.content[0].text}}"
+      }
+    },
+
+    {
+      "name": "Lofi Weekly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 900],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 7 * * 2,5" }]
+        }
+      }
+    },
+
+    {
+      "name": "Generate Lofi Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 900],
+      "parameters": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "{\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Generate YouTube metadata for a 3-hour lofi study music video. Pick a cozy mood (rainy café, night library, etc.). Return ONLY JSON: {\\\"title\\\": \\\"under 70 chars\\\", \\\"description\\\": \\\"200 words with lofi study music keywords and 30-min timestamps\\\", \\\"tags\\\": [\\\"lofi hip hop\\\",\\\"study music\\\",\\\"focus music\\\",\\\"chill beats\\\",\\\"lofi beats\\\",\\\"homework music\\\",\\\"concentration\\\",\\\"lofi mix\\\"], \\\"mood\\\": \\\"chosen mood\\\", \\\"visual_scene\\\": \\\"describe cozy looping animation for video background\\\", \\\"suno_prompt\\\": \\\"prompt for Suno AI to generate the music style\\\"}\"\n  }]\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Assemble Lofi Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 900],
+      "parameters": {
+        "url": "http://localhost:5001/assemble-lofi",
+        "method": "POST",
+        "headers": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"metadata\": {{$json.content[0].text}},\n  \"duration_hours\": 3,\n  \"channel\": \"lofi\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "Upload Lofi to YouTube",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [940, 900],
+      "parameters": {
+        "url": "http://localhost:5001/upload",
+        "method": "POST",
+        "headers": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": true,
+          "bodyParametersJson": "={\n  \"video_path\": \"{{$json.video_path}}\",\n  \"title\": \"{{$json.title}}\",\n  \"description\": \"{{$json.description}}\",\n  \"tags\": {{$json.tags}},\n  \"channel\": \"lofi\"\n}"
+        }
+      }
+    }
+
+  ],
+
+  "connections": {
+    "Daily Trigger — 6AM": {
+      "main": [[
+        { "node": "Fetch Google Trends RSS", "type": "main", "index": 0 },
+        { "node": "Fetch Reddit Hot Posts", "type": "main", "index": 0 },
+        { "node": "Fetch YouTube Trending", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch Google Trends RSS": { "main": [[{ "node": "Parse & Merge Trends", "type": "main", "index": 0 }]] },
+    "Fetch Reddit Hot Posts": { "main": [[{ "node": "Parse & Merge Trends", "type": "main", "index": 1 }]] },
+    "Fetch YouTube Trending": { "main": [[{ "node": "Parse & Merge Trends", "type": "main", "index": 2 }]] },
+    "Parse & Merge Trends": { "main": [[{ "node": "Score Topics — Claude API", "type": "main", "index": 0 }]] },
+    "Score Topics — Claude API": { "main": [[{ "node": "Parse Scored Topics", "type": "main", "index": 0 }]] },
+    "Parse Scored Topics": { "main": [[{ "node": "Generate Script — Claude API", "type": "main", "index": 0 }]] },
+    "Generate Script — Claude API": { "main": [[{ "node": "Parse Script Response", "type": "main", "index": 0 }]] },
+    "Parse Script Response": { "main": [[{ "node": "Call Assembly Server", "type": "main", "index": 0 }]] },
+    "Call Assembly Server": { "main": [[{ "node": "Upload to YouTube", "type": "main", "index": 0 }]] },
+    "Upload to YouTube": { "main": [[{ "node": "Log to Airtable", "type": "main", "index": 0 }]] },
+    "Error Handler": { "main": [[{ "node": "Send Alert Email", "type": "main", "index": 0 }]] },
+    "Weekly Digest Trigger": { "main": [[{ "node": "Fetch Weekly Analytics", "type": "main", "index": 0 }]] },
+    "Fetch Weekly Analytics": { "main": [[{ "node": "Generate Digest — Claude", "type": "main", "index": 0 }]] },
+    "Generate Digest — Claude": { "main": [[{ "node": "Send Weekly Digest", "type": "main", "index": 0 }]] },
+    "Lofi Weekly Trigger": { "main": [[{ "node": "Generate Lofi Metadata", "type": "main", "index": 0 }]] },
+    "Generate Lofi Metadata": { "main": [[{ "node": "Assemble Lofi Video", "type": "main", "index": 0 }]] },
+    "Assemble Lofi Video": { "main": [[{ "node": "Upload Lofi to YouTube", "type": "main", "index": 0 }]] }
+  },
+
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "Error Handler"
+  }
+}
