@@ -21,9 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "prompts"))
 
 app = Flask(__name__)
 
-OUTPUT_DIR = Path("output")
-TEMP_DIR   = Path("temp")
-ASSETS_DIR = Path("assets")
+# Always resolve relative to project root (yt-pipeline/), not cwd
+PROJECT_ROOT = Path(__file__).parent.parent
+OUTPUT_DIR   = PROJECT_ROOT / "output"
+TEMP_DIR     = PROJECT_ROOT / "temp"
+ASSETS_DIR   = PROJECT_ROOT / "assets"
 
 for d in [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR]:
     d.mkdir(exist_ok=True)

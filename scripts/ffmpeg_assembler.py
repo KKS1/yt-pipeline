@@ -29,9 +29,11 @@ PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
 
-OUTPUT_DIR = Path("output")
-ASSETS_DIR = Path("assets")
-TEMP_DIR = Path("temp")
+# Always resolve relative to project root (yt-pipeline/), not cwd
+PROJECT_ROOT = Path(__file__).parent.parent
+OUTPUT_DIR   = PROJECT_ROOT / "output"
+ASSETS_DIR   = PROJECT_ROOT / "assets"
+TEMP_DIR     = PROJECT_ROOT / "temp"
 
 for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR]:
     d.mkdir(exist_ok=True)
