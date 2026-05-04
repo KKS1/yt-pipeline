@@ -136,9 +136,11 @@ def run_family():
     print('  "Write a This or That JSON script about animals"')
     print("Then paste the JSON below.\n")
 
-    title    = prompt_input("Video title", "This or That? Animals Edition!")
-    print("\nPaste your JSON script (then type END on a new line):")
-    raw_json = prompt_multiline("JSON script")
+    json_file = prompt_input("Path to JSON script file (or press Enter to paste)", "")
+    if json_file and Path(json_file).exists():
+        raw_json = Path(json_file).read_text()
+    else:
+        raw_json = prompt_multiline("Paste your JSON script")
 
     try:
         script = json.loads(raw_json)
@@ -147,8 +149,7 @@ def run_family():
         print("Make sure you paste valid JSON — check claude.ai output carefully.")
         sys.exit(1)
 
-    # Ensure title is set
-    script["title"] = script.get("title", title)
+    title = script.get("title", "family_video")
 
     out_slug = slug(title)
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
@@ -158,64 +159,6 @@ def run_family():
     cleanup_family_temp()
 
     _upload_video(out_path, title, script.get("description", ""), script.get("tags", []), channel="family")
-    print("\n" + "="*50)
-    print("FAMILY-FRIENDLY CHANNEL — free with local TTS")
-    print("="*50)
-    print("\nTip: Go to claude.ai and ask:")
-    print('  "Write a family-friendly This or That YouTube script about animals"')
-    print("Then paste the script below.\n")
-
-    title   = prompt_input("Video title", "This or That? Animals Edition — Family Fun Quiz!")
-    script  = prompt_multiline("Paste your script here")
-    desc    = prompt_multiline("Paste your description")
-    tags_r  = prompt_input("Tags", "this or that,family quiz,kids trivia,fun for kids,family friendly")
-    tags    = [t.strip() for t in tags_r.split(",")]
-    keyword = prompt_input("Keyword for stock video search", "animals nature")
-
-    out_slug   = slug(title)
-    audio_path = str(OUTPUT_DIR / f"{out_slug}_voice.mp3")
-    out_path   = str(OUTPUT_DIR / f"{out_slug}.mp4")
-
-    # Generate free voiceover
-    print("\nGenerating voiceover (free local TTS)...")
-    from free_tts import generate_tts, clean_script
-    generate_tts(clean_script(script), audio_path)
-
-    # Fetch stock video + assemble
-    bg_music = str(ASSETS_DIR / "background_music.mp3")
-    if not Path(bg_music).exists():
-        print(f"\nNo background_music.mp3 in assets/")
-        print("Download a free track from pixabay.com/music and save it there.")
-        print("Or press Enter to continue without background music.")
-        input()
-        bg_music = None
-
-    from ffmpeg_assembler import (
-        get_audio_duration, fetch_stock_videos,
-        generate_captions, assemble_narrated_video, cleanup_temp
-    )
-
-    duration    = get_audio_duration(audio_path)
-    clips       = fetch_stock_videos(keyword, duration + 30, str(OUTPUT_DIR / "temp"))
-    srt_path    = str(OUTPUT_DIR / f"{out_slug}.srt")
-
-    try:
-        generate_captions(audio_path, srt_path)
-    except Exception as e:
-        print(f"  Captions skipped: {e}")
-        srt_path = None
-
-    assemble_narrated_video(
-        narration_audio=audio_path,
-        stock_clips=clips,
-        background_music=bg_music or audio_path,
-        captions_srt=srt_path,
-        output_path=out_path,
-        title=title,
-    )
-    cleanup_temp()
-
-    _upload_video(out_path, title, desc, tags, channel="family")
 
 
 # ─────────────────────────────────────────────

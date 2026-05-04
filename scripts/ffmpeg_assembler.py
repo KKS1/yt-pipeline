@@ -38,6 +38,8 @@ TEMP_DIR     = PROJECT_ROOT / "temp"
 for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR]:
     d.mkdir(exist_ok=True)
 
+FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
+
 # Video settings
 VIDEO_WIDTH = 1920
 VIDEO_HEIGHT = 1080
@@ -243,7 +245,7 @@ def assemble_narrated_video(
     for i, clip in enumerate(stock_clips):
         norm_path = str(TEMP_DIR / f"norm_{i:03d}.mp4")
         cmd = [
-            "ffmpeg", "-y", "-i", clip,
+            FFMPEG, "-y", "-i", clip,
             "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                    f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                    f"fps={VIDEO_FPS}",
@@ -271,7 +273,7 @@ def assemble_narrated_video(
 
     # Concatenate and trim to exact narration length
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "concat", "-safe", "0", "-i", list_path,
         "-t", str(narration_duration),
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
@@ -284,7 +286,7 @@ def assemble_narrated_video(
     # Step 3: Mix narration + background music
     mixed_audio_path = str(TEMP_DIR / "mixed_audio.mp3")
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-i", narration_audio,
         "-stream_loop", "-1", "-i", background_music,  # Loop BG music
         "-filter_complex",
@@ -318,7 +320,7 @@ def assemble_narrated_video(
     vf_filter = f"subtitles={captions_srt}:force_style='{caption_style}'" if has_captions else "null"
 
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-i", concat_path,
         "-i", mixed_audio_path,
         "-vf", vf_filter,
@@ -337,7 +339,7 @@ def assemble_narrated_video(
         # Fallback without captions if subtitle burn fails
         print(f"  Caption burn failed, assembling without captions...")
         cmd = [
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-i", concat_path, "-i", mixed_audio_path,
             "-map", "0:v", "-map", "1:a",
             "-vf", f"fade=t=in:st=0:d=1,fade=t=out:st={narration_duration-2}:d=2",
@@ -388,7 +390,7 @@ def assemble_lofi_video(
             f.write(f"file '{os.path.abspath(track)}'\n")
 
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "concat", "-safe", "0", "-i", list_path,
         "-t", str(target_seconds),
         "-c:a", "libmp3lame", "-b:a", "192k",
@@ -400,7 +402,7 @@ def assemble_lofi_video(
     # Step 2: Loop the visual for full duration
     looped_video_path = str(TEMP_DIR / "lofi_visual.mp4")
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-stream_loop", "-1", "-i", loop_visual,
         "-t", str(target_seconds),
         "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
@@ -435,7 +437,7 @@ def assemble_lofi_video(
     # Step 4: Combine
     vf = chapters_filter if chapters_filter else "null"
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-i", looped_video_path,
         "-i", concat_music_path,
         "-map", "0:v", "-map", "1:a",
@@ -502,7 +504,7 @@ def create_thumbnail(
     wrapped_title = title_text[:50]  # Truncate if too long
 
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-i", background_image,
         "-vf",
         f"scale=1280:720,"

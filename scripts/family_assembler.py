@@ -51,6 +51,8 @@ ASSETS_DIR   = PROJECT_ROOT / "assets"
 for d in [OUTPUT_DIR, TEMP_DIR]:
     d.mkdir(exist_ok=True)
 
+FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
+
 # Video settings
 WIDTH        = 1920
 HEIGHT       = 1080
@@ -89,7 +91,7 @@ def get_duration(path: str) -> float:
 def make_beep(output_path: str, freq: int = 880, duration: float = 0.15, volume: float = 0.3):
     """Generate a single beep tone using FFmpeg."""
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi",
         "-i", f"sine=frequency={freq}:duration={duration}",
         "-af", f"volume={volume}",
@@ -109,7 +111,7 @@ def make_countdown_audio(output_path: str):
     # Space beeps 1 second apart with silence between
     silence = str(TEMP_DIR / "silence_short.wav")
     cmd = [
-        "ffmpeg", "-y", "-f", "lavfi",
+        FFMPEG, "-y", "-f", "lavfi",
         "-i", "anullsrc=r=22050:cl=mono",
         "-t", "0.8", silence, "-loglevel", "quiet"
     ]
@@ -123,7 +125,7 @@ def make_countdown_audio(output_path: str):
             f.write(f"file '{os.path.abspath(silence)}'\n")
 
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "concat", "-safe", "0", "-i", list_path,
         "-c:a", "aac", output_path, "-loglevel", "quiet"
     ]
@@ -133,7 +135,7 @@ def make_countdown_audio(output_path: str):
 def make_ding(output_path: str):
     """Generate a pleasant ding for correct answer reveal."""
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi",
         "-i", "sine=frequency=1046:duration=0.6",
         "-af", "volume=0.4,afade=t=out:st=0.3:d=0.3",
@@ -144,26 +146,30 @@ def make_ding(output_path: str):
 
 def concat_audio(files: list, output_path: str, silence_between: float = 0.3):
     """Concatenate audio files with optional silence between them."""
+    inputs = []
+
     # Make silence clip
-    silence_path = str(TEMP_DIR / "concat_silence.wav")
-    cmd = [
-        "ffmpeg", "-y", "-f", "lavfi",
-        "-i", f"anullsrc=r=44100:cl=stereo",
-        "-t", str(silence_between),
-        silence_path, "-loglevel", "quiet"
-    ]
-    subprocess.run(cmd, check=True)
+    silence_path = None
+    if silence_between > 0 and len(files) > 1:
+        silence_path = str(TEMP_DIR / "concat_silence.wav")
+        cmd = [
+            FFMPEG, "-y", "-f", "lavfi",
+            "-i", f"anullsrc=r=44100:cl=stereo",
+            "-t", str(silence_between),
+            silence_path, "-loglevel", "quiet"
+        ]
+        subprocess.run(cmd, check=True)
 
-    list_path = str(TEMP_DIR / "audio_concat.txt")
-    with open(list_path, "w") as f:
-        for i, fp in enumerate(files):
-            f.write(f"file '{os.path.abspath(fp)}'\n")
-            if i < len(files) - 1:
-                f.write(f"file '{os.path.abspath(silence_path)}'\n")
+    for i, fp in enumerate(files):
+        inputs.append(fp)
+        if silence_path and i < len(files) - 1:
+            inputs.append(silence_path)
 
     cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", list_path,
+        FFMPEG, "-y",
+        *[arg for fp in inputs for arg in ("-i", fp)],
+        "-filter_complex", f"concat=n={len(inputs)}:v=0:a=1[out]",
+        "-map", "[out]",
         "-c:a", "aac", "-b:a", "192k",
         output_path, "-loglevel", "quiet"
     ]
@@ -220,7 +226,7 @@ def wrap_text(text: str, max_chars: int = 35) -> str:
 def make_color_bg(output_path: str, duration: float, color: str = COLOR_BG):
     """Generate a solid color background video."""
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi",
         "-i", f"color=c=0x{color}:size={WIDTH}x{HEIGHT}:rate={FPS}",
         "-t", str(duration),
@@ -249,43 +255,41 @@ def make_question_card(
     b_wrapped = wrap_text(option_b, 18)
 
     vf = (
-        # Background
-        f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS},"
 
         # Top accent bar
         f"drawbox=x=0:y=0:w={WIDTH}:h=12:color=0x{COLOR_ACCENT}@1:t=fill,"
 
         # Question number pill
         f"drawbox=x=80:y=60:w=180:h=60:color=0x{COLOR_ACCENT}@1:t=fill,"
-        f"drawtext=text='Question {number}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='Question {number}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=28:fontcolor=0x{COLOR_TEXT}:x=90:y=78,"
 
         # THIS OR THAT header
-        f"drawtext=text='THIS  OR  THAT':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='THIS  OR  THAT':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=52:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=55,"
 
         # Question text
-        f"drawtext=text='{q_wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{q_wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=58:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=220:line_spacing=12,"
 
         # Option A box
         f"drawbox=x=80:y=520:w=820:h=280:color=0x{COLOR_OPTION_A}@1:t=fill,"
         f"drawbox=x=80:y=520:w=820:h=280:color=0x{COLOR_TEXT}@0.15:t=4,"
-        f"drawtext=text='A':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='A':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=36:fontcolor=0x{COLOR_ACCENT}:x=130:y=540,"
-        f"drawtext=text='{a_wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{a_wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=52:fontcolor=0x{COLOR_TEXT}:x=490-text_w/2:y=610:line_spacing=10,"
 
         # VS divider
-        f"drawtext=text='VS':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='VS':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=48:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=630,"
 
         # Option B box
         f"drawbox=x=1020:y=520:w=820:h=280:color=0x{COLOR_OPTION_B}@1:t=fill,"
         f"drawbox=x=1020:y=520:w=820:h=280:color=0x{COLOR_TEXT}@0.15:t=4,"
-        f"drawtext=text='B':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='B':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=36:fontcolor=0x{COLOR_ACCENT}:x=1070:y=540,"
-        f"drawtext=text='{b_wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{b_wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=52:fontcolor=0x{COLOR_TEXT}:x=1430-text_w/2:y=610:line_spacing=10,"
 
         # Bottom bar
@@ -293,7 +297,7 @@ def make_question_card(
     )
 
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi", "-i", f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS}",
         "-t", str(duration),
         "-vf", vf,
@@ -330,15 +334,15 @@ def make_answer_card(
 
             # Answer banner
             f"drawbox=x=0:y=380:w={WIDTH}:h=160:color=0x{COLOR_ANSWER}@0.9:t=fill,"
-            f"drawtext=text='ANSWER\: {answer}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+            f"drawtext=text='ANSWER\: {answer}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
             f"fontsize=72:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=420,"
 
             # Explanation
-            f"drawtext=text='{explanation_wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+            f"drawtext=text='{explanation_wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
             f"fontsize=38:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=600:line_spacing=10"
         )
         cmd = [
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-loop", "1", "-i", image_path,
             "-t", str(duration),
             "-vf", vf,
@@ -348,15 +352,14 @@ def make_answer_card(
     else:
         # Fallback: solid color card
         vf = (
-            f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS},"
             f"drawbox=x=0:y=380:w={WIDTH}:h=160:color=0x{COLOR_ANSWER}@0.9:t=fill,"
-            f"drawtext=text='ANSWER\: {answer}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+            f"drawtext=text='ANSWER\: {answer}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
             f"fontsize=72:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=420,"
-            f"drawtext=text='{explanation_wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+            f"drawtext=text='{explanation_wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
             f"fontsize=38:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=600:line_spacing=10"
         )
         cmd = [
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-f", "lavfi", "-i", f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS}",
             "-t", str(duration),
             "-vf", vf,
@@ -370,16 +373,15 @@ def make_funfact_card(text: str, duration: float, output_path: str):
     """Fun fact interstitial card."""
     wrapped = wrap_text(text, 50)
     vf = (
-        f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS},"
         f"drawbox=x=0:y=0:w={WIDTH}:h=12:color=0x{COLOR_FUNFACT}@1:t=fill,"
         f"drawbox=x=0:y={HEIGHT-8}:w={WIDTH}:h=8:color=0x{COLOR_FUNFACT}@1:t=fill,"
-        f"drawtext=text='FUN FACT!':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='FUN FACT!':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=72:fontcolor=0x{COLOR_FUNFACT}:x=(w-text_w)/2:y=200,"
-        f"drawtext=text='{wrapped}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{wrapped}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=44:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=370:line_spacing=14"
     )
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi", "-i", f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS}",
         "-t", str(duration),
         "-vf", vf,
@@ -392,16 +394,15 @@ def make_funfact_card(text: str, duration: float, output_path: str):
 def make_title_card(title: str, subtitle: str, duration: float, output_path: str):
     """Intro/outro title card."""
     vf = (
-        f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS},"
         f"drawbox=x=0:y=0:w={WIDTH}:h=12:color=0x{COLOR_ACCENT}@1:t=fill,"
         f"drawbox=x=0:y={HEIGHT-8}:w={WIDTH}:h=8:color=0x{COLOR_ACCENT}@1:t=fill,"
-        f"drawtext=text='{title}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{title}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=82:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=380,"
-        f"drawtext=text='{subtitle}':fontfile=/System/Library/Fonts/Helvetica.ttc:"
+        f"drawtext=text='{subtitle}':fontfile=/System/Library/Fonts/HelveticaNeue.ttc:"
         f"fontsize=42:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=500"
     )
     cmd = [
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "lavfi", "-i", f"color=c=0x{COLOR_BG}:size={WIDTH}x{HEIGHT}:rate={FPS}",
         "-t", str(duration),
         "-vf", vf,
@@ -560,7 +561,7 @@ def assemble_family_video(script: dict, output_path: str) -> str:
 
     concat_video = str(TEMP_DIR / "concat_video.mp4")
     subprocess.run([
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-f", "concat", "-safe", "0", "-i", video_list,
         "-c:v", "libx264", "-preset", "fast", "-crf", "22",
         concat_video, "-loglevel", "quiet"
@@ -572,7 +573,7 @@ def assemble_family_video(script: dict, output_path: str) -> str:
 
     # Mux video + audio
     subprocess.run([
-        "ffmpeg", "-y",
+        FFMPEG, "-y",
         "-i", concat_video,
         "-i", final_audio,
         "-map", "0:v", "-map", "1:a",
