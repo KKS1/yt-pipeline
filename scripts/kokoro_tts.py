@@ -13,14 +13,19 @@ Voices:
   af_sky    — energetic
 """
 
+import os
 import sys
 import re
+import subprocess
 import soundfile as sf
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).parent.parent
-KOKORO_MODEL = str(PROJECT_ROOT / "kokoro-v0_19.onnx")
+PROJECT_ROOT  = Path(__file__).parent.parent
+KOKORO_MODEL  = str(PROJECT_ROOT / "kokoro-v0_19.onnx")
 KOKORO_VOICES = str(PROJECT_ROOT / "voices.bin")
+
+# Use ffmpeg_static if available (needed on Mac where brew ffmpeg lacks drawtext)
+FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
 
 VOICE_MAP = {
     "family":   "af_sarah",
@@ -54,7 +59,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\[VISUAL:[^\]]+\]', '', text)
     text = re.sub(r'\[PAUSE\]', '... ', text)
     text = re.sub(r'\[EMPHASIS\]', '', text)
-    text = re.sub(r'\(.*?\)', '', text)  # Remove parenthetical directions
+    text = re.sub(r'\(.*?\)', '', text)
     text = ' '.join(text.split())
     return text.strip()
 
@@ -102,14 +107,13 @@ def synthesize(
 
     combined = np.concatenate(all_samples)
 
-    # Always save as wav first, convert to mp3 via ffmpeg if needed
     output_path = str(output_path)
     if output_path.endswith(".mp3"):
         wav_path = output_path.replace(".mp3", ".wav")
         sf.write(wav_path, combined, sample_rate)
-        import subprocess
+        # Use FFMPEG env var so ffmpeg_static is used on Mac if set
         subprocess.run(
-            ["ffmpeg", "-y", "-i", wav_path, "-q:a", "2", output_path, "-loglevel", "quiet"],
+            [FFMPEG, "-y", "-i", wav_path, "-q:a", "2", output_path, "-loglevel", "quiet"],
             check=True
         )
         Path(wav_path).unlink()
@@ -118,4 +122,3 @@ def synthesize(
 
     print(f"  Saved: {output_path}")
     return output_path
-    
