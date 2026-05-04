@@ -317,6 +317,64 @@ This will auto-generate and upload lofi videos twice a week while you sleep.
 
 ---
 
+## Phase 8 — Publish your first Daily Insights video (trending channel)
+
+The Daily Insights channel covers topics people are actively searching right now —
+sports storylines, viral moments, news explainers, cultural moments. The goal is
+a clear, calm 5-7 minute explainer that shows up in search the same day a topic peaks.
+
+**Good topic example:** If "Montreal Canadiens" is trending on Google (playoff run,
+big trade, coaching news), a video like *"Why Everyone is Talking About the Canadiens
+Right Now"* will catch search traffic without needing deep sports knowledge. Keep it
+broad enough for casual viewers, not just fans.
+
+### Step 21 — Find a trending topic
+
+1. Go to [trends.google.com](https://trends.google.com) → click "Trending Now"
+2. Filter by your country (Canada works well for hockey, local news, etc.)
+3. Pick a topic with broad appeal — something with a clear "why is this happening?" angle
+4. Alternatively check YouTube's Trending tab (Explore → Trending)
+
+Avoid: niche sports stats, political controversy, or anything that could age badly
+within 24 hours (breaking news with lots of unknowns).
+
+### Step 22 — Generate a script in Claude.ai
+
+Go to claude.ai and ask:
+
+```
+Write a YouTube script for a 5-7 minute explainer video about [YOUR TOPIC].
+Format: hook in the first 15 seconds, 4-5 key points, closing call to action.
+Tone: calm, clear, informed — like a knowledgeable friend explaining the news.
+Also write a title (under 70 chars), a 150-word description with relevant 
+keywords, and 10 tags.
+```
+
+For a sports topic like the Canadiens, add context to the prompt:
+
+```
+The trending angle is [e.g. "the Canadiens are in a playoff push and 
+Juraj Slafkovsky is having a breakout season"]. Make it approachable 
+for casual fans, not just hockey diehards.
+```
+
+### Step 23 — Run the trending pipeline
+
+```bash
+python scripts/manual_run.py --channel trending
+```
+
+Paste your script, title, description, and tags when prompted.
+Choose option 1 (free local TTS) for voiceover.
+The pipeline will pull a relevant stock video clip from Pexels using your
+`PEXELS_API_KEY`, add captions via Whisper, and assemble the final video.
+Upload when done.
+
+**Timing matters:** Trending videos have a short window. Check Google Trends
+in the morning and aim to publish by early afternoon the same day.
+
+---
+
 ## What's fully automated now (still $0)
 
 - Lofi channel: posts automatically twice a week
