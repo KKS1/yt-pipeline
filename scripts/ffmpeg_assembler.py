@@ -106,8 +106,18 @@ def get_audio_duration(audio_path: str) -> float:
     result = subprocess.run(cmd, capture_output=True, text=True)
     data = json.loads(result.stdout)
     for stream in data.get("streams", []):
-        if stream.get("codec_type") == "audio":
+        if "duration" in stream:
             return float(stream["duration"])
+    # fallback: read container duration
+    cmd2 = [
+        "ffprobe", "-v", "quiet",
+        "-print_format", "json",
+        "-show_format", audio_path
+    ]
+    result2 = subprocess.run(cmd2, capture_output=True, text=True)
+    fmt = json.loads(result2.stdout).get("format", {})
+    if "duration" in fmt:
+        return float(fmt["duration"])
     return 0.0
 
 

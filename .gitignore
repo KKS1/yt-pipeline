@@ -16,6 +16,8 @@ assets/lofi/
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.onnx
+*.bin
 .venv/
 venv/
 dist/
