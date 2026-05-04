@@ -127,6 +127,8 @@ def fetch_stock_videos(query: str, total_duration: float, output_dir: str) -> li
 
     print(f"  Fetching stock videos for '{query}' (need {total_duration:.0f}s)...")
 
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
     while accumulated < total_duration:
         url = f"https://api.pexels.com/videos/search?query={query}&per_page=10&page={page}&orientation=landscape&size=medium"
         resp = requests.get(url, headers=headers)

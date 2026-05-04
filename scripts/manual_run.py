@@ -238,7 +238,9 @@ def run_trending():
     )
 
     duration = get_audio_duration(audio_path)
-    clips    = fetch_stock_videos(keyword, duration + 30, str(OUTPUT_DIR / "temp"))
+    temp_dir = OUTPUT_DIR / "temp"
+    temp_dir.mkdir(exist_ok=True)
+    clips    = fetch_stock_videos(keyword, duration + 30, str(temp_dir))
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
 
     try:
