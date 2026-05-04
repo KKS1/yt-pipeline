@@ -1,9 +1,14 @@
 """
-Free local text-to-speech using Coqui TTS.
+Free local text-to-speech using Kokoro.
 Runs entirely on your machine — no API key, no cost, unlimited use.
 
-Install: pip install TTS --break-system-packages
-First run downloads the model (~150MB, one-time only).
+Install:
+  pip install kokoro-onnx soundfile --break-system-packages
+  brew install espeak-ng
+
+Model files in project root (one-time download ~80MB):
+  curl -L -o kokoro-v0_19.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx
+  curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin
 
 Usage:
   python free_tts.py "Your script text here" output.mp3
@@ -11,136 +16,64 @@ Usage:
 """
 
 import sys
-import re
-import os
-import wave
-import tempfile
 import argparse
 from pathlib import Path
 
+# Import shared Kokoro utility
+sys.path.insert(0, str(Path(__file__).parent))
+from kokoro_tts import synthesize, clean_text, VOICE_MAP
+
 
 def clean_script(text: str) -> str:
-    """Strip screenplay markers before sending to TTS."""
-    text = re.sub(r'\[VISUAL:[^\]]+\]', '', text)
-    text = re.sub(r'\[PAUSE\]', '... ', text)
-    text = re.sub(r'\[EMPHASIS\]', '', text)
-    text = ' '.join(text.split())
-    return text.strip()
+    """Public alias used by manual_run.py."""
+    return clean_text(text)
 
 
-def _generate_chunked(tts, text: str, output_path: str, kwargs: dict, chunk_size: int = 500):
-    """Split long text into sentence-boundary chunks and concat the audio."""
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    chunks, current = [], ""
-    for s in sentences:
-        if len(current) + len(s) < chunk_size:
-            current += (" " if current else "") + s
-        else:
-            if current:
-                chunks.append(current)
-            current = s
-    if current:
-        chunks.append(current)
-
-    print(f"  Splitting into {len(chunks)} chunks...")
-
-    tmp_files = []
-    for i, chunk in enumerate(chunks):
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        tmp.close()
-        tts.tts_to_file(text=chunk, file_path=tmp.name, **kwargs)
-        tmp_files.append(tmp.name)
-        print(f"  Chunk {i+1}/{len(chunks)} done")
-
-    # Concatenate all wav chunks into final output
-    wav_out = output_path.replace(".mp3", ".wav")
-    with wave.open(wav_out, "wb") as out_wav:
-        for i, f in enumerate(tmp_files):
-            with wave.open(f, "rb") as in_wav:
-                if i == 0:
-                    out_wav.setparams(in_wav.getparams())
-                out_wav.writeframes(in_wav.readframes(in_wav.getnframes()))
-
-    for f in tmp_files:
-        os.unlink(f)
-
-    # Convert wav to mp3 via ffmpeg (already a dependency in your pipeline)
-    os.system(f'ffmpeg -y -i "{wav_out}" -q:a 2 "{output_path}" -loglevel quiet')
-    os.unlink(wav_out)
-
-
-def generate_tts(text: str, output_path: str, model: str = "tts_models/en/ljspeech/tacotron2-DDC"):
+def generate_tts(
+    text: str,
+    output_path: str,
+    voice: str = "af_bella",
+    speed: float = 1.1,
+) -> str:
     """
-    Generate speech from text using Coqui TTS.
+    Generate speech from text using Kokoro.
+    Drop-in replacement for old Coqui-based generate_tts().
 
-    Free models (quality order, best first):
-      tts_models/en/vctk/vits              — multi-speaker, most natural
-      tts_models/en/ljspeech/tacotron2-DDC — single speaker, clear
-      tts_models/en/ljspeech/glow-tts      — fast, decent quality
-
-    First run: model downloads automatically (~150MB).
-    Subsequent runs: instant, uses cached model.
+    Voices:
+      af_sarah  — warm, friendly
+      af_bella  — authoritative, clear (default for trending)
+      af_nicole — soft, calm
+      af_sky    — energetic
     """
-    try:
-        from TTS.api import TTS
-    except ImportError:
-        print("Coqui TTS not installed. Run:")
-        print("  pip install TTS --break-system-packages")
-        sys.exit(1)
-
-    print(f"  Loading TTS model: {model}")
-    print(f"  (First run downloads ~150MB — subsequent runs are instant)")
-
-    tts = TTS(model_name=model, progress_bar=True)
-
-    # Raise decoder cap — default 10000 cuts off long scripts
-    if hasattr(tts, "synthesizer") and hasattr(tts.synthesizer, "tts_config"):
-        tts.synthesizer.tts_config.max_decoder_steps = 50000
-
-    kwargs = {}
-    if "vctk" in model:
-        kwargs["speaker"] = "p273"  # Clear, neutral voice
-
-    clean_text = clean_script(text)
-    print(f"  Generating speech ({len(clean_text)} chars)...")
-
-    # Chunk long scripts so the decoder never strains on one huge input
-    if len(clean_text) > 500:
-        _generate_chunked(tts, clean_text, output_path, kwargs)
-    else:
-        tts.tts_to_file(text=clean_text, file_path=output_path, **kwargs)
-
-    print(f"  Saved: {output_path}")
-    return output_path
+    return synthesize(text, output_path, voice=voice, speed=speed)
 
 
-def list_models():
-    """Print available free English TTS models."""
-    models = [
-        ("tts_models/en/vctk/vits",               "Best quality, multi-speaker, ~120MB"),
-        ("tts_models/en/ljspeech/tacotron2-DDC",  "Good quality, single speaker, ~80MB"),
-        ("tts_models/en/ljspeech/glow-tts",       "Fast, decent quality, ~50MB"),
-        ("tts_models/en/ljspeech/speedy-speech",  "Very fast, lower quality, ~20MB"),
+def list_voices():
+    voices = [
+        ("af_sarah",  "Warm, friendly — great for family content"),
+        ("af_bella",  "Authoritative, clear — great for trending/narration"),
+        ("af_nicole", "Soft, calm — great for ambient narration"),
+        ("af_sky",    "Energetic, upbeat"),
     ]
-    print("\nAvailable free English models:\n")
-    for name, desc in models:
+    print("\nAvailable voices:\n")
+    for name, desc in voices:
         print(f"  {name}")
         print(f"    {desc}\n")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Free local TTS — no API key needed")
+    parser = argparse.ArgumentParser(description="Free local TTS using Kokoro")
     parser.add_argument("text", nargs="?", help="Text to speak (or use --file)")
-    parser.add_argument("output", nargs="?", default="output.mp3", help="Output MP3 path")
+    parser.add_argument("output", nargs="?", default="output.mp3", help="Output path")
     parser.add_argument("--file", help="Read script from a text file")
-    parser.add_argument("--model", default="tts_models/en/ljspeech/tacotron2-DDC",
-                        help="Coqui TTS model to use")
-    parser.add_argument("--list-models", action="store_true", help="Show available models")
+    parser.add_argument("--voice", default="af_bella", help="Kokoro voice to use")
+    parser.add_argument("--speed", type=float, default=1.1, help="Speech speed (default 1.1)")
+    parser.add_argument("--list-voices", action="store_true", help="Show available voices")
 
     args = parser.parse_args()
 
-    if args.list_models:
-        list_models()
+    if args.list_voices:
+        list_voices()
         sys.exit(0)
 
     if args.file:
@@ -153,5 +86,5 @@ if __name__ == "__main__":
         print('  python free_tts.py --file script.txt output.mp3')
         sys.exit(1)
 
-    generate_tts(text, args.output, args.model)
+    generate_tts(text, args.output, voice=args.voice, speed=args.speed)
     

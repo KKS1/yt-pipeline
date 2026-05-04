@@ -130,6 +130,35 @@ def run_lofi():
 
 def run_family():
     print("\n" + "="*50)
+    print("FAMILY-FRIENDLY CHANNEL — This or That card format")
+    print("="*50)
+    print("\nTip: Go to claude.ai and ask:")
+    print('  "Write a This or That JSON script about animals"')
+    print("Then paste the JSON below.\n")
+
+    title    = prompt_input("Video title", "This or That? Animals Edition!")
+    print("\nPaste your JSON script (then type END on a new line):")
+    raw_json = prompt_multiline("JSON script")
+
+    try:
+        script = json.loads(raw_json)
+    except json.JSONDecodeError as e:
+        print(f"\nInvalid JSON: {e}")
+        print("Make sure you paste valid JSON — check claude.ai output carefully.")
+        sys.exit(1)
+
+    # Ensure title is set
+    script["title"] = script.get("title", title)
+
+    out_slug = slug(title)
+    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+
+    from family_assembler import assemble_family_video, cleanup_family_temp
+    assemble_family_video(script, out_path)
+    cleanup_family_temp()
+
+    _upload_video(out_path, title, script.get("description", ""), script.get("tags", []), channel="family")
+    print("\n" + "="*50)
     print("FAMILY-FRIENDLY CHANNEL — free with local TTS")
     print("="*50)
     print("\nTip: Go to claude.ai and ask:")
