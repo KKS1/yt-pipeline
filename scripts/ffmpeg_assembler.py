@@ -399,60 +399,39 @@ def assemble_lofi_video(
     subprocess.run(cmd, capture_output=True, check=True)
     print(f"  Music concatenated: {target_seconds}s")
 
-    # Step 2: Loop the visual for full duration
-    looped_video_path = str(TEMP_DIR / "lofi_visual.mp4")
-    cmd = [
-        FFMPEG, "-y",
-        "-stream_loop", "-1", "-i", loop_visual,
-        "-t", str(target_seconds),
+    # Step 2: Combine visual loop + music in one pass using stream_loop
+    # This avoids pre-encoding the entire lofi visual (was the 3-4hr bottleneck).
+    # stream_loop loops the input at demux level — no re-encoding of a full 3hr video.
+    print(f"  Combining visual loop + music (single-pass, no pre-encode)...")
+
+    # Normalize visual to correct size/fps first (only encodes the short loop once)
+    norm_visual = str(TEMP_DIR / "lofi_norm.mp4")
+    subprocess.run([
+        FFMPEG, "-y", "-i", loop_visual,
         "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-an",
-        looped_video_path
-    ]
-    subprocess.run(cmd, capture_output=True, check=True)
-    print(f"  Visual looped: {target_seconds}s")
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-an", norm_visual, "-loglevel", "quiet"
+    ], check=True)
+    print(f"  Visual normalized (short loop only)")
 
-    # Step 3: Add chapter markers (timestamps) as overlaid text if tracklist provided
-    # For simplicity, burn track names as subtitles every 30 minutes
-    chapters_filter = ""
-    if tracklist:
-        srt_path = str(TEMP_DIR / "chapters.srt")
-        with open(srt_path, "w") as f:
-            for i, track in enumerate(tracklist):
-                # Parse timestamp "00:30" → seconds
-                parts = track["timestamp"].split(":")
-                start_s = int(parts[0]) * 3600 + int(parts[1]) * 60
-                end_s = start_s + 10  # Show track name for 10 seconds
-                if end_s > target_seconds:
-                    break
-                f.write(f"{i+1}\n")
-                f.write(f"{_seconds_to_srt(start_s)} --> {_seconds_to_srt(end_s)}\n")
-                f.write(f"♪ {track['name']}\n\n")
-
-        chapters_filter = f"subtitles={srt_path}:force_style='FontSize=16,PrimaryColour=&H80FFFFFF,MarginV=20'"
-
-    # Step 4: Combine
-    vf = chapters_filter if chapters_filter else "null"
     cmd = [
         FFMPEG, "-y",
-        "-i", looped_video_path,
+        "-stream_loop", "-1", "-i", norm_visual,   # loop normalized visual
         "-i", concat_music_path,
         "-map", "0:v", "-map", "1:a",
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "slow", "-crf", "22",
+        "-t", str(target_seconds),
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
-        output_path
+        output_path, "-loglevel", "quiet"
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        # Fallback without chapter subtitles
-        cmd[-10] = "null"
-        subprocess.run(cmd, capture_output=True, check=True)
+        print(f"  Warning: {result.stderr[:200]}")
+        raise RuntimeError("Lofi assembly failed")
 
     size_gb = Path(output_path).stat().st_size / 1024 / 1024 / 1024
     print(f"  ✓ Lofi video assembled: {output_path} ({size_gb:.2f} GB)")
@@ -598,3 +577,4 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
 if __name__ == "__main__":
     print("FFmpeg assembly pipeline loaded.")
     print("Run run_full_pipeline(script_data, channel_type, bg_music) to test.")
+    
