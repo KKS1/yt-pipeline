@@ -513,7 +513,7 @@ def create_thumbnail(
         f"fontcolor={s['font_color']}:"
         f"fontsize={s['font_size']}:"
         f"x=(w-text_w)/2:y=h-140:"
-        f"fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+        f"font='DejaVu Sans Bold':"
         f"shadowcolor=black:shadowx=3:shadowy=3",
         "-frames:v", "1",
         output_path

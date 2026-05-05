@@ -138,7 +138,7 @@ def run_family():
     print('  "Write a This or That JSON script about animals"')
     print("Then paste the JSON below.\n")
 
-    json_file = prompt_input("Path to JSON script file (or press Enter to paste)", "")
+    json_file = prompt_input("Path to JSON script file (or press Enter to paste)", "scripts/this_or_that.json")
     if json_file and Path(json_file).exists():
         raw_json = Path(json_file).read_text()
     else:

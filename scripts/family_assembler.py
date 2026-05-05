@@ -40,6 +40,8 @@ import json
 import subprocess
 import requests
 from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import io
 
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR   = PROJECT_ROOT / "output"
@@ -56,17 +58,13 @@ FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
 WIDTH  = 1920
 HEIGHT = 1080
 FPS    = 30
-FONT   = "/System/Library/Fonts/HelveticaNeue.ttc"
+# Audio Assets
+BUZZER_AUDIO        = ASSETS_DIR / "buzzer.mp3"
+FANFARE_AUDIO       = ASSETS_DIR / "fanfare.mp3"
+SUSPENSE_TICK_AUDIO = ASSETS_DIR / "suspense_tick.mp3"
 
-# Check if drawtext is available in current ffmpeg binary
-def _has_drawtext() -> bool:
-    result = subprocess.run(
-        [FFMPEG, "-filters"],
-        capture_output=True, text=True
-    )
-    return "drawtext" in result.stdout
-
-HAS_DRAWTEXT = _has_drawtext()
+# Font Path for Pillow
+PILLOW_FONT_PATH = ASSETS_DIR / "DejaVuSans-Bold.ttf"
 
 # Colors
 COLOR_BG       = "1a1a2e"
@@ -77,8 +75,17 @@ COLOR_OPTION_B = "533483"
 COLOR_ANSWER   = "2ecc71"
 COLOR_FUNFACT  = "f39c12"
 
-PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
+# RGB Tuples for Gradients
+COLOR_GRADIENT_START = (26, 26, 46) 
+COLOR_GRADIENT_END   = (15, 15, 25)
+COLOR_OPTION_A_GRADIENT_START = (15, 52, 96)
+COLOR_OPTION_B_GRADIENT_START = (83, 52, 131)
+COLOR_FUNFACT_GRADIENT_START  = (243, 156, 18)
+COLOR_FUNFACT_GRADIENT_END    = (211, 84, 0)
 
+CORNER_RADIUS = 30
+
+PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
 
 # ─────────────────────────────────────────────
 # AUDIO HELPERS
@@ -89,51 +96,6 @@ def get_duration(path: str) -> float:
     result = subprocess.run(cmd, capture_output=True, text=True)
     fmt = json.loads(result.stdout).get("format", {})
     return float(fmt.get("duration", 0))
-
-
-def make_beep(output_path: str, freq: int = 880, duration: float = 0.15, volume: float = 0.3):
-    subprocess.run([
-        FFMPEG, "-y", "-f", "lavfi",
-        "-i", f"sine=frequency={freq}:duration={duration}",
-        "-af", f"volume={volume}",
-        output_path, "-loglevel", "quiet"
-    ], check=True)
-
-
-def make_countdown_audio(output_path: str):
-    beeps = []
-    for i in range(3):
-        bp = str(TEMP_DIR / f"beep_{i}.wav")
-        make_beep(bp, freq=660 + i * 110, duration=0.25, volume=0.5)
-        beeps.append(bp)
-
-    silence = str(TEMP_DIR / "silence_short.wav")
-    subprocess.run([
-        FFMPEG, "-y", "-f", "lavfi",
-        "-i", "anullsrc=r=22050:cl=mono",
-        "-t", "0.75", silence, "-loglevel", "quiet"
-    ], check=True)
-
-    list_path = str(TEMP_DIR / "countdown_list.txt")
-    with open(list_path, "w") as f:
-        for bp in beeps:
-            f.write(f"file '{os.path.abspath(bp)}'\n")
-            f.write(f"file '{os.path.abspath(silence)}'\n")
-
-    subprocess.run([
-        FFMPEG, "-y",
-        "-f", "concat", "-safe", "0", "-i", list_path,
-        "-c:a", "aac", output_path, "-loglevel", "quiet"
-    ], check=True)
-
-
-def make_ding(output_path: str):
-    subprocess.run([
-        FFMPEG, "-y", "-f", "lavfi",
-        "-i", "sine=frequency=1046:duration=0.8",
-        "-af", "volume=0.5,afade=t=out:st=0.5:d=0.3",
-        output_path, "-loglevel", "quiet"
-    ], check=True)
 
 
 def concat_audio(files: list, output_path: str, silence_between: float = 0.3):
@@ -157,7 +119,7 @@ def concat_audio(files: list, output_path: str, silence_between: float = 0.3):
     for fp in inputs:
         cmd += ["-i", fp]
     cmd += [
-        "-filter_complex", f"concat=n={len(inputs)}:v=0:a=1[out]",
+        "-filter_complex", f"concat=n={len(inputs)}:v=0:a=1,aresample=44100[out]",
         "-map", "[out]",
         "-c:a", "aac", "-b:a", "192k",
         output_path, "-loglevel", "quiet"
@@ -231,245 +193,281 @@ def make_image_video(image_path: str, duration: float, output_path: str):
         ]
         subprocess.run(cmd, check=True)
 
-
-def overlay_answer_text(image_video: str, answer: str, explanation: str,
-                        duration: float, output_path: str):
-    """
-    Overlay answer text on top of animal image video.
-    Uses drawtext if available, drawbox fallback otherwise.
-    """
-    explanation_short = explanation[:80] + ("..." if len(explanation) > 80 else "")
-    # Escape special chars for ffmpeg drawtext
-    answer_safe = answer.replace("'", "").replace(":", "\\:")
-    explanation_safe = explanation_short.replace("'", "").replace(":", "\\:")
-
-    if HAS_DRAWTEXT:
-        # Dark overlay + green answer banner + explanation text
-        vf = (
-            # Dark overlay on image
-            f"drawbox=x=0:y=0:w={WIDTH}:h={HEIGHT}:color=0x000000@0.45:t=fill,"
-            # Green answer banner
-            f"drawbox=x=0:y=400:w={WIDTH}:h=130:color=0x{COLOR_ANSWER}@0.92:t=fill,"
-            # Answer text
-            f"drawtext=text='ANSWER\\: {answer_safe}':"
-            f"fontfile={FONT}:fontsize=68:fontcolor=0x{COLOR_TEXT}:"
-            f"x=(w-text_w)/2:y=430,"
-            # Explanation text
-            f"drawtext=text='{explanation_safe}':"
-            f"fontfile={FONT}:fontsize=34:fontcolor=0x{COLOR_TEXT}:"
-            f"x=(w-text_w)/2:y=580,"
-            # Bottom accent bar
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ANSWER}@1:t=fill"
-        )
-    else:
-        # drawtext not available — just dark overlay + colored boxes, no text
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h={HEIGHT}:color=0x000000@0.45:t=fill,"
-            f"drawbox=x=0:y=400:w={WIDTH}:h=130:color=0x{COLOR_ANSWER}@0.92:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ANSWER}@1:t=fill"
-        )
-
-    cmd = [
-        FFMPEG, "-y",
-        "-i", image_video,
-        "-t", str(duration),
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-        output_path, "-loglevel", "quiet"
-    ]
-    subprocess.run(cmd, check=True)
-
-
 # ─────────────────────────────────────────────
-# CARD GENERATORS
+# PILLOW HELPERS
 # ─────────────────────────────────────────────
-
-def wrap_text(text: str, max_chars: int = 35) -> str:
+def text_wrap(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> str:
     words = text.split()
     lines, current = [], ""
     for word in words:
-        if len(current) + len(word) + 1 <= max_chars:
-            current += (" " if current else "") + word
+        test_line = (current + " " + word).strip()
+        if font.getlength(test_line) <= max_width:
+            current = test_line
         else:
             if current:
                 lines.append(current)
             current = word
     if current:
         lines.append(current)
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
+def draw_rounded_rectangle(draw, xy, radius, fill, outline=None, width=0):
+    x1, y1, x2, y2 = xy
+    draw.ellipse((x1, y1, x1 + 2 * radius, y1 + 2 * radius), fill=fill, outline=outline, width=width)
+    draw.ellipse((x2 - 2 * radius, y1, x2, y1 + 2 * radius), fill=fill, outline=outline, width=width)
+    draw.ellipse((x1, y2 - 2 * radius, x1 + 2 * radius, y2), fill=fill, outline=outline, width=width)
+    draw.ellipse((x2 - 2 * radius, y2 - 2 * radius, x2, y2), fill=fill, outline=outline, width=width)
+    draw.rectangle((x1 + radius, y1, x2 - radius, y2), fill=fill, outline=outline, width=width)
+    draw.rectangle((x1, y1 + radius, x2, y2 - radius), fill=fill, outline=outline, width=width)
 
-def _solid_bg(duration: float, color: str = COLOR_BG) -> list:
-    """Return ffmpeg args for a solid color background input."""
-    return [
-        "-f", "lavfi",
-        "-i", f"color=c=0x{color}:size={WIDTH}x{HEIGHT}:rate={FPS}",
-        "-t", str(duration),
-    ]
+def draw_gradient_background(image, start_color, end_color):
+    width, height = image.size
+    for y in range(height):
+        r = int(start_color[0] + (end_color[0] - start_color[0]) * y / height)
+        g = int(start_color[1] + (end_color[1] - start_color[1]) * y / height)
+        b = int(start_color[2] + (end_color[2] - start_color[2]) * y / height)
+        draw = ImageDraw.Draw(image)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-
-def make_question_card(question: str, option_a: str, option_b: str,
-                       number: int, duration: float, output_path: str):
-    """Question card with two option boxes and question text."""
-    q_wrapped = wrap_text(question, 42)
-    a_wrapped = wrap_text(option_a, 16)
-    b_wrapped = wrap_text(option_b, 16)
-
-    if HAS_DRAWTEXT:
-        vf = (
-            # Top accent bar
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_ACCENT}@1:t=fill,"
-            # Question number badge
-            f"drawbox=x=80:y=55:w=200:h=58:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawtext=text='Question {number}':"
-            f"fontfile={FONT}:fontsize=28:fontcolor=0x{COLOR_TEXT}:x=90:y=72,"
-            # THIS OR THAT header
-            f"drawtext=text='THIS  OR  THAT?':"
-            f"fontfile={FONT}:fontsize=58:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=50,"
-            # Question text
-            f"drawtext=text='{q_wrapped}':"
-            f"fontfile={FONT}:fontsize=54:fontcolor=0x{COLOR_TEXT}:"
-            f"x=(w-text_w)/2:y=200:line_spacing=10,"
-            # Option A box
-            f"drawbox=x=60:y=500:w=840:h=300:color=0x{COLOR_OPTION_A}@1:t=fill,"
-            f"drawbox=x=60:y=500:w=840:h=300:color=0x{COLOR_TEXT}@0.1:t=5,"
-            f"drawtext=text='A':"
-            f"fontfile={FONT}:fontsize=40:fontcolor=0x{COLOR_ACCENT}:x=110:y=520,"
-            f"drawtext=text='{a_wrapped}':"
-            f"fontfile={FONT}:fontsize=50:fontcolor=0x{COLOR_TEXT}:"
-            f"x=480-text_w/2:y=600:line_spacing=8,"
-            # VS
-            f"drawtext=text='VS':"
-            f"fontfile={FONT}:fontsize=52:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=620,"
-            # Option B box
-            f"drawbox=x=1020:y=500:w=840:h=300:color=0x{COLOR_OPTION_B}@1:t=fill,"
-            f"drawbox=x=1020:y=500:w=840:h=300:color=0x{COLOR_TEXT}@0.1:t=5,"
-            f"drawtext=text='B':"
-            f"fontfile={FONT}:fontsize=40:fontcolor=0x{COLOR_ACCENT}:x=1070:y=520,"
-            f"drawtext=text='{b_wrapped}':"
-            f"fontfile={FONT}:fontsize=50:fontcolor=0x{COLOR_TEXT}:"
-            f"x=1440-text_w/2:y=600:line_spacing=8,"
-            # Bottom bar
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ACCENT}@1:t=fill"
-        )
-    else:
-        # Boxes only — no text (drawtext unavailable)
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawbox=x=60:y=500:w=840:h=300:color=0x{COLOR_OPTION_A}@1:t=fill,"
-            f"drawbox=x=1020:y=500:w=840:h=300:color=0x{COLOR_OPTION_B}@1:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ACCENT}@1:t=fill"
-        )
-
-    cmd = [FFMPEG, "-y"] + _solid_bg(duration) + [
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        output_path, "-loglevel", "quiet"
-    ]
-    subprocess.run(cmd, check=True)
-
-
-def make_answer_card(answer: str, explanation: str, image_path: str,
-                     duration: float, output_path: str):
+def get_font(size):
     """
-    Answer reveal card.
-    If image available: ken-burns animal image + text overlay.
-    If no image: solid color card with text.
+    Attempts to load the preferred font from assets, then tries common system fallbacks.
+    Pillow's load_default() does not support scaling, so system fallbacks are preferred.
     """
+    # 1. Try preferred asset path
+    if PILLOW_FONT_PATH.exists():
+        try:
+            return ImageFont.truetype(str(PILLOW_FONT_PATH), size)
+        except (IOError, OSError):
+            pass
+
+    # 2. Try common system font names (Pillow can often find these automatically)
+    for font_name in ["DejaVuSans-Bold", "Arial Bold", "Helvetica Bold", "Verdana Bold"]:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except (IOError, OSError):
+            continue
+
+    print(f"Warning: Preferred font not found at {PILLOW_FONT_PATH} and no system fallbacks found. Text will be tiny.")
+    return ImageFont.load_default()
+
+def add_text_with_outline(draw, xy, text, font, fill_color, outline_color, outline_width=2, anchor="mm"):
+    x, y = xy
+    # Draw outline
+    for dx in [-outline_width, 0, outline_width]:
+        for dy in [-outline_width, 0, outline_width]:
+            if dx != 0 or dy != 0:
+                draw.text((x + dx, y + dy), text, font=font, fill=outline_color, anchor=anchor)
+    # Draw main text
+    draw.text(xy, text, font=font, fill=fill_color, anchor=anchor)
+
+
+# ─────────────────────────────────────────────
+# PILLOW CARD GENERATORS (output PNGs)
+# ─────────────────────────────────────────────
+
+def make_title_card_png(title: str, subtitle: str, output_path: str):
+    img = Image.new("RGB", (WIDTH, HEIGHT), COLOR_GRADIENT_START)
+    draw_gradient_background(img, COLOR_GRADIENT_START, COLOR_GRADIENT_END)
+    draw = ImageDraw.Draw(img)
+
+    # Title box (semi-transparent black)
+    box_w, box_h = 1600, 260
+    box_x, box_y = (WIDTH - box_w) // 2, 320
+    draw_rounded_rectangle(draw, (box_x, box_y, box_x + box_w, box_y + box_h), CORNER_RADIUS, (0, 0, 0, 128))
+
+    font_title = get_font(90)
+    font_subtitle = get_font(46)
+
+    # Title text
+    add_text_with_outline(draw, (WIDTH // 2, 350 + font_title.getbbox(title)[3] // 2), title, font_title, (255, 255, 255), (0, 0, 0))
+    # Subtitle text
+    add_text_with_outline(draw, (WIDTH // 2, 480 + font_subtitle.getbbox(subtitle)[3] // 2), subtitle, font_subtitle, (int(COLOR_ACCENT[0:2], 16), int(COLOR_ACCENT[2:4], 16), int(COLOR_ACCENT[4:6], 16)), (0, 0, 0))
+
+    img.save(output_path)
+
+
+def make_question_card_png(question: str, option_a: str, option_b: str, number: int, output_path: str):
+    img = Image.new("RGB", (WIDTH, HEIGHT), COLOR_GRADIENT_START)
+    draw_gradient_background(img, COLOR_GRADIENT_START, COLOR_GRADIENT_END)
+    draw = ImageDraw.Draw(img)
+
+    font_q_num = get_font(28)
+    font_this_or_that = get_font(58)
+    font_question = get_font(54)
+    font_option_label = get_font(40)
+    font_option_text = get_font(50)
+    font_vs = get_font(52)
+
+    # Top accent bar
+    draw.rectangle((0, 0, WIDTH, 14), fill=f"#{COLOR_ACCENT}")
+
+    # Question number badge
+    draw_rounded_rectangle(draw, (80, 55, 280, 113), CORNER_RADIUS // 2, f"#{COLOR_ACCENT}")
+    add_text_with_outline(draw, (180, 84), f"Question {number}", font_q_num, (255, 255, 255), (0, 0, 0))
+
+    # THIS OR THAT header
+    add_text_with_outline(draw, (WIDTH // 2, 79), "THIS  OR  THAT?", font_this_or_that, f"#{COLOR_ACCENT}", (0, 0, 0))
+
+    # Question text
+    wrapped_question = text_wrap(question, font_question, WIDTH - 400)
+    bbox = draw.textbbox((0,0), wrapped_question, font=font_question)
+    text_height = bbox[3] - bbox[1]
+    add_text_with_outline(draw, (WIDTH // 2, 200 + text_height // 2), wrapped_question, font_question, (255, 255, 255), (0, 0, 0))
+
+    # Option A box
+    option_box_w, option_box_h = 840, 300
+    option_a_x, option_y = 60, 500
+    draw_rounded_rectangle(draw, (option_a_x, option_y, option_a_x + option_box_w, option_y + option_box_h), CORNER_RADIUS, COLOR_OPTION_A_GRADIENT_START)
+    draw.rectangle((option_a_x + CORNER_RADIUS, option_y, option_a_x + option_box_w - CORNER_RADIUS, option_y + option_box_h), fill=COLOR_OPTION_A_GRADIENT_START) # Fill center
+    add_text_with_outline(draw, (option_a_x + 50, option_y + 20), "A", font_option_label, f"#{COLOR_ACCENT}", (0, 0, 0), outline_width=1, anchor="ls")
+    wrapped_a = text_wrap(option_a, font_option_text, option_box_w - 100)
+    add_text_with_outline(draw, (option_a_x + option_box_w // 2, option_y + option_box_h // 2 + 20), wrapped_a, font_option_text, (255, 255, 255), (0, 0, 0))
+
+    # VS
+    add_text_with_outline(draw, (WIDTH // 2, 650), "VS", font_vs, f"#{COLOR_ACCENT}", (0, 0, 0))
+
+    # Option B box
+    option_b_x = 1020
+    draw_rounded_rectangle(draw, (option_b_x, option_y, option_b_x + option_box_w, option_y + option_box_h), CORNER_RADIUS, COLOR_OPTION_B_GRADIENT_START)
+    draw.rectangle((option_b_x + CORNER_RADIUS, option_y, option_b_x + option_box_w - CORNER_RADIUS, option_y + option_box_h), fill=COLOR_OPTION_B_GRADIENT_START) # Fill center
+    add_text_with_outline(draw, (option_b_x + 50, option_y + 20), "B", font_option_label, f"#{COLOR_ACCENT}", (0, 0, 0), outline_width=1, anchor="ls")
+    wrapped_b = text_wrap(option_b, font_option_text, option_box_w - 100)
+    add_text_with_outline(draw, (option_b_x + option_box_w // 2, option_y + option_box_h // 2 + 20), wrapped_b, font_option_text, (255, 255, 255), (0, 0, 0))
+
+    # Bottom bar
+    draw.rectangle((0, HEIGHT - 10, WIDTH, HEIGHT), fill=f"#{COLOR_ACCENT}")
+
+    img.save(output_path)
+
+
+def make_answer_card_png(answer: str, explanation: str, image_path: str, output_path: str):
+    img = Image.new("RGB", (WIDTH, HEIGHT), COLOR_GRADIENT_START)
+    draw = ImageDraw.Draw(img)
+
     if image_path and Path(image_path).exists():
-        # Step 1: image → ken-burns video
-        img_video = output_path.replace(".mp4", "_imgbg.mp4")
-        make_image_video(image_path, duration, img_video)
-        # Step 2: overlay answer text on image video
-        overlay_answer_text(img_video, answer, explanation, duration, output_path)
-        # Clean up intermediate
-        Path(img_video).unlink(missing_ok=True)
+        bg_img = Image.open(image_path).resize((WIDTH, HEIGHT), Image.LANCZOS)
+        img.paste(bg_img, (0, 0))
+        # Add dark overlay
+        overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, int(255 * 0.45)))
+        img.paste(overlay, (0, 0), overlay)
+        draw = ImageDraw.Draw(img) # Redraw on the new image with overlay
     else:
-        # Solid color fallback
-        explanation_short = explanation[:80] + ("..." if len(explanation) > 80 else "")
-        answer_safe = answer.replace("'", "").replace(":", "\\:")
-        explanation_safe = explanation_short.replace("'", "").replace(":", "\\:")
+        draw_gradient_background(img, COLOR_GRADIENT_START, COLOR_GRADIENT_END)
 
-        if HAS_DRAWTEXT:
-            vf = (
-                f"drawbox=x=0:y=400:w={WIDTH}:h=130:color=0x{COLOR_ANSWER}@0.92:t=fill,"
-                f"drawtext=text='ANSWER\\: {answer_safe}':"
-                f"fontfile={FONT}:fontsize=68:fontcolor=0x{COLOR_TEXT}:"
-                f"x=(w-text_w)/2:y=430,"
-                f"drawtext=text='{explanation_safe}':"
-                f"fontfile={FONT}:fontsize=34:fontcolor=0x{COLOR_TEXT}:"
-                f"x=(w-text_w)/2:y=580"
-            )
-        else:
-            vf = f"drawbox=x=0:y=400:w={WIDTH}:h=130:color=0x{COLOR_ANSWER}@0.92:t=fill"
+    font_answer = get_font(68)
+    font_explanation = get_font(34)
 
-        cmd = [FFMPEG, "-y"] + _solid_bg(duration) + [
-            "-vf", vf,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            output_path, "-loglevel", "quiet"
-        ]
-        subprocess.run(cmd, check=True)
+    # Green answer banner
+    banner_h = 130
+    draw_rounded_rectangle(draw, (0, 400, WIDTH, 400 + banner_h), CORNER_RADIUS, f"#{COLOR_ANSWER}")
+    draw.rectangle((CORNER_RADIUS, 400, WIDTH - CORNER_RADIUS, 400 + banner_h), fill=f"#{COLOR_ANSWER}") # Fill center
+
+    add_text_with_outline(draw, (WIDTH // 2, 400 + banner_h // 2), f"ANSWER: {answer}", font_answer, (255, 255, 255), (0, 0, 0))
+
+    # Explanation text
+    wrapped_explanation = text_wrap(explanation, font_explanation, WIDTH - 400)
+    bbox = draw.textbbox((0,0), wrapped_explanation, font=font_explanation)
+    text_height = bbox[3] - bbox[1]
+    add_text_with_outline(draw, (WIDTH // 2, 580 + text_height // 2), wrapped_explanation, font_explanation, (255, 255, 255), (0, 0, 0))
+
+    # Bottom accent bar
+    draw.rectangle((0, HEIGHT - 10, WIDTH, HEIGHT), fill=f"#{COLOR_ANSWER}")
+
+    img.save(output_path)
 
 
-def make_funfact_card(text: str, duration: float, output_path: str):
-    """Fun fact interstitial card — amber accented."""
-    wrapped = wrap_text(text, 50)
-    text_safe = text[:120].replace("'", "\\'").replace(":", "\\:")
+def make_funfact_card_png(text: str, output_path: str):
+    img = Image.new("RGB", (WIDTH, HEIGHT), (243, 156, 18))
+    draw_gradient_background(img, COLOR_FUNFACT_GRADIENT_START, COLOR_FUNFACT_GRADIENT_END)
+    draw = ImageDraw.Draw(img)
 
-    if HAS_DRAWTEXT:
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_FUNFACT}@1:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_FUNFACT}@1:t=fill,"
-            f"drawbox=x=(iw-1400)/2:y=160:w=1400:h=90:color=0x{COLOR_FUNFACT}@0.2:t=fill,"
-            f"drawtext=text='FUN FACT!':"
-            f"fontfile={FONT}:fontsize=76:fontcolor=0x{COLOR_FUNFACT}:x=(w-text_w)/2:y=170,"
-            f"drawtext=text='{wrapped}':"
-            f"fontfile={FONT}:fontsize=42:fontcolor=0x{COLOR_TEXT}:"
-            f"x=(w-text_w)/2:y=330:line_spacing=16"
-        )
-    else:
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_FUNFACT}@1:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_FUNFACT}@1:t=fill,"
-            f"drawbox=x=(iw-1400)/2:y=160:w=1400:h=90:color=0x{COLOR_FUNFACT}@0.2:t=fill"
-        )
+    font_header = get_font(76)
+    font_fact = get_font(42)
 
-    cmd = [FFMPEG, "-y"] + _solid_bg(duration) + [
-        "-vf", vf,
+    # Top accent bar
+    draw.rectangle((0, 0, WIDTH, 14), fill=f"#{COLOR_FUNFACT}")
+    # Bottom accent bar
+    draw.rectangle((0, HEIGHT - 10, WIDTH, HEIGHT), fill=f"#{COLOR_FUNFACT}")
+
+    # "FUN FACT!" banner
+    banner_w, banner_h = 1400, 90
+    banner_x, banner_y = (WIDTH - banner_w) // 2, 160
+    draw_rounded_rectangle(draw, (banner_x, banner_y, banner_x + banner_w, banner_y + banner_h), CORNER_RADIUS // 2, (0, 0, 0, 50)) # Semi-transparent black
+    add_text_with_outline(draw, (WIDTH // 2, banner_y + banner_h // 2), "FUN FACT!", font_header, (255, 255, 255), (0, 0, 0))
+
+    # Fun fact text
+    wrapped_fact = text_wrap(text, font_fact, WIDTH - 400)
+    bbox = draw.textbbox((0,0), wrapped_fact, font=font_fact)
+    text_height = bbox[3] - bbox[1]
+    add_text_with_outline(draw, (WIDTH // 2, 330 + text_height // 2), wrapped_fact, font_fact, (255, 255, 255), (0, 0, 0))
+
+    img.save(output_path)
+
+
+# ─────────────────────────────────────────────
+# VIDEO GENERATORS (from PNGs or for overlays)
+# ─────────────────────────────────────────────
+
+def make_static_card_video(image_path: str, duration: float, output_path: str):
+    """Converts a static PNG image to a video."""
+    subprocess.run([
+        FFMPEG, "-y",
+        "-loop", "1", "-i", image_path,
+        "-t", str(duration),
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
         output_path, "-loglevel", "quiet"
-    ]
-    subprocess.run(cmd, check=True)
+    ], check=True)
 
 
-def make_title_card(title: str, subtitle: str, duration: float, output_path: str):
-    """Intro / outro title card."""
-    title_safe    = title.replace("'", "\\'").replace(":", "\\:")
-    subtitle_safe = subtitle.replace("'", "\\'").replace(":", "\\:")
+def _make_single_countdown_number_video(number: int, duration_per_number: float, output_path: str):
+    font_countdown = get_font(200)
+    img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0)) # Transparent background
+    draw = ImageDraw.Draw(img)
+    add_text_with_outline(draw, (WIDTH // 2, HEIGHT // 2), str(number), font_countdown, (255, 255, 255), (0, 0, 0), outline_width=5)
+    frame_path = TEMP_DIR / f"countdown_frame_{number}.png"
+    img.save(frame_path)
 
-    if HAS_DRAWTEXT:
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawbox=x=(iw-1600)/2:y=320:w=1600:h=260:color=0x000000@0.35:t=fill,"
-            f"drawtext=text='{title_safe}':"
-            f"fontfile={FONT}:fontsize=90:fontcolor=0x{COLOR_TEXT}:x=(w-text_w)/2:y=350,"
-            f"drawtext=text='{subtitle_safe}':"
-            f"fontfile={FONT}:fontsize=46:fontcolor=0x{COLOR_ACCENT}:x=(w-text_w)/2:y=480"
-        )
-    else:
-        vf = (
-            f"drawbox=x=0:y=0:w={WIDTH}:h=14:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawbox=x=0:y={HEIGHT-10}:w={WIDTH}:h=10:color=0x{COLOR_ACCENT}@1:t=fill,"
-            f"drawbox=x=(iw-1600)/2:y=320:w=1600:h=260:color=0x000000@0.35:t=fill"
-        )
-
-    cmd = [FFMPEG, "-y"] + _solid_bg(duration) + [
-        "-vf", vf,
+    subprocess.run([
+        FFMPEG, "-y",
+        "-loop", "1", "-i", str(frame_path),
+        "-t", str(duration_per_number),
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-pix_fmt", "yuva420p", # For alpha channel
         output_path, "-loglevel", "quiet"
-    ]
-    subprocess.run(cmd, check=True)
+    ], check=True)
+    Path(frame_path).unlink(missing_ok=True) # Clean up frame
+
+
+def make_countdown_numbers_video(countdown_duration: float, output_path: str):
+    """Creates a video with numbers 3, 2, 1 appearing sequentially."""
+    duration_per_number = 1.0 # Each number shows for 1 second
+    if countdown_duration < 3:
+        print("Warning: Countdown duration is less than 3 seconds, adjusting.")
+        duration_per_number = countdown_duration / 3.0
+
+    segment_paths = []
+    for i in range(int(countdown_duration), 0, -1): # Count down from countdown_duration (e.g., 3) to 1
+        segment_video_path = TEMP_DIR / f"countdown_segment_{i}.mp4"
+        _make_single_countdown_number_video(i, duration_per_number, segment_video_path)
+        segment_paths.append(str(segment_video_path))
+
+    countdown_list_path = TEMP_DIR / "countdown_video_list.txt"
+    with open(countdown_list_path, "w") as f:
+        for seg in segment_paths:
+            f.write(f"file '{os.path.abspath(seg)}'\n")
+
+    subprocess.run([
+        FFMPEG, "-y",
+        "-f", "concat", "-safe", "0", "-i", countdown_list_path,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-pix_fmt", "yuva420p",
+        output_path, "-loglevel", "quiet"
+    ], check=True)
+
+    for seg in segment_paths:
+        Path(seg).unlink(missing_ok=True)
 
 
 # ─────────────────────────────────────────────
@@ -484,21 +482,26 @@ def assemble_family_video(script: dict, output_path: str) -> str:
     print(f"\n{'='*50}")
     print(f"Family Assembler: {script['title']}")
     print(f"{'='*50}")
-    print(f"  drawtext available: {HAS_DRAWTEXT}")
     print(f"  PEXELS_API_KEY set: {'yes' if PEXELS_API_KEY else 'NO — images will be skipped'}")
     print(f"  ffmpeg binary: {FFMPEG}")
+    print(f"  Pillow font path: {PILLOW_FONT_PATH}")
 
     video_segments = []
     audio_segments = []
 
     # Pre-generate sounds
     print("\nGenerating sound effects...")
-    countdown_audio = str(TEMP_DIR / "countdown.aac")
-    ding_audio      = str(TEMP_DIR / "ding.aac")
-    make_countdown_audio(countdown_audio)
-    make_ding(ding_audio)
-    countdown_dur = get_duration(countdown_audio)
-    ding_dur      = get_duration(ding_audio)
+    # Ensure these audio files exist in assets/
+    if not SUSPENSE_TICK_AUDIO.exists():
+        raise FileNotFoundError(f"Missing {SUSPENSE_TICK_AUDIO}. Please place it in assets/.")
+    if not FANFARE_AUDIO.exists():
+        raise FileNotFoundError(f"Missing {FANFARE_AUDIO}. Please place it in assets/.")
+    if not BUZZER_AUDIO.exists():
+        raise FileNotFoundError(f"Missing {BUZZER_AUDIO}. Please place it in assets/.")
+    
+    suspense_tick_dur = get_duration(SUSPENSE_TICK_AUDIO)
+    fanfare_dur       = get_duration(FANFARE_AUDIO)
+    buzzer_dur        = get_duration(BUZZER_AUDIO)
 
     # ── INTRO ──
     print("\nBuilding intro...")
@@ -506,9 +509,10 @@ def assemble_family_video(script: dict, output_path: str) -> str:
     synthesize(script["intro"], intro_audio, voice="af_sarah", speed=1.1)
     intro_dur = get_duration(intro_audio) + 0.5
 
-    intro_video = str(TEMP_DIR / "intro_card.mp4")
-    make_title_card("THIS OR THAT?", script.get("subtitle", "Animal Edition"),
-                    intro_dur, intro_video)
+    intro_card_png = str(TEMP_DIR / "intro_card.png")
+    make_title_card_png("THIS OR THAT?", script.get("title", "Food Edition"), intro_card_png)
+    intro_video = str(TEMP_DIR / "intro_card_video.mp4")
+    make_static_card_video(intro_card_png, intro_dur, intro_video)
     video_segments.append(intro_video)
     audio_segments.append(intro_audio)
 
@@ -525,59 +529,89 @@ def assemble_family_video(script: dict, output_path: str) -> str:
         synthesize(q_text, q_audio, voice="af_sarah", speed=1.05)
         q_dur = get_duration(q_audio)
 
-        # 2. Question card
-        total_q_dur = q_dur + countdown_dur + 0.5
-        q_video = str(TEMP_DIR / f"q{n}_card.mp4")
-        make_question_card(q["question"], q["option_a"], q["option_b"],
-                           n, total_q_dur, q_video)
+        # 2. Generate static question card PNG
+        q_card_png = str(TEMP_DIR / f"q{n}_card.png")
+        make_question_card_png(q["question"], q["option_a"], q["option_b"], n, q_card_png)
 
-        # Combine question audio + countdown
+        # 3. Convert static question card PNG to video
+        # The total duration for the question phase includes voiceover + 3s countdown + buffer
+        countdown_visual_duration = 3.0 # Hardcode 3 seconds for visual countdown
+        total_q_phase_duration = q_dur + countdown_visual_duration + 0.5
+        q_card_base_video = str(TEMP_DIR / f"q{n}_card_base_video.mp4")
+        make_static_card_video(q_card_png, total_q_phase_duration, q_card_base_video)
+
+        # 4. Create countdown numbers video (3, 2, 1)
+        countdown_numbers_video = str(TEMP_DIR / f"q{n}_countdown_numbers.mp4")
+        make_countdown_numbers_video(countdown_visual_duration, countdown_numbers_video)
+
+        # 5. Overlay countdown numbers onto the base question card video
+        q_video_with_countdown = str(TEMP_DIR / f"q{n}_card_with_countdown.mp4")
+        subprocess.run([FFMPEG, "-y", "-i", q_card_base_video, "-i", countdown_numbers_video,
+                        "-filter_complex", f"[0:v][1:v]overlay=(W-w)/2:(H-h)/2:enable='between(t,{q_dur}, {q_dur + countdown_visual_duration})'",
+                        "-c:v", "libx264", "-preset", "fast", "-crf", "23", q_video_with_countdown, "-loglevel", "quiet"], check=True)
+
+        # 6. Combine question audio + suspense tick audio (looped)
         q_combined = str(TEMP_DIR / f"q{n}_combined.aac")
-        concat_audio([q_audio, countdown_audio], q_combined, silence_between=0.2)
+        # Mix question audio with looped suspense_tick for the duration of the question phase
+        subprocess.run([FFMPEG, "-y", "-i", q_audio, "-stream_loop", "-1", "-i", str(SUSPENSE_TICK_AUDIO),
+                        "-filter_complex", f"[0:a]volume=1.0[narr];[1:a]volume=0.3[suspense];[narr][suspense]amix=inputs=2:dropout_transition=2[out]",
+                        "-map", "[out]", "-t", str(total_q_phase_duration), "-c:a", "aac", "-b:a", "192k",
+                        q_combined, "-loglevel", "quiet"], check=True)
 
-        video_segments.append(q_video)
+        video_segments.append(q_video_with_countdown)
         audio_segments.append(q_combined)
 
         # 3. Fetch animal image
         img_path  = str(TEMP_DIR / f"q{n}_image.jpg")
         has_image = fetch_animal_image(q["image_keyword"], img_path)
 
-        # 4. Answer voiceover
+        # 7. Answer voiceover
         a_text  = f"The answer is... {q['answer']}! {q['explanation']}"
         a_audio = str(TEMP_DIR / f"q{n}_answer.mp3")
         synthesize(a_text, a_audio, voice="af_sarah", speed=1.05)
         a_dur = get_duration(a_audio)
 
-        # 5. Answer card (image + text overlay or solid fallback)
-        total_a_dur = ding_dur + a_dur + 0.8
-        a_video = str(TEMP_DIR / f"q{n}_answer_card.mp4")
-        make_answer_card(
+        # 8. Answer card (Pillow-generated PNG)
+        answer_card_png = str(TEMP_DIR / f"q{n}_answer_card.png")
+        make_answer_card_png(
             answer=q["answer"],
             explanation=q["explanation"],
             image_path=img_path if has_image else None,
-            duration=total_a_dur,
-            output_path=a_video,
+            output_path=answer_card_png,
         )
+        # Convert answer card PNG to video
+        total_a_dur = fanfare_dur + a_dur + 0.8 # Duration includes fanfare + voiceover + buffer
+        a_video = str(TEMP_DIR / f"q{n}_answer_card_video.mp4")
+        make_static_card_video(answer_card_png, total_a_dur, a_video)
 
-        # Combine ding + answer audio
+        # 9. Combine fanfare + answer audio
         a_combined = str(TEMP_DIR / f"q{n}_answer_combined.aac")
-        concat_audio([ding_audio, a_audio], a_combined, silence_between=0.15)
+        concat_audio([str(FANFARE_AUDIO), a_audio], a_combined, silence_between=0)
 
         video_segments.append(a_video)
         audio_segments.append(a_combined)
 
-        # 6. Fun fact
+        # 10. Fun fact
         if n in fun_facts:
             print(f"  Adding fun fact after Q{n}...")
             ff_text  = f"Fun fact! {fun_facts[n]}"
             ff_audio = str(TEMP_DIR / f"ff_{n}.mp3")
             synthesize(ff_text, ff_audio, voice="af_sarah", speed=1.0)
-            ff_dur = get_duration(ff_audio) + 0.5
+            ff_dur = get_duration(ff_audio) + buzzer_dur + 0.5 # Duration includes buzzer + voiceover + buffer
 
-            ff_video = str(TEMP_DIR / f"ff_{n}_card.mp4")
-            make_funfact_card(fun_facts[n], ff_dur, ff_video)
+            # Pillow-generated fun fact card PNG
+            ff_card_png = str(TEMP_DIR / f"ff_{n}_card.png")
+            make_funfact_card_png(fun_facts[n], ff_card_png)
+            # Convert fun fact card PNG to video
+            ff_video = str(TEMP_DIR / f"ff_{n}_card_video.mp4")
+            make_static_card_video(ff_card_png, ff_dur, ff_video)
+
+            # Combine buzzer + fun fact audio
+            ff_combined_audio = str(TEMP_DIR / f"ff_{n}_combined.aac")
+            concat_audio([str(BUZZER_AUDIO), ff_audio], ff_combined_audio, silence_between=0)
+
             video_segments.append(ff_video)
-            audio_segments.append(ff_audio)
+            audio_segments.append(ff_combined_audio)
 
     # ── OUTRO ──
     print("\nBuilding outro...")
@@ -585,9 +619,10 @@ def assemble_family_video(script: dict, output_path: str) -> str:
     synthesize(script["outro"], outro_audio, voice="af_sarah", speed=1.05)
     outro_dur = get_duration(outro_audio) + 0.5
 
-    outro_video = str(TEMP_DIR / "outro_card.mp4")
-    make_title_card("Thanks for watching!", "Like & Subscribe for more!",
-                    outro_dur, outro_video)
+    outro_card_png = str(TEMP_DIR / "outro_card.png")
+    make_title_card_png("THANKS FOR PLAYING!", "Like & Subscribe for more!", outro_card_png)
+    outro_video = str(TEMP_DIR / "outro_card_video.mp4")
+    make_static_card_video(outro_card_png, outro_dur, outro_video)
     video_segments.append(outro_video)
     audio_segments.append(outro_audio)
 

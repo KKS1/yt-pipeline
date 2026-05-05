@@ -1,0 +1,177 @@
+{
+  "title": "Would You Rather? Junk Food vs Healthy Veggie Foods!",
+  "description": "Would you rather choose tasty junk food or super healthy vegetarian eats? 🍕🥦 Test your choices with 15 fun questions that start easy and get seriously tricky!\n\nPerfect for kids, families, and game night fun. Play along, pause when needed, and keep score!\n\nAll choices are vegetarian-friendly!\n\nDrop your score in the comments!\n\n👍 Like | 🔔 Subscribe | 💬 Comment your answers below!\n\n#WouldYouRather #FoodChallenge #Vegetarian #FamilyFriendly #KidsQuiz",
+  "tags": [
+    "Would You Rather",
+    "Vegetarian Food",
+    "Healthy vs Junk Food",
+    "Kids Quiz",
+    "Family Friendly",
+    "Game Night",
+    "Fun Questions",
+    "Food Trivia",
+    "This or That",
+    "Veggie Foods"
+  ],
+  "intro": "Hey hey hey everyone! Welcome back to the ultimate Would You Rather challenge — Vegetarian Food Edition! Today it is junk food versus healthy veggie foods! I am going to give you two choices and you have to pick one. Some are easy… but it gets tricky FAST! Grab a snack, grab a friend, and keep score. Are you ready? Let’s go!",
+  "questions": [
+    {
+      "number": 1,
+      "question": "Would you rather eat?",
+      "option_a": "French Fries",
+      "option_b": "Carrot Sticks",
+      "answer": "French Fries",
+      "explanation": "Crispy, salty fries are a classic favorite everywhere!",
+      "image_keyword": "french fries crispy"
+    },
+    {
+      "number": 2,
+      "question": "Would you rather drink?",
+      "option_a": "Soda",
+      "option_b": "Fresh Orange Juice",
+      "answer": "Fresh Orange Juice",
+      "explanation": "Fresh orange juice is packed with vitamin C and natural sweetness!",
+      "image_keyword": "orange juice fresh"
+    },
+    {
+      "number": 3,
+      "question": "Would you rather snack on?",
+      "option_a": "Chocolate Bar",
+      "option_b": "Apple Slices",
+      "answer": "Chocolate Bar",
+      "explanation": "Chocolate is a sweet treat that many people love!",
+      "image_keyword": "chocolate bar"
+    },
+    {
+      "number": 4,
+      "question": "Would you rather eat?",
+      "option_a": "Cheese Pizza",
+      "option_b": "Garden Salad",
+      "answer": "Cheese Pizza",
+      "explanation": "Cheesy pizza is hard to resist with all that melty goodness!",
+      "image_keyword": "cheese pizza slice"
+    },
+    {
+      "number": 5,
+      "question": "Would you rather choose?",
+      "option_a": "Ice Cream",
+      "option_b": "Yogurt with Fruit",
+      "answer": "Ice Cream",
+      "explanation": "Ice cream is creamy, sweet, and perfect for a fun dessert!",
+      "image_keyword": "ice cream scoop"
+    },
+    {
+      "number": 6,
+      "question": "Would you rather eat?",
+      "option_a": "Veggie Burger",
+      "option_b": "Grilled Veggie Wrap",
+      "answer": "Grilled Veggie Wrap",
+      "explanation": "A grilled veggie wrap can be tasty and packed with nutrients!",
+      "image_keyword": "veggie wrap"
+    },
+    {
+      "number": 7,
+      "question": "Would you rather snack on?",
+      "option_a": "Potato Chips",
+      "option_b": "Trail Mix",
+      "answer": "Potato Chips",
+      "explanation": "Chips are crunchy and salty — super snackable!",
+      "image_keyword": "potato chips"
+    },
+    {
+      "number": 8,
+      "question": "Would you rather drink?",
+      "option_a": "Milkshake",
+      "option_b": "Fruit Smoothie",
+      "answer": "Fruit Smoothie",
+      "explanation": "Smoothies taste great and are full of fruit goodness!",
+      "image_keyword": "fruit smoothie"
+    },
+    {
+      "number": 9,
+      "question": "Would you rather eat?",
+      "option_a": "Donut",
+      "option_b": "Banana",
+      "answer": "Donut",
+      "explanation": "Donuts are fluffy, sweet, and come in lots of fun flavors!",
+      "image_keyword": "donut glazed"
+    },
+    {
+      "number": 10,
+      "question": "Would you rather choose?",
+      "option_a": "Candy",
+      "option_b": "Dried Fruit",
+      "answer": "Candy",
+      "explanation": "Candy is colorful and gives that instant sweet boost!",
+      "image_keyword": "colorful candy"
+    },
+    {
+      "number": 11,
+      "question": "Would you rather eat?",
+      "option_a": "Cheesy Nachos",
+      "option_b": "Steamed Broccoli",
+      "answer": "Cheesy Nachos",
+      "explanation": "Cheesy nachos are warm, crunchy, and packed with flavor!",
+      "image_keyword": "cheesy nachos"
+    },
+    {
+      "number": 12,
+      "question": "Would you rather have?",
+      "option_a": "Cupcakes",
+      "option_b": "Whole Grain Muffins",
+      "answer": "Cupcakes",
+      "explanation": "Cupcakes are like mini cakes with frosting on top!",
+      "image_keyword": "cupcakes frosting"
+    },
+    {
+      "number": 13,
+      "question": "Would you rather eat every day?",
+      "option_a": "Fast Food Veggie Meals",
+      "option_b": "Home Cooked Healthy Veggie Meals",
+      "answer": "Home Cooked Healthy Veggie Meals",
+      "explanation": "Home-cooked meals can be delicious and better for your body!",
+      "image_keyword": "vegetarian home cooked meal"
+    },
+    {
+      "number": 14,
+      "question": "Would you rather give up forever?",
+      "option_a": "All Junk Food",
+      "option_b": "All Healthy Food",
+      "answer": "All Junk Food",
+      "explanation": "Healthy foods help your body stay strong and energized!",
+      "image_keyword": "healthy vs junk food"
+    },
+    {
+      "number": 15,
+      "question": "Final question! Would you rather live on?",
+      "option_a": "Only Junk Food Forever",
+      "option_b": "Only Healthy Veggie Food Forever",
+      "answer": "Only Healthy Veggie Food Forever",
+      "explanation": "Healthy veggie foods give your body what it needs to grow and thrive!",
+      "image_keyword": "healthy vegetarian food"
+    }
+  ],
+  "fun_facts": [
+    {
+      "after_question": 3,
+      "text": "Did you know? Apples float in water because they are 25% air!"
+    },
+    {
+      "after_question": 6,
+      "text": "Fun fact! Carrots were originally purple before farmers grew the orange ones we see today!"
+    },
+    {
+      "after_question": 9,
+      "text": "Did you know? Dark chocolate contains antioxidants that can be good for your heart!"
+    },
+    {
+      "after_question": 12,
+      "text": "Fun fact! Broccoli has more vitamin C per gram than oranges!"
+    },
+    {
+      "after_question": 15,
+      "text": "Did you know? Bananas are technically berries, but strawberries are not!"
+    }
+  ],
+  "outro": "And that is a wrap on Would You Rather — Vegetarian Food Edition! How did you do? Did you go for tasty treats or healthy eats? Drop your score in the comments — be honest! Smash that like button, hit subscribe, and I will see you in the next challenge. Bye!"
+}
