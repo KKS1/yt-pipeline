@@ -1,5 +1,7 @@
 {
   "title": "Would You Rather? Junk Food vs Healthy Veggie Foods!",
+  "format_label": "WOULD YOU RATHER?",
+  "subtitle": "Junk Food vs Healthy Veggies!",
   "description": "Would you rather choose tasty junk food or super healthy vegetarian eats? 🍕🥦 Test your choices with 15 fun questions that start easy and get seriously tricky!\n\nPerfect for kids, families, and game night fun. Play along, pause when needed, and keep score!\n\nAll choices are vegetarian-friendly!\n\nDrop your score in the comments!\n\n👍 Like | 🔔 Subscribe | 💬 Comment your answers below!\n\n#WouldYouRather #FoodChallenge #Vegetarian #FamilyFriendly #KidsQuiz",
   "tags": [
     "Would You Rather",
@@ -13,7 +15,7 @@
     "This or That",
     "Veggie Foods"
   ],
-  "intro": "Hey hey hey everyone! Welcome back to the ultimate Would You Rather challenge — Vegetarian Food Edition! Today it is junk food versus healthy veggie foods! I am going to give you two choices and you have to pick one. Some are easy… but it gets tricky FAST! Grab a snack, grab a friend, and keep score. Are you ready? Let’s go!",
+  "intro": "Hey hey hey everyone! Welcome back to the ultimate Would You Rather challenge — Vegetarian Food Edition! Today it is junk food versus healthy veggie foods! I am going to give you two choices and you have to pick one. Some are easy… but it gets tricky FAST! Grab a snack, grab a friend, and keep score. Are you ready? Let's go!",
   "questions": [
     {
       "number": 1,
@@ -21,7 +23,7 @@
       "option_a": "French Fries",
       "option_b": "Carrot Sticks",
       "answer": "French Fries",
-      "explanation": "Crispy, salty fries are a classic favorite everywhere!",
+      "explanation": "Crispy, salty fries are a classic favorite everywhere! Though carrots are way better for you!",
       "image_keyword": "french fries crispy"
     },
     {
@@ -30,8 +32,8 @@
       "option_a": "Soda",
       "option_b": "Fresh Orange Juice",
       "answer": "Fresh Orange Juice",
-      "explanation": "Fresh orange juice is packed with vitamin C and natural sweetness!",
-      "image_keyword": "orange juice fresh"
+      "explanation": "Fresh orange juice is packed with vitamin C and natural sweetness — no sugar crash!",
+      "image_keyword": "fresh orange juice"
     },
     {
       "number": 3,
@@ -39,7 +41,7 @@
       "option_a": "Chocolate Bar",
       "option_b": "Apple Slices",
       "answer": "Chocolate Bar",
-      "explanation": "Chocolate is a sweet treat that many people love!",
+      "explanation": "Chocolate is a sweet treat loved around the world — but apples keep the doctor away!",
       "image_keyword": "chocolate bar"
     },
     {
@@ -48,7 +50,7 @@
       "option_a": "Cheese Pizza",
       "option_b": "Garden Salad",
       "answer": "Cheese Pizza",
-      "explanation": "Cheesy pizza is hard to resist with all that melty goodness!",
+      "explanation": "Cheesy pizza is hard to resist with all that melty bubbly goodness!",
       "image_keyword": "cheese pizza slice"
     },
     {
@@ -57,8 +59,8 @@
       "option_a": "Ice Cream",
       "option_b": "Yogurt with Fruit",
       "answer": "Ice Cream",
-      "explanation": "Ice cream is creamy, sweet, and perfect for a fun dessert!",
-      "image_keyword": "ice cream scoop"
+      "explanation": "Ice cream is creamy, sweet, and comes in hundreds of amazing flavors!",
+      "image_keyword": "ice cream scoop colorful"
     },
     {
       "number": 6,
@@ -66,8 +68,8 @@
       "option_a": "Veggie Burger",
       "option_b": "Grilled Veggie Wrap",
       "answer": "Grilled Veggie Wrap",
-      "explanation": "A grilled veggie wrap can be tasty and packed with nutrients!",
-      "image_keyword": "veggie wrap"
+      "explanation": "A grilled veggie wrap is loaded with flavor, color, and nutrients — total winner!",
+      "image_keyword": "grilled veggie wrap"
     },
     {
       "number": 7,
@@ -75,8 +77,8 @@
       "option_a": "Potato Chips",
       "option_b": "Trail Mix",
       "answer": "Potato Chips",
-      "explanation": "Chips are crunchy and salty — super snackable!",
-      "image_keyword": "potato chips"
+      "explanation": "Chips are crunchy and salty — once you start it is impossible to stop!",
+      "image_keyword": "potato chips bag"
     },
     {
       "number": 8,
@@ -84,8 +86,8 @@
       "option_a": "Milkshake",
       "option_b": "Fruit Smoothie",
       "answer": "Fruit Smoothie",
-      "explanation": "Smoothies taste great and are full of fruit goodness!",
-      "image_keyword": "fruit smoothie"
+      "explanation": "Smoothies taste amazing and give your body a burst of vitamins and energy!",
+      "image_keyword": "colorful fruit smoothie"
     },
     {
       "number": 9,
@@ -93,8 +95,8 @@
       "option_a": "Donut",
       "option_b": "Banana",
       "answer": "Donut",
-      "explanation": "Donuts are fluffy, sweet, and come in lots of fun flavors!",
-      "image_keyword": "donut glazed"
+      "explanation": "Donuts are fluffy, glazed, and come in wild flavors — a true treat!",
+      "image_keyword": "glazed donut colorful"
     },
     {
       "number": 10,
@@ -102,8 +104,8 @@
       "option_a": "Candy",
       "option_b": "Dried Fruit",
       "answer": "Candy",
-      "explanation": "Candy is colorful and gives that instant sweet boost!",
-      "image_keyword": "colorful candy"
+      "explanation": "Candy is colorful and gives that instant sweet boost that everyone loves!",
+      "image_keyword": "colorful candy sweets"
     },
     {
       "number": 11,
@@ -111,7 +113,7 @@
       "option_a": "Cheesy Nachos",
       "option_b": "Steamed Broccoli",
       "answer": "Cheesy Nachos",
-      "explanation": "Cheesy nachos are warm, crunchy, and packed with flavor!",
+      "explanation": "Cheesy nachos are warm, crunchy, and packed with melty flavor — no contest!",
       "image_keyword": "cheesy nachos"
     },
     {
@@ -120,17 +122,17 @@
       "option_a": "Cupcakes",
       "option_b": "Whole Grain Muffins",
       "answer": "Cupcakes",
-      "explanation": "Cupcakes are like mini cakes with frosting on top!",
-      "image_keyword": "cupcakes frosting"
+      "explanation": "Cupcakes are like mini cakes with colorful frosting piled on top — yes please!",
+      "image_keyword": "colorful cupcakes frosting"
     },
     {
       "number": 13,
       "question": "Would you rather eat every day?",
       "option_a": "Fast Food Veggie Meals",
-      "option_b": "Home Cooked Healthy Veggie Meals",
-      "answer": "Home Cooked Healthy Veggie Meals",
-      "explanation": "Home-cooked meals can be delicious and better for your body!",
-      "image_keyword": "vegetarian home cooked meal"
+      "option_b": "Home Cooked Veggie Meals",
+      "answer": "Home Cooked Veggie Meals",
+      "explanation": "Home cooked meals are fresher, tastier, and so much better for your body long term!",
+      "image_keyword": "home cooked vegetarian meal"
     },
     {
       "number": 14,
@@ -138,40 +140,40 @@
       "option_a": "All Junk Food",
       "option_b": "All Healthy Food",
       "answer": "All Junk Food",
-      "explanation": "Healthy foods help your body stay strong and energized!",
-      "image_keyword": "healthy vs junk food"
+      "explanation": "Healthy foods keep your body strong and energized — junk food is fun but you can live without it!",
+      "image_keyword": "healthy food vs junk food"
     },
     {
       "number": 15,
-      "question": "Final question! Would you rather live on?",
-      "option_a": "Only Junk Food Forever",
-      "option_b": "Only Healthy Veggie Food Forever",
-      "answer": "Only Healthy Veggie Food Forever",
-      "explanation": "Healthy veggie foods give your body what it needs to grow and thrive!",
-      "image_keyword": "healthy vegetarian food"
+      "question": "Would you rather live on only?",
+      "option_a": "Junk Food Forever",
+      "option_b": "Healthy Veggie Food Forever",
+      "answer": "Healthy Veggie Food Forever",
+      "explanation": "Healthy veggie foods give your body everything it needs to grow, thrive, and feel amazing!",
+      "image_keyword": "colorful healthy vegetables"
     }
   ],
   "fun_facts": [
     {
       "after_question": 3,
-      "text": "Did you know? Apples float in water because they are 25% air!"
+      "text": "Apples float in water because they are 25 percent air! That is why bobbing for apples actually works."
     },
     {
       "after_question": 6,
-      "text": "Fun fact! Carrots were originally purple before farmers grew the orange ones we see today!"
+      "text": "Carrots were originally purple! Farmers in the 17th century bred the orange ones we see everywhere today."
     },
     {
       "after_question": 9,
-      "text": "Did you know? Dark chocolate contains antioxidants that can be good for your heart!"
+      "text": "Dark chocolate contains antioxidants that can actually be good for your heart when eaten in small amounts!"
     },
     {
       "after_question": 12,
-      "text": "Fun fact! Broccoli has more vitamin C per gram than oranges!"
+      "text": "Broccoli has more vitamin C per gram than oranges do! So broccoli is basically a superhero vegetable."
     },
     {
       "after_question": 15,
-      "text": "Did you know? Bananas are technically berries, but strawberries are not!"
+      "text": "Bananas are technically berries according to botanists, but strawberries are not! Science is wild."
     }
   ],
-  "outro": "And that is a wrap on Would You Rather — Vegetarian Food Edition! How did you do? Did you go for tasty treats or healthy eats? Drop your score in the comments — be honest! Smash that like button, hit subscribe, and I will see you in the next challenge. Bye!"
+  "outro": "And that is a wrap on Would You Rather — Vegetarian Food Edition! Did you go for tasty treats or healthy eats? Drop your score in the comments and be honest — no cheating! Smash that like button, hit subscribe, and I will see you in the next challenge. Bye!"
 }

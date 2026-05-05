@@ -661,9 +661,10 @@ def build_intro(script: dict, synthesize) -> tuple:
     return video, audio
 
 
-def build_question(q: dict, total: int, synthesize) -> tuple:
+def build_question(q: dict, total: int, synthesize,
+                   format_label: str = "THIS OR THAT?") -> tuple:
     n    = q["number"]
-    fmt  = q.get("format_label", "THIS OR THAT")
+    fmt  = format_label
     text = (f"Question {n}. {q['question']} "
             f"Is it... {q['option_a']}... or {q['option_b']}?")
 
@@ -778,7 +779,8 @@ def assemble_family_video(script: dict, output_path: str) -> str:
     for q in script["questions"]:
         n = q["number"]
         print(f"\nQuestion {n}/{total_q}: {q['question'][:55]}...")
-        qv, qa = build_question(q, total_q, synthesize)
+        qv, qa = build_question(q, total_q, synthesize,
+                                format_label=script.get("format_label", "THIS OR THAT?"))
         video_segs.append(qv); audio_segs.append(qa)
         av, aa = build_answer(q, synthesize)
         video_segs.append(av); audio_segs.append(aa)
