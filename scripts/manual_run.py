@@ -22,6 +22,8 @@ import argparse
 import subprocess
 from pathlib import Path
 from datetime import datetime
+import cProfile
+import pstats
 
 # Add parent dirs to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -302,5 +304,19 @@ def main():
         run_trending()
 
 
+def profile_script():
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    try:
+        main()
+    finally:
+        profiler.disable()
+        with open("profile_results.txt", "w") as f:
+            stats = pstats.Stats(profiler, stream=f)
+            stats.strip_dirs()
+            stats.sort_stats("cumulative")
+            stats.print_stats()
+
 if __name__ == "__main__":
-    main()
+    profile_script()
