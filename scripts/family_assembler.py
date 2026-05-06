@@ -553,11 +553,11 @@ def make_outro_card() -> Image.Image:
 
 def img_to_video(img: Image.Image, duration: float, output_path: str,
                  kenburns: bool = False):
-    png = output_path.replace(".mp4","_src.png")
+    png = output_path.replace(".ts","_src.png")
     img.save(png)
 
     if kenburns:
-        nf = max(int(duration*FPS),2)
+        nf = max(round(duration*FPS),2)
         vf = (f"scale={W*2}:{H*2}:force_original_aspect_ratio=increase,"
               f"crop={W*2}:{H*2},"
               f"zoompan=z='min(zoom+0.0015,1.12)':"
@@ -628,6 +628,11 @@ def get_duration(path: str) -> float:
     return float(json.loads(r.stdout).get("format",{}).get("duration",0))
 
 
+def frame_dur(dur: float) -> float:
+    """Round duration up to the nearest video frame boundary to ensure A/V sync."""
+    return math.ceil(dur * FPS) / FPS
+
+
 def silence(dur: float, out: str):
     subprocess.run([FFMPEG,"-y","-f","lavfi",
                     "-i","anullsrc=r=48000:cl=stereo",
@@ -689,9 +694,9 @@ def build_intro(script: dict, synth) -> tuple[str, str]:
     sub   = script.get("subtitle", script["title"])
     voice = str(TEMP_DIR/"intro_voice.m4a")
     synth(script["intro"], voice, voice="af_sarah", speed=1.1)
-    dur   = get_duration(voice)+0.5
+    dur   = frame_dur(get_duration(voice)+0.5)
 
-    video = str(TEMP_DIR/"intro_silent.mp4")
+    video = str(TEMP_DIR/"intro_silent.ts")
     img_to_video(make_intro_card(fmt, sub), dur, video)
     
     audio = str(TEMP_DIR/"intro_audio.wav")
@@ -714,9 +719,9 @@ def build_question(q: dict, total: int, synth,
 
     voice = str(TEMP_DIR/f"q{n}_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.05)
-    v_dur = get_duration(voice) + 0.3
+    v_dur = frame_dur(get_duration(voice) + 0.3)
 
-    q_vid = str(TEMP_DIR/f"q{n}_card_silent.mp4")
+    q_vid = str(TEMP_DIR/f"q{n}_card_silent.ts")
     img_to_video(
         make_question_card(q["question"],q["option_a"],q["option_b"],
                            n, total, img_a, img_b, format_label),
@@ -725,7 +730,7 @@ def build_question(q: dict, total: int, synth,
     q_aud = str(TEMP_DIR/f"q{n}_card_audio.wav")
     build_audio_track(voice, v_dur, q_aud)
 
-    cd_vid = str(TEMP_DIR/f"q{n}_cd.mp4")
+    cd_vid = str(TEMP_DIR/f"q{n}_cd.ts")
     cd_aud = str(TEMP_DIR/f"q{n}_cd.wav")
     animated_countdown(cd_vid, cd_aud)
 
@@ -745,10 +750,10 @@ def build_answer(q: dict, synth) -> tuple[str, str]:
 
     voice = str(TEMP_DIR/f"q{n}_ans_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.0)
-    v_dur = get_duration(voice) + 1.0
+    v_dur = frame_dur(get_duration(voice) + 1.0)
 
     card  = make_answer_card(answer, q["explanation"], winner_img, is_both)
-    c_vid = str(TEMP_DIR/f"q{n}_ans_silent.mp4")
+    c_vid = str(TEMP_DIR/f"q{n}_ans_silent.ts")
     img_to_video(card, v_dur, c_vid, kenburns=bool(winner_img))
     
     c_aud = str(TEMP_DIR/f"q{n}_ans_audio.wav")
@@ -761,7 +766,7 @@ def build_funfact(text: str, n: int, synth) -> tuple[str, str]:
     print(f"  Fun fact after Q{n}...")
     voice = str(TEMP_DIR/f"ff{n}_voice.m4a")
     synth(f"Fun fact! {text}", voice, voice="af_sarah", speed=0.95)
-    dur   = get_duration(voice)+0.5
+    dur   = frame_dur(get_duration(voice)+0.5)
 
     # Try to fetch a relevant image for fun fact background
     import re
@@ -769,7 +774,7 @@ def build_funfact(text: str, n: int, synth) -> tuple[str, str]:
     keyword = next((w for w in words if len(w) > 4), "nature")
     bg_img  = fetch_image(keyword, str(TEMP_DIR/f"ff{n}_bg.jpg"))
 
-    video = str(TEMP_DIR/f"ff{n}_silent.mp4")
+    video = str(TEMP_DIR/f"ff{n}_silent.ts")
     img_to_video(make_funfact_card(text, n, bg_img), dur, video, kenburns=True)
 
     audio = str(TEMP_DIR/f"ff{n}_audio.wav")
@@ -782,9 +787,9 @@ def build_outro(script: dict, synth) -> tuple[str, str]:
     print("\nBuilding outro...")
     voice = str(TEMP_DIR/"outro_voice.m4a")
     synth(script["outro"], voice, voice="af_sarah", speed=1.05)
-    dur   = get_duration(voice)+0.5
+    dur   = frame_dur(get_duration(voice)+0.5)
 
-    video = str(TEMP_DIR/"outro_silent.mp4")
+    video = str(TEMP_DIR/"outro_silent.ts")
     img_to_video(make_outro_card(), dur, video)
 
     audio = str(TEMP_DIR/"outro_audio.wav")
@@ -837,7 +842,7 @@ def assemble_family_video(script: dict, output_path: str) -> str:
             fv.write(f"file '{os.path.abspath(vid)}'\n")
             fa.write(f"file '{os.path.abspath(aud)}'\n")
 
-    master_v = str(TEMP_DIR/"master.mp4")
+    master_v = str(TEMP_DIR/"master.ts")
     master_a = str(TEMP_DIR/"master.wav")
 
     print("  Concatenating video track...")
