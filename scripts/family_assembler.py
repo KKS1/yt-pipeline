@@ -84,12 +84,12 @@ def _cache_path(keyword: str) -> str:
     
 # ── Audio Normalization ────────────────────────────────────────────────────
 
-def normalize_audio(input_path: str, output_path: str):
+def normalize_audio_to_wav(input_path: str, output_path: str):
     subprocess.run([
         FFMPEG, "-y", "-i", input_path,
         "-ar", "48000",
         "-ac", "2",
-        "-c:a", "aac", "-b:a", "192k",
+        "-c:a", "pcm_s16le",
         output_path,
         "-loglevel", "error"
     ], check=True)
@@ -576,6 +576,7 @@ def img_to_video(img: Image.Image, duration: float, output_path: str,
         "-vsync","cfr",
         "-c:v","libx264","-preset","fast","-crf","23",
         "-pix_fmt","yuv420p",
+        "-an",
         output_path,
         "-loglevel","error"
     ]
@@ -584,12 +585,12 @@ def img_to_video(img: Image.Image, duration: float, output_path: str,
         subprocess.run([FFMPEG,"-y","-loop","1","-i",png,
                         "-t",str(duration),"-vf",f"scale={W}:{H}",
                         "-c:v","libx264","-preset","fast","-crf","23",
-                        "-pix_fmt","yuv420p",output_path,"-loglevel","error"],
+                        "-pix_fmt","yuv420p","-an",output_path,"-loglevel","error"],
                        check=True)
     Path(png).unlink(missing_ok=True)
 
 
-def animated_countdown(output_path: str) -> float:
+def animated_countdown(vid_out: str, aud_out: str) -> float:
     frames_dir = TEMP_DIR / "cd_frames"
     frames_dir.mkdir(exist_ok=True)
 
@@ -602,31 +603,14 @@ def animated_countdown(output_path: str) -> float:
                 str(frames_dir/f"f{idx:04d}.png"))
             idx += 1
 
-    silent = str(TEMP_DIR/"cd_silent.mp4")
     subprocess.run([FFMPEG,"-y","-framerate",str(FPS),
                     "-i",str(frames_dir/"f%04d.png"),
                     "-c:v","libx264","-preset","fast","-crf","23",
-                    "-pix_fmt","yuv420p",silent,"-loglevel","error"],
+                    "-pix_fmt","yuv420p","-an",vid_out,"-loglevel","error"],
                    check=True)
 
     duration = 3.0
-    norm_tick = str(TEMP_DIR/"tick_norm.m4a")
-    if Path(SFX_TICK).exists():
-        normalize_audio(SFX_TICK, norm_tick)
-        subprocess.run([
-            FFMPEG,"-y",
-            "-i", silent,
-            "-stream_loop","-1","-i", norm_tick,
-            "-filter_complex","[1:a]aresample=48000[a]",
-            "-map","0:v","-map","[a]",
-            "-t",str(duration),
-            "-c:v","copy",
-            "-c:a","aac","-b:a","192k",
-            output_path,
-            "-loglevel","error"
-        ],check=True)
-    else:
-        import shutil; shutil.copy(silent, output_path)
+    build_audio_track(None, duration, aud_out, sfx=SFX_TICK, sfx_vol=1.0)
 
     import shutil; shutil.rmtree(frames_dir)
     return duration
@@ -646,67 +630,78 @@ def get_duration(path: str) -> float:
 
 def silence(dur: float, out: str):
     subprocess.run([FFMPEG,"-y","-f","lavfi",
-                    "-i","anullsrc=r=44100:cl=stereo",
-                    "-t",str(dur),out,"-loglevel","error"],check=True)
+                    "-i","anullsrc=r=48000:cl=stereo",
+                    "-t",str(dur),"-c:a","pcm_s16le",out,"-loglevel","error"],check=True)
 
 
-def mux_segment(video: str, audio: str, output: str):
-    subprocess.run([FFMPEG,"-y","-i",video,"-i",audio,
-                    "-map","0:v","-map","1:a",
-                    "-c:v","copy","-c:a","aac","-b:a","192k",
-                    "-shortest",output,"-loglevel","error"],check=True)
+def build_audio_track(voice: str, duration: float, output_wav: str,
+                      sfx: str = None, sfx_vol: float = 0.35):
+    """Mix voice and optional SFX over a perfectly sized silent pad."""
+    pad = str(TEMP_DIR/"pad.wav")
+    silence(duration, pad)
 
+    inputs = ["-i", pad]
+    filter_complex = ""
+    
+    if voice and Path(voice).exists():
+        v_norm = str(TEMP_DIR/"v_norm.wav")
+        normalize_audio_to_wav(voice, v_norm)
+        inputs.extend(["-i", v_norm])
+        filter_complex += "[1:a]volume=1.0[v]; "
+        mix_inputs = "[0:a][v]"
+        mix_count = 2
+    else:
+        mix_inputs = "[0:a]"
+        mix_count = 1
 
-def mix_sfx(voice: str, sfx: str, output: str,
-            sfx_vol: float = 0.35, voice_vol: float = 1.0):
+    if sfx and Path(sfx).exists():
+        s_norm = str(TEMP_DIR/"s_norm.wav")
+        normalize_audio_to_wav(sfx, s_norm)
+        inputs.extend(["-i", s_norm])
+        idx = len(inputs)//2 - 1
+        filter_complex += f"[{idx}:a]volume={sfx_vol}[s]; "
+        mix_inputs += "[s]"
+        mix_count += 1
+        
+    if mix_count > 1:
+        filter_complex += f"{mix_inputs}amix=inputs={mix_count}:duration=first:dropout_transition=1[out]"
+        map_args = ["-map", "[out]"]
+    else:
+        filter_complex = None
+        map_args = ["-map", "0:a"]
 
-    if not Path(sfx).exists():
-        normalize_audio(voice, output)
-        return
-
-    v_norm = str(TEMP_DIR/"v_norm.m4a")
-    s_norm = str(TEMP_DIR/"s_norm.m4a")
-
-    normalize_audio(voice, v_norm)
-    normalize_audio(sfx, s_norm)
-
-    subprocess.run([
-        FFMPEG,"-y",
-        "-i", v_norm,
-        "-i", s_norm,
-        "-filter_complex",
-        f"[0:a]volume={voice_vol}[v];"
-        f"[1:a]volume={sfx_vol}[s];"
-        f"[v][s]amix=inputs=2:duration=first:dropout_transition=1,"
-        f"aresample=48000[out]",
-        "-map","[out]",
-        "-c:a","aac","-b:a","192k",
-        output,
-        "-loglevel","error"
-    ],check=True)
+    cmd = [FFMPEG, "-y"] + inputs
+    if filter_complex:
+        cmd.extend(["-filter_complex", filter_complex])
+    cmd.extend(map_args)
+    cmd.extend(["-c:a", "pcm_s16le", output_wav, "-loglevel", "error"])
+    
+    subprocess.run(cmd, check=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SEGMENT BUILDERS — each returns a single muxed MP4
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_intro(script: dict, synth) -> str:
+def build_intro(script: dict, synth) -> tuple[str, str]:
     print("\nBuilding intro...")
     fmt   = script.get("format_label","THIS OR THAT?")
     sub   = script.get("subtitle", script["title"])
-    audio = str(TEMP_DIR/"intro_voice.m4a")
-    synth(script["intro"], audio, voice="af_sarah", speed=1.1)
-    dur   = get_duration(audio)+0.5
+    voice = str(TEMP_DIR/"intro_voice.m4a")
+    synth(script["intro"], voice, voice="af_sarah", speed=1.1)
+    dur   = get_duration(voice)+0.5
 
     video = str(TEMP_DIR/"intro_silent.mp4")
     img_to_video(make_intro_card(fmt, sub), dur, video)
-    out   = str(TEMP_DIR/"intro_seg.mp4")
-    mux_segment(video, audio, out)
-    return out
+    
+    audio = str(TEMP_DIR/"intro_audio.wav")
+    build_audio_track(voice, dur, audio)
+    
+    return video, audio
 
 
 def build_question(q: dict, total: int, synth,
-                   format_label: str = "THIS OR THAT?") -> str:
+                   format_label: str = "THIS OR THAT?") -> list[tuple[str, str]]:
     n    = q["number"]
     text = (f"Question {n}. {q['question']} "
             f"Is it... {q['option_a']}... or {q['option_b']}?")
@@ -719,40 +714,25 @@ def build_question(q: dict, total: int, synth,
 
     voice = str(TEMP_DIR/f"q{n}_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.05)
-    v_dur = get_duration(voice)
+    v_dur = get_duration(voice) + 0.3
 
     q_vid = str(TEMP_DIR/f"q{n}_card_silent.mp4")
     img_to_video(
         make_question_card(q["question"],q["option_a"],q["option_b"],
                            n, total, img_a, img_b, format_label),
-        v_dur+0.3, q_vid, kenburns=True)
-
-    q_muxed = str(TEMP_DIR/f"q{n}_card_muxed.mp4")
-    mux_segment(q_vid, voice, q_muxed)
+        v_dur, q_vid, kenburns=True)
+        
+    q_aud = str(TEMP_DIR/f"q{n}_card_audio.wav")
+    build_audio_track(voice, v_dur, q_aud)
 
     cd_vid = str(TEMP_DIR/f"q{n}_cd.mp4")
-    animated_countdown(cd_vid)
+    cd_aud = str(TEMP_DIR/f"q{n}_cd.wav")
+    animated_countdown(cd_vid, cd_aud)
 
-    list_p = str(TEMP_DIR/f"q{n}_list.txt")
-    with open(list_p,"w") as f:
-        f.write(f"file '{os.path.abspath(q_muxed)}'\n")
-        f.write(f"file '{os.path.abspath(cd_vid)}'\n")
-
-    out = str(TEMP_DIR/f"q{n}_qseg.mp4")
-    subprocess.run([
-        FFMPEG,"-y",
-        "-f","concat","-safe","0","-i",list_p,
-        "-vf", f"fps={FPS}",
-        "-vsync","cfr",
-        "-c:v","libx264","-preset","fast","-crf","23",
-        "-c:a","aac",
-        out,
-        "-loglevel","error"
-    ],check=True)
-    return out
+    return [(q_vid, q_aud), (cd_vid, cd_aud)]
 
 
-def build_answer(q: dict, synth) -> str:
+def build_answer(q: dict, synth) -> tuple[str, str]:
     n       = q["number"]
     answer  = q["answer"]
     is_both = answer.strip().lower() in ("both","neither")
@@ -765,25 +745,23 @@ def build_answer(q: dict, synth) -> str:
 
     voice = str(TEMP_DIR/f"q{n}_ans_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.0)
-    v_dur = get_duration(voice)
-
-    audio = str(TEMP_DIR/f"q{n}_ans_audio.aac")
-    mix_sfx(voice, SFX_FANFARE, audio, sfx_vol=0.35)
+    v_dur = get_duration(voice) + 1.0
 
     card  = make_answer_card(answer, q["explanation"], winner_img, is_both)
     c_vid = str(TEMP_DIR/f"q{n}_ans_silent.mp4")
-    img_to_video(card, v_dur+1.0, c_vid, kenburns=bool(winner_img))
+    img_to_video(card, v_dur, c_vid, kenburns=bool(winner_img))
+    
+    c_aud = str(TEMP_DIR/f"q{n}_ans_audio.wav")
+    build_audio_track(voice, v_dur, c_aud, sfx=SFX_FANFARE, sfx_vol=0.35)
 
-    out = str(TEMP_DIR/f"q{n}_ans_seg.mp4")
-    mux_segment(c_vid, audio, out)
-    return out
+    return c_vid, c_aud
 
 
-def build_funfact(text: str, n: int, synth) -> str:
+def build_funfact(text: str, n: int, synth) -> tuple[str, str]:
     print(f"  Fun fact after Q{n}...")
-    audio = str(TEMP_DIR/f"ff{n}_voice.m4a")
-    synth(f"Fun fact! {text}", audio, voice="af_sarah", speed=0.95)
-    dur   = get_duration(audio)+0.5
+    voice = str(TEMP_DIR/f"ff{n}_voice.m4a")
+    synth(f"Fun fact! {text}", voice, voice="af_sarah", speed=0.95)
+    dur   = get_duration(voice)+0.5
 
     # Try to fetch a relevant image for fun fact background
     import re
@@ -794,23 +772,25 @@ def build_funfact(text: str, n: int, synth) -> str:
     video = str(TEMP_DIR/f"ff{n}_silent.mp4")
     img_to_video(make_funfact_card(text, n, bg_img), dur, video, kenburns=True)
 
-    out = str(TEMP_DIR/f"ff{n}_seg.mp4")
-    mux_segment(video, audio, out)
-    return out
+    audio = str(TEMP_DIR/f"ff{n}_audio.wav")
+    build_audio_track(voice, dur, audio)
+
+    return video, audio
 
 
-def build_outro(script: dict, synth) -> str:
+def build_outro(script: dict, synth) -> tuple[str, str]:
     print("\nBuilding outro...")
-    audio = str(TEMP_DIR/"outro_voice.m4a")
-    synth(script["outro"], audio, voice="af_sarah", speed=1.05)
-    dur   = get_duration(audio)+0.5
+    voice = str(TEMP_DIR/"outro_voice.m4a")
+    synth(script["outro"], voice, voice="af_sarah", speed=1.05)
+    dur   = get_duration(voice)+0.5
 
     video = str(TEMP_DIR/"outro_silent.mp4")
     img_to_video(make_outro_card(), dur, video)
 
-    out = str(TEMP_DIR/"outro_seg.mp4")
-    mux_segment(video, audio, out)
-    return out
+    audio = str(TEMP_DIR/"outro_audio.wav")
+    build_audio_track(voice, dur, audio)
+
+    return video, audio
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -841,26 +821,47 @@ def assemble_family_video(script: dict, output_path: str) -> str:
     for q in script["questions"]:
         n = q["number"]
         print(f"\nQuestion {n}/{total_q}: {q['question'][:55]}...")
-        segments.append(build_question(q, total_q, synthesize,
-                                       format_label=fmt))
+        for pair in build_question(q, total_q, synthesize, format_label=fmt):
+            segments.append(pair)
         segments.append(build_answer(q, synthesize))
         if n in fun_facts:
             segments.append(build_funfact(fun_facts[n], n, synthesize))
 
     segments.append(build_outro(script, synthesize))
 
-    print(f"\nFinal concat: {len(segments)} muxed segments...")
-    vlist = str(TEMP_DIR/"final.txt")
-    with open(vlist,"w") as f:
-        for seg in segments:
-            f.write(f"file '{os.path.abspath(seg)}'\n")
+    print(f"\nFinal concat: {len(segments)} segment pairs...")
+    vlist = str(TEMP_DIR/"final_v.txt")
+    alist = str(TEMP_DIR/"final_a.txt")
+    with open(vlist,"w") as fv, open(alist,"w") as fa:
+        for vid, aud in segments:
+            fv.write(f"file '{os.path.abspath(vid)}'\n")
+            fa.write(f"file '{os.path.abspath(aud)}'\n")
 
+    master_v = str(TEMP_DIR/"master.mp4")
+    master_a = str(TEMP_DIR/"master.wav")
+
+    print("  Concatenating video track...")
     subprocess.run([
         FFMPEG,"-y",
         "-f","concat","-safe","0","-i",vlist,
-        "-vf", f"fps={FPS}",
-        "-vsync","cfr",
-        "-c:v","libx264","-preset","medium","-crf","20",
+        "-c:v","copy",
+        master_v,"-loglevel","error"
+    ],check=True)
+
+    print("  Concatenating audio track...")
+    subprocess.run([
+        FFMPEG,"-y",
+        "-f","concat","-safe","0","-i",alist,
+        "-c:a","copy",
+        master_a,"-loglevel","error"
+    ],check=True)
+
+    print("  Muxing final video...")
+    subprocess.run([
+        FFMPEG,"-y",
+        "-i", master_v,
+        "-i", master_a,
+        "-c:v","copy",
         "-c:a","aac","-b:a","192k",
         "-ar","48000","-ac","2",
         "-movflags","+faststart",
