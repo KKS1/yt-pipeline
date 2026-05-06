@@ -101,7 +101,7 @@ def generate_voiceover(script_text: str, output_path: str, voice_id: str = None)
 def get_audio_duration(audio_path: str) -> float:
     """Get duration of an audio file in seconds using ffprobe."""
     cmd = [
-        "ffprobe", "-v", "quiet",
+        "ffprobe", "-v", "error",
         "-print_format", "json",
         "-show_streams", audio_path
     ]
@@ -112,7 +112,7 @@ def get_audio_duration(audio_path: str) -> float:
             return float(stream["duration"])
     # fallback: read container duration
     cmd2 = [
-        "ffprobe", "-v", "quiet",
+        "ffprobe", "-v", "error",
         "-print_format", "json",
         "-show_format", audio_path
     ]
@@ -412,7 +412,7 @@ def assemble_lofi_video(
                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                f"fps={VIDEO_FPS}",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-an", norm_visual, "-loglevel", "quiet"
+        "-an", norm_visual, "-loglevel", "error"
     ], check=True)
     print(f"  Visual normalized (short loop only)")
 
@@ -426,7 +426,7 @@ def assemble_lofi_video(
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
-        output_path, "-loglevel", "quiet"
+        output_path, "-loglevel", "error"
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:

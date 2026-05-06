@@ -109,15 +109,13 @@ def synthesize(
     subprocess.run([
         FFMPEG, "-y", "-i", wav_path,
         "-af",
-        "highpass=f=80,"
-        "equalizer=f=3000:t=q:w=1:g=3,"
-        "loudnorm=I=-16:TP=-1.5:LRA=11",
+        "highpass=f=80,loudnorm=I=-16:TP=-1.5:LRA=11",
         "-ar", "48000",
         "-ac", "2",
         "-c:a", "aac",
         "-b:a", "192k",
         output_path,
-        "-loglevel", "quiet"
+        "-loglevel", "error"
     ], check=True)
 
     Path(wav_path).unlink()

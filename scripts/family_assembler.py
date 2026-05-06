@@ -91,7 +91,7 @@ def normalize_audio(input_path: str, output_path: str):
         "-ac", "2",
         "-c:a", "aac", "-b:a", "192k",
         output_path,
-        "-loglevel", "quiet"
+        "-loglevel", "error"
     ], check=True)
 
 # ── Add Background Music ──────────────────────────────────────────────────
@@ -577,14 +577,14 @@ def img_to_video(img: Image.Image, duration: float, output_path: str,
         "-c:v","libx264","-preset","fast","-crf","23",
         "-pix_fmt","yuv420p",
         output_path,
-        "-loglevel","quiet"
+        "-loglevel","error"
     ]
     r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
         subprocess.run([FFMPEG,"-y","-loop","1","-i",png,
                         "-t",str(duration),"-vf",f"scale={W}:{H}",
                         "-c:v","libx264","-preset","fast","-crf","23",
-                        "-pix_fmt","yuv420p",output_path,"-loglevel","quiet"],
+                        "-pix_fmt","yuv420p",output_path,"-loglevel","error"],
                        check=True)
     Path(png).unlink(missing_ok=True)
 
@@ -606,7 +606,7 @@ def animated_countdown(output_path: str) -> float:
     subprocess.run([FFMPEG,"-y","-framerate",str(FPS),
                     "-i",str(frames_dir/"f%04d.png"),
                     "-c:v","libx264","-preset","fast","-crf","23",
-                    "-pix_fmt","yuv420p",silent,"-loglevel","quiet"],
+                    "-pix_fmt","yuv420p",silent,"-loglevel","error"],
                    check=True)
 
     duration = 3.0
@@ -623,7 +623,7 @@ def animated_countdown(output_path: str) -> float:
             "-c:v","copy",
             "-c:a","aac","-b:a","192k",
             output_path,
-            "-loglevel","quiet"
+            "-loglevel","error"
         ],check=True)
     else:
         import shutil; shutil.copy(silent, output_path)
@@ -638,7 +638,7 @@ def animated_countdown(output_path: str) -> float:
 
 def get_duration(path: str) -> float:
     FFPROBE = os.environ.get("FFPROBE_CMD", "ffprobe")
-    r = subprocess.run([FFPROBE,"-v","quiet","-print_format","json",
+    r = subprocess.run([FFPROBE,"-v","error","-print_format","json",
                         "-show_format",path],
                        capture_output=True,text=True)
     return float(json.loads(r.stdout).get("format",{}).get("duration",0))
@@ -647,14 +647,14 @@ def get_duration(path: str) -> float:
 def silence(dur: float, out: str):
     subprocess.run([FFMPEG,"-y","-f","lavfi",
                     "-i","anullsrc=r=44100:cl=stereo",
-                    "-t",str(dur),out,"-loglevel","quiet"],check=True)
+                    "-t",str(dur),out,"-loglevel","error"],check=True)
 
 
 def mux_segment(video: str, audio: str, output: str):
     subprocess.run([FFMPEG,"-y","-i",video,"-i",audio,
                     "-map","0:v","-map","1:a",
                     "-c:v","copy","-c:a","aac","-b:a","192k",
-                    "-shortest",output,"-loglevel","quiet"],check=True)
+                    "-shortest",output,"-loglevel","error"],check=True)
 
 
 def mix_sfx(voice: str, sfx: str, output: str,
@@ -682,7 +682,7 @@ def mix_sfx(voice: str, sfx: str, output: str,
         "-map","[out]",
         "-c:a","aac","-b:a","192k",
         output,
-        "-loglevel","quiet"
+        "-loglevel","error"
     ],check=True)
 
 
@@ -747,7 +747,7 @@ def build_question(q: dict, total: int, synth,
         "-c:v","libx264","-preset","fast","-crf","23",
         "-c:a","aac",
         out,
-        "-loglevel","quiet"
+        "-loglevel","error"
     ],check=True)
     return out
 
@@ -865,7 +865,7 @@ def assemble_family_video(script: dict, output_path: str) -> str:
         "-ar","48000","-ac","2",
         "-movflags","+faststart",
         output_path,
-        "-loglevel","quiet"
+        "-loglevel","error"
     ],check=True)
 
     bg_music = ASSETS_DIR / "background_energetic.wav"
