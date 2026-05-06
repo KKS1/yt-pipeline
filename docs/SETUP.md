@@ -297,4 +297,4 @@ Run `pip install openai-whisper --break-system-packages` and ensure ffmpeg is in
 
 **ElevenLabs quota hit:**  
 Free tier is 10k chars/month. Starter ($5) gives 30k chars — enough for ~20 videos/month.  
-Alternative free TTS: `pip install TTS` and use Coqui TTS locally.
+Alternative free TTS: Kokoro TTS is included in this repository and runs entirely locally. See FREE_START.md for setup instructions.

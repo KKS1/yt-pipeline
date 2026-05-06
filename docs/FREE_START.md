@@ -54,8 +54,19 @@ ffmpeg -version
 pip install -r requirements.txt
 ```
 
-This installs everything including Coqui TTS (free local voiceover) and Whisper (free captions).
-The TTS model (~150MB) downloads on first use, not during install.
+This installs everything including Kokoro TTS (free local voiceover) and Whisper (free captions).
+
+You will also need `espeak-ng` installed on your system for Kokoro to work:
+- Mac: `brew install espeak-ng`
+- Linux: `sudo apt install espeak-ng`
+- Windows: Download from the official espeak-ng repository.
+
+**Download Kokoro Model Files:**
+Run these commands in your `yt-pipeline` root directory to download the required voice models (~80MB):
+```bash
+curl -L -o kokoro-v0_19.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx
+curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin
+```
 
 ---
 
@@ -197,14 +208,13 @@ whisper assets/test_audio.mp3 --model base --output_format srt --output_dir outp
 
 Should create `output/test_audio.srt`. If it works, captions are good.
 
-### Step 12 — Test Coqui TTS (free voiceover)
+### Step 12 — Test Kokoro TTS (free voiceover)
 
 ```bash
-python scripts/free_tts.py "Hello, welcome to the channel. Today we're going to explore something amazing." output/test_voice.m4a
+python scripts/free_tts.py "Hello, welcome to the channel. Today we're going to explore something amazing." output/test_voice.wav
 ```
 
-First run downloads the model (~150MB). Subsequent runs are instant.
-Listen to `output/test_voice.m4a` to hear the voice quality.
+Listen to `output/test_voice.wav` to hear the voice quality. Since you downloaded the model files in Step 2, this will run instantly entirely on your local machine.
 
 ### Step 13 — Test the server health check
 
