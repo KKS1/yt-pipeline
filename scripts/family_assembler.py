@@ -709,7 +709,7 @@ def build_question(q: dict, total: int, synth,
                    format_label: str = "THIS OR THAT?") -> list[tuple[str, str]]:
     n    = q["number"]
     text = (f"Question {n}. {q['question']} "
-            f"Is it... {q['option_a']}... or {q['option_b']}?")
+            f"{q['option_a']}... or {q['option_b']}?")
 
     print(f"  Fetching option images...")
     img_a = fetch_image(q.get("image_a", q["option_a"]),
