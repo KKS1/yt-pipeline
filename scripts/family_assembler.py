@@ -694,7 +694,7 @@ def build_intro(script: dict, synth) -> str:
     print("\nBuilding intro...")
     fmt   = script.get("format_label","THIS OR THAT?")
     sub   = script.get("subtitle", script["title"])
-    audio = str(TEMP_DIR/"intro_voice.mp3")
+    audio = str(TEMP_DIR/"intro_voice.m4a")
     synth(script["intro"], audio, voice="af_sarah", speed=1.1)
     dur   = get_duration(audio)+0.5
 
@@ -717,7 +717,7 @@ def build_question(q: dict, total: int, synth,
     img_b = fetch_image(q.get("image_b", q["option_b"]),
                         str(TEMP_DIR/f"q{n}_img_b.jpg"))
 
-    voice = str(TEMP_DIR/f"q{n}_voice.mp3")
+    voice = str(TEMP_DIR/f"q{n}_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.05)
     v_dur = get_duration(voice)
 
@@ -763,7 +763,7 @@ def build_answer(q: dict, synth) -> str:
         q.get("image_keyword", answer+" food"),
         str(TEMP_DIR/f"q{n}_winner.jpg"))
 
-    voice = str(TEMP_DIR/f"q{n}_ans_voice.mp3")
+    voice = str(TEMP_DIR/f"q{n}_ans_voice.m4a")
     synth(text, voice, voice="af_sarah", speed=1.0)
     v_dur = get_duration(voice)
 
@@ -781,7 +781,7 @@ def build_answer(q: dict, synth) -> str:
 
 def build_funfact(text: str, n: int, synth) -> str:
     print(f"  Fun fact after Q{n}...")
-    audio = str(TEMP_DIR/f"ff{n}_voice.mp3")
+    audio = str(TEMP_DIR/f"ff{n}_voice.m4a")
     synth(f"Fun fact! {text}", audio, voice="af_sarah", speed=0.95)
     dur   = get_duration(audio)+0.5
 
@@ -801,7 +801,7 @@ def build_funfact(text: str, n: int, synth) -> str:
 
 def build_outro(script: dict, synth) -> str:
     print("\nBuilding outro...")
-    audio = str(TEMP_DIR/"outro_voice.mp3")
+    audio = str(TEMP_DIR/"outro_voice.m4a")
     synth(script["outro"], audio, voice="af_sarah", speed=1.05)
     dur   = get_duration(audio)+0.5
 

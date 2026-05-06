@@ -131,6 +131,7 @@ def run_lofi():
 # ─────────────────────────────────────────────
 
 def run_family():
+    from family_assembler import assemble_family_video, cleanup_family_temp
     print("\n" + "="*50)
     print("FAMILY-FRIENDLY CHANNEL — This or That card format")
     print("="*50)
@@ -138,13 +139,11 @@ def run_family():
     print('  "Write a This or That JSON script about animals"')
     print("Then paste the JSON below.\n")
 
-    json_file = prompt_input("Path to JSON script file (or press Enter to paste)", "scripts/this_or_that.json")
-    if json_file and Path(json_file).exists():
-        raw_json = Path(json_file).read_text()
-    else:
-        raw_json = prompt_multiline("Paste your JSON script")
+    json_file = "scripts/this_or_that.json"
+    raw_json = Path(json_file).read_text()
 
     try:
+        cleanup_family_temp()
         script = json.loads(raw_json)
     except json.JSONDecodeError as e:
         print(f"\nInvalid JSON: {e}")
@@ -156,7 +155,7 @@ def run_family():
     out_slug = slug(title)
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
-    from family_assembler import assemble_family_video, cleanup_family_temp
+    
     assemble_family_video(script, out_path)
     cleanup_family_temp()
 
@@ -183,7 +182,7 @@ def run_trending():
     keyword = prompt_input("Stock video keyword (e.g. 'business finance')", "business")
 
     out_slug   = slug(title)
-    audio_path = str(OUTPUT_DIR / f"{out_slug}_voice.mp3")
+    audio_path = str(OUTPUT_DIR / f"{out_slug}_voice.m4a")
     out_path   = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
     # Choose TTS

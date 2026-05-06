@@ -200,11 +200,11 @@ Should create `output/test_audio.srt`. If it works, captions are good.
 ### Step 12 — Test Coqui TTS (free voiceover)
 
 ```bash
-python scripts/free_tts.py "Hello, welcome to the channel. Today we're going to explore something amazing." output/test_voice.mp3
+python scripts/free_tts.py "Hello, welcome to the channel. Today we're going to explore something amazing." output/test_voice.m4a
 ```
 
 First run downloads the model (~150MB). Subsequent runs are instant.
-Listen to `output/test_voice.mp3` to hear the voice quality.
+Listen to `output/test_voice.m4a` to hear the voice quality.
 
 ### Step 13 — Test the server health check
 

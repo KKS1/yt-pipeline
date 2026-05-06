@@ -103,6 +103,7 @@ def synthesize(
     combined = np.concatenate(all_samples)
 
     wav_path = str(Path(output_path).with_suffix(".wav"))
+    output_path = str(Path(output_path).with_suffix(".m4a"))
     sf.write(wav_path, combined, sample_rate)
 
     # 🔥 Normalize to broadcast quality
@@ -114,7 +115,7 @@ def synthesize(
         "-ac", "2",
         "-c:a", "aac",
         "-b:a", "192k",
-        output_path,
+        str(Path(output_path).with_suffix(".m4a")),
         "-loglevel", "error"
     ], check=True)
 
