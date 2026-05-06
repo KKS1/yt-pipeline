@@ -712,9 +712,9 @@ def build_question(q: dict, total: int, synth,
             f"Is it... {q['option_a']}... or {q['option_b']}?")
 
     print(f"  Fetching option images...")
-    img_a = fetch_image(q.get("image_a", q["option_a"]+" food close up"),
+    img_a = fetch_image(q.get("image_a", q["option_a"]),
                         str(TEMP_DIR/f"q{n}_img_a.jpg"))
-    img_b = fetch_image(q.get("image_b", q["option_b"]+" food close up"),
+    img_b = fetch_image(q.get("image_b", q["option_b"]),
                         str(TEMP_DIR/f"q{n}_img_b.jpg"))
 
     voice = str(TEMP_DIR/f"q{n}_voice.mp3")
