@@ -22,6 +22,7 @@ import math
 import subprocess
 import requests
 import textwrap
+import hashlib
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -29,8 +30,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR   = PROJECT_ROOT / "output"
 TEMP_DIR     = PROJECT_ROOT / "output" / "family_temp"
 ASSETS_DIR   = PROJECT_ROOT / "assets"
+CACHE_DIR    = PROJECT_ROOT / "cache_images"
 
-for d in [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR]:
+for d in [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR, CACHE_DIR]:
     d.mkdir(exist_ok=True)
 
 FFMPEG         = os.environ.get("FFMPEG_CMD", "ffmpeg")
@@ -75,6 +77,39 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
             continue
     return ImageFont.load_default()
 
+# ── Helper to create md5 hash for keywords to avoid redundant downloads
+def _cache_path(keyword: str) -> str:
+    key = hashlib.md5(keyword.encode()).hexdigest()
+    return CACHE_DIR / f"{key}.jpg"
+    
+# ── Audio Normalization ────────────────────────────────────────────────────
+
+def normalize_audio(input_path: str, output_path: str):
+    subprocess.run([
+        FFMPEG, "-y", "-i", input_path,
+        "-ar", "48000",
+        "-ac", "2",
+        "-c:a", "aac", "-b:a", "192k",
+        output_path,
+        "-loglevel", "quiet"
+    ], check=True)
+
+# ── Add Background Music ──────────────────────────────────────────────────
+
+def add_bg_music(video_in: str, music: str, output: str):
+    subprocess.run([
+        FFMPEG,"-y",
+        "-i", video_in,
+        "-stream_loop","-1","-i", music,
+        "-filter_complex",
+        "[0:a]volume=1[a0];"
+        "[1:a]volume=0.07[a1];"
+        "[a0][a1]amix=inputs=2:duration=first:dropout_transition=2,volume=2[out]",
+        "-map","0:v","-map","[out]",
+        "-c:v","copy",
+        "-c:a","aac","-b:a","192k",
+        output
+    ],check=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PEXELS — fetch single image, return PIL Image or None
@@ -82,6 +117,9 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 def fetch_image(keyword: str, output_path: str,
                 orientation: str = "landscape") -> "Image.Image | None":
+    cache = _cache_path(keyword)
+    if cache.exists():
+        return Image.open(cache).convert("RGB")
     if not PEXELS_API_KEY:
         return None
     try:
@@ -96,7 +134,9 @@ def fetch_image(keyword: str, output_path: str,
         if not photos:
             print(f"    No photos for '{keyword}'")
             return None
-        data = requests.get(photos[0]["src"]["large2x"], timeout=15).content
+        import random
+        photo = random.choice(photos[:3])
+        data = requests.get(photo["src"]["large2x"], timeout=15).content
         with open(output_path, "wb") as f:
             f.write(data)
         return Image.open(output_path).convert("RGB")
@@ -148,7 +188,7 @@ def semi_rect(img: Image.Image,
                         outline=(*border[:3],255) if border else None,
                         width=border_w if border else 0)
     result = Image.alpha_composite(img.convert("RGBA"), ov)
-    img.paste(result.convert("RGB"))
+    return result.convert("RGB")
 
 
 def outlined_text(draw: ImageDraw.ImageDraw,
@@ -520,17 +560,25 @@ def img_to_video(img: Image.Image, duration: float, output_path: str,
         nf = max(int(duration*FPS),2)
         vf = (f"scale={W*2}:{H*2}:force_original_aspect_ratio=increase,"
               f"crop={W*2}:{H*2},"
-              f"zoompan=z='min(zoom+0.0004,1.05)':"
-              f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+              f"zoompan=z='min(zoom+0.0015,1.12)':"
+              f"x='if(eq(on,1),rand(0,iw-iw/zoom),x)':"
               f"d={nf}:s={W}x{H}:fps={FPS}")
     else:
         vf = (f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
               f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black")
 
-    cmd = [FFMPEG,"-y","-loop","1","-i",png,
-           "-t",str(duration),"-vf",vf,
-           "-c:v","libx264","-preset","fast","-crf","23",
-           "-pix_fmt","yuv420p",output_path,"-loglevel","quiet"]
+    cmd = [
+        FFMPEG,"-y",
+        "-loop","1","-framerate",str(FPS),"-i",png,
+        "-t",str(duration),
+        "-vf", vf + f",fps={FPS}",
+        "-r", str(FPS),
+        "-vsync","cfr",
+        "-c:v","libx264","-preset","fast","-crf","23",
+        "-pix_fmt","yuv420p",
+        output_path,
+        "-loglevel","quiet"
+    ]
     r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
         subprocess.run([FFMPEG,"-y","-loop","1","-i",png,
@@ -562,13 +610,21 @@ def animated_countdown(output_path: str) -> float:
                    check=True)
 
     duration = 3.0
+    norm_tick = str(TEMP_DIR/"tick_norm.m4a")
     if Path(SFX_TICK).exists():
-        subprocess.run([FFMPEG,"-y","-i",silent,
-                        "-stream_loop","-1","-i",SFX_TICK,
-                        "-map","0:v","-map","1:a",
-                        "-t",str(duration),"-c:v","copy",
-                        "-c:a","aac","-b:a","128k",
-                        output_path,"-loglevel","quiet"],check=True)
+        normalize_audio(SFX_TICK, norm_tick)
+        subprocess.run([
+            FFMPEG,"-y",
+            "-i", silent,
+            "-stream_loop","-1","-i", norm_tick,
+            "-filter_complex","[1:a]aresample=48000[a]",
+            "-map","0:v","-map","[a]",
+            "-t",str(duration),
+            "-c:v","copy",
+            "-c:a","aac","-b:a","192k",
+            output_path,
+            "-loglevel","quiet"
+        ],check=True)
     else:
         import shutil; shutil.copy(silent, output_path)
 
@@ -581,7 +637,8 @@ def animated_countdown(output_path: str) -> float:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_duration(path: str) -> float:
-    r = subprocess.run(["ffprobe","-v","quiet","-print_format","json",
+    FFPROBE = os.environ.get("FFPROBE_CMD", "ffprobe")
+    r = subprocess.run([FFPROBE,"-v","quiet","-print_format","json",
                         "-show_format",path],
                        capture_output=True,text=True)
     return float(json.loads(r.stdout).get("format",{}).get("duration",0))
@@ -601,18 +658,32 @@ def mux_segment(video: str, audio: str, output: str):
 
 
 def mix_sfx(voice: str, sfx: str, output: str,
-            sfx_vol: float = 0.38, voice_vol: float = 1.0):
+            sfx_vol: float = 0.35, voice_vol: float = 1.0):
+
     if not Path(sfx).exists():
-        subprocess.run([FFMPEG,"-y","-i",voice,
-                        "-c:a","aac",output,"-loglevel","quiet"],check=True)
+        normalize_audio(voice, output)
         return
-    subprocess.run([FFMPEG,"-y","-i",voice,"-i",sfx,
-                    "-filter_complex",
-                    f"[0:a]volume={voice_vol}[v];"
-                    f"[1:a]volume={sfx_vol}[s];"
-                    f"[v][s]amix=inputs=2:duration=first:dropout_transition=1[out]",
-                    "-map","[out]","-c:a","aac","-b:a","192k",
-                    output,"-loglevel","quiet"],check=True)
+
+    v_norm = str(TEMP_DIR/"v_norm.m4a")
+    s_norm = str(TEMP_DIR/"s_norm.m4a")
+
+    normalize_audio(voice, v_norm)
+    normalize_audio(sfx, s_norm)
+
+    subprocess.run([
+        FFMPEG,"-y",
+        "-i", v_norm,
+        "-i", s_norm,
+        "-filter_complex",
+        f"[0:a]volume={voice_vol}[v];"
+        f"[1:a]volume={sfx_vol}[s];"
+        f"[v][s]amix=inputs=2:duration=first:dropout_transition=1,"
+        f"aresample=48000[out]",
+        "-map","[out]",
+        "-c:a","aac","-b:a","192k",
+        output,
+        "-loglevel","quiet"
+    ],check=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -641,9 +712,9 @@ def build_question(q: dict, total: int, synth,
             f"Is it... {q['option_a']}... or {q['option_b']}?")
 
     print(f"  Fetching option images...")
-    img_a = fetch_image(q.get("image_a", q["option_a"]+" food"),
+    img_a = fetch_image(q.get("image_a", q["option_a"]+" food close up"),
                         str(TEMP_DIR/f"q{n}_img_a.jpg"))
-    img_b = fetch_image(q.get("image_b", q["option_b"]+" food"),
+    img_b = fetch_image(q.get("image_b", q["option_b"]+" food close up"),
                         str(TEMP_DIR/f"q{n}_img_b.jpg"))
 
     voice = str(TEMP_DIR/f"q{n}_voice.mp3")
@@ -654,7 +725,7 @@ def build_question(q: dict, total: int, synth,
     img_to_video(
         make_question_card(q["question"],q["option_a"],q["option_b"],
                            n, total, img_a, img_b, format_label),
-        v_dur+0.3, q_vid)
+        v_dur+0.3, q_vid, kenburns=True)
 
     q_muxed = str(TEMP_DIR/f"q{n}_card_muxed.mp4")
     mux_segment(q_vid, voice, q_muxed)
@@ -668,9 +739,16 @@ def build_question(q: dict, total: int, synth,
         f.write(f"file '{os.path.abspath(cd_vid)}'\n")
 
     out = str(TEMP_DIR/f"q{n}_qseg.mp4")
-    subprocess.run([FFMPEG,"-y","-f","concat","-safe","0","-i",list_p,
-                    "-c:v","libx264","-preset","fast","-crf","23",
-                    "-c:a","aac",out,"-loglevel","quiet"],check=True)
+    subprocess.run([
+        FFMPEG,"-y",
+        "-f","concat","-safe","0","-i",list_p,
+        "-vf", f"fps={FPS}",
+        "-vsync","cfr",
+        "-c:v","libx264","-preset","fast","-crf","23",
+        "-c:a","aac",
+        out,
+        "-loglevel","quiet"
+    ],check=True)
     return out
 
 
@@ -686,7 +764,7 @@ def build_answer(q: dict, synth) -> str:
         str(TEMP_DIR/f"q{n}_winner.jpg"))
 
     voice = str(TEMP_DIR/f"q{n}_ans_voice.mp3")
-    synth(text, voice, voice="af_sarah", speed=1.05)
+    synth(text, voice, voice="af_sarah", speed=1.0)
     v_dur = get_duration(voice)
 
     audio = str(TEMP_DIR/f"q{n}_ans_audio.aac")
@@ -704,15 +782,17 @@ def build_answer(q: dict, synth) -> str:
 def build_funfact(text: str, n: int, synth) -> str:
     print(f"  Fun fact after Q{n}...")
     audio = str(TEMP_DIR/f"ff{n}_voice.mp3")
-    synth(f"Fun fact! {text}", audio, voice="af_sarah", speed=1.0)
+    synth(f"Fun fact! {text}", audio, voice="af_sarah", speed=0.95)
     dur   = get_duration(audio)+0.5
 
     # Try to fetch a relevant image for fun fact background
-    keyword = text.split()[1] if len(text.split()) > 1 else "nature"
+    import re
+    words = re.findall(r'\w+', text.lower())
+    keyword = next((w for w in words if len(w) > 4), "nature")
     bg_img  = fetch_image(keyword, str(TEMP_DIR/f"ff{n}_bg.jpg"))
 
     video = str(TEMP_DIR/f"ff{n}_silent.mp4")
-    img_to_video(make_funfact_card(text, n, bg_img), dur, video)
+    img_to_video(make_funfact_card(text, n, bg_img), dur, video, kenburns=True)
 
     out = str(TEMP_DIR/f"ff{n}_seg.mp4")
     mux_segment(video, audio, out)
@@ -776,12 +856,25 @@ def assemble_family_video(script: dict, output_path: str) -> str:
             f.write(f"file '{os.path.abspath(seg)}'\n")
 
     subprocess.run([
-        FFMPEG,"-y","-f","concat","-safe","0","-i",vlist,
+        FFMPEG,"-y",
+        "-f","concat","-safe","0","-i",vlist,
+        "-vf", f"fps={FPS}",
+        "-vsync","cfr",
         "-c:v","libx264","-preset","medium","-crf","20",
         "-c:a","aac","-b:a","192k",
+        "-ar","48000","-ac","2",
         "-movflags","+faststart",
-        output_path,"-loglevel","quiet"
+        output_path,
+        "-loglevel","quiet"
     ],check=True)
+
+    bg_music = ASSETS_DIR / "background_energetic.wav"
+    if bg_music.exists():
+        bg_out = str(Path(output_path).with_name("final_with_music.mp4"))
+        add_bg_music(output_path, bg_music, bg_out)
+        Path(bg_out).replace(output_path)
+    else:
+        print("  No background music found, skipping...")
 
     mb = Path(output_path).stat().st_size/1024/1024
     print(f"\n✓  Done: {output_path} ({mb:.1f} MB)")

@@ -68,14 +68,9 @@ def synthesize(
     text: str,
     output_path: str,
     voice: str = "af_sarah",
-    speed: float = 1.1,
+    speed: float = 1.05,
     chunk_size: int = 300,
 ) -> str:
-    """
-    Synthesize text to audio file using Kokoro.
-    Automatically chunks long text at sentence boundaries.
-    Returns output_path.
-    """
     import numpy as np
 
     k = get_kokoro()
@@ -83,9 +78,9 @@ def synthesize(
 
     print(f"  Synthesizing ({len(text)} chars, voice={voice}, speed={speed})...")
 
-    # Chunk at sentence boundaries
     sentences = re.split(r'(?<=[.!?])\s+', text)
     chunks, current = [], ""
+
     for s in sentences:
         if len(current) + len(s) < chunk_size:
             current += (" " if current else "") + s
@@ -107,18 +102,25 @@ def synthesize(
 
     combined = np.concatenate(all_samples)
 
-    output_path = str(output_path)
-    if output_path.endswith(".mp3"):
-        wav_path = output_path.replace(".mp3", ".wav")
-        sf.write(wav_path, combined, sample_rate)
-        # Use FFMPEG env var so ffmpeg_static is used on Mac if set
-        subprocess.run(
-            [FFMPEG, "-y", "-i", wav_path, "-q:a", "2", output_path, "-loglevel", "quiet"],
-            check=True
-        )
-        Path(wav_path).unlink()
-    else:
-        sf.write(output_path, combined, sample_rate)
+    wav_path = str(Path(output_path).with_suffix(".wav"))
+    sf.write(wav_path, combined, sample_rate)
 
+    # 🔥 Normalize to broadcast quality
+    subprocess.run([
+        FFMPEG, "-y", "-i", wav_path,
+        "-af",
+        "highpass=f=80,"
+        "equalizer=f=3000:t=q:w=1:g=3,"
+        "loudnorm=I=-16:TP=-1.5:LRA=11",
+        "-ar", "48000",
+        "-ac", "2",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        output_path,
+        "-loglevel", "quiet"
+    ], check=True)
+
+    Path(wav_path).unlink()
     print(f"  Saved: {output_path}")
     return output_path
+    

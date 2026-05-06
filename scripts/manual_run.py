@@ -226,7 +226,7 @@ def run_trending():
     assemble_narrated_video(
         narration_audio=audio_path,
         stock_clips=clips,
-        background_music=bg_music or audio_path,
+        background_music=bg_music if bg_music else None,
         captions_srt=srt_path,
         output_path=out_path,
         title=title,

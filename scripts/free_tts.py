@@ -32,8 +32,8 @@ def clean_script(text: str) -> str:
 def generate_tts(
     text: str,
     output_path: str,
-    voice: str = "af_bella",
-    speed: float = 1.1,
+    voice: str = "af_sarah",
+    speed: float = 1.05,
 ) -> str:
     """
     Generate speech from text using Kokoro.
