@@ -206,12 +206,25 @@ def assemble_lofi():
                 )
 
             # Find or use default loop visual
-            visual_path = str(ASSETS_DIR / "lofi_loop.mp4")
-            if not Path(visual_path).exists():
-                raise FileNotFoundError(
-                    "No lofi_loop.mp4 in assets/. "
-                    "Download a free lofi animation and place it there."
-                )
+            # Pick a random visual loop from assets/lofi_visuals/
+            import random
+            visuals_dir = ASSETS_DIR / "lofi_visuals"
+            visuals_dir.mkdir(exist_ok=True)
+            visual_files = sorted(visuals_dir.glob("*.mp4"))
+
+            if not visual_files:
+                # Fallback to legacy single file
+                fallback = ASSETS_DIR / "lofi_loop.mp4"
+                if fallback.exists():
+                    visual_files = [fallback]
+                else:
+                    raise FileNotFoundError(
+                        "No video files in assets/lofi_visuals/ and no lofi_loop.mp4 fallback. "
+                        "Add at least one .mp4 loop to assets/lofi_visuals/"
+                    )
+
+            visual_path = str(random.choice(visual_files))
+            print(f"  Using visual: {Path(visual_path).name}")
 
             title    = metadata.get("title", "Lofi Study Music")
             duration = data.get("duration_hours", 3)
@@ -221,7 +234,7 @@ def assemble_lofi():
 
             assemble_lofi_video(
                 music_tracks=[str(f) for f in music_files],
-                loop_visual=visual_path,
+                loop_visual=str(visual_path),
                 output_path=out_path,
                 duration_hours=duration,
                 title=title,

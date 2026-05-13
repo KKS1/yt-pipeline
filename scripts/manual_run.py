@@ -99,15 +99,26 @@ def run_lofi():
         print("Then re-run this script.")
         sys.exit(1)
 
-    visual_path = ASSETS_DIR / "lofi_loop.mp4"
-    if not visual_path.exists():
-        print(f"\nNo lofi_loop.mp4 found in {ASSETS_DIR}")
-        print("Download a free lofi animation from pixabay.com/videos")
-        print("Save it as assets/lofi_loop.mp4 and re-run.")
-        sys.exit(1)
+    import random
+    visuals_dir = ASSETS_DIR / "lofi_visuals"
+    visuals_dir.mkdir(exist_ok=True)
+    visual_files = sorted(visuals_dir.glob("*.mp4"))
+
+    if not visual_files:
+        fallback = ASSETS_DIR / "lofi_loop.mp4"
+        if fallback.exists():
+            visual_files = [fallback]
+        else:
+            print(f"\nNo video files in {visuals_dir}")
+            print("Download free lofi animations from pixabay.com/videos")
+            print("Save them as assets/lofi_visuals/rainy_cafe.mp4, night_library.mp4, etc.")
+            sys.exit(1)
+
+    visual_path = random.choice(visual_files)
+    print(f"\nUsing visual loop: {visual_path.name}")
 
     print(f"\nFound {len(music_files)} music tracks")
-    print(f"Visual loop: {visual_path}")
+    print(f"Visual loop: {visual_path.name}")
 
     out_slug = slug(title)
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")

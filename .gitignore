@@ -11,6 +11,7 @@ temp/
 assets/background_music.mp3
 assets/lofi_loop.mp4
 assets/lofi/
+assets/lofi_visuals/
 
 # Python
 __pycache__/
