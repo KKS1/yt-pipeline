@@ -74,68 +74,147 @@ def slug(text: str) -> str:
     s = re.sub(r'[^a-z0-9]+', '_', s)
     return s.strip('_')
 
+def generate_lofi_metadata_local() -> dict:
+    import random
 
+    settings = [
+        # Café & Coffee
+        ("Rainy Tokyo Café ☕", "rainy Tokyo café with soft jazz and rain on the windows"),
+        ("Paris Bistro Morning 🥐", "quiet Paris bistro at dawn with espresso and cobblestone streets outside"),
+        ("Rooftop Café at Sunset 🌇", "open rooftop café as the city glows orange at dusk"),
+        ("Foggy Seoul Coffee Shop 🌫️", "cozy Seoul coffee shop wrapped in morning fog"),
+        ("Venice Canal Café 🛶", "small café beside a quiet Venice canal with lapping water"),
+
+        # Libraries & Study Spaces
+        ("Midnight Library 🌙", "vast quiet library at midnight with warm lamp light"),
+        ("Old University Library 📚", "grand university library with tall oak shelves and ticking clocks"),
+        ("Bookshop in the Rain 📖", "small independent bookshop on a rainy afternoon"),
+        ("Reading Room at Dusk 🕯️", "candlelit reading room as evening falls outside"),
+        ("Archive Room 🗂️", "forgotten archive room with dusty books and soft amber light"),
+
+        # Nature & Outdoors
+        ("Snowy Mountain Cabin 🏔️", "cozy cabin during a snowstorm with a crackling fireplace"),
+        ("Autumn Forest Creek 🍂", "peaceful forest path with falling leaves and a babbling creek"),
+        ("Rainy Countryside Cottage 🌧️", "stone cottage in the English countryside during a gentle rain"),
+        ("Cherry Blossom Garden 🌸", "Japanese garden in full bloom with soft wind and distant temple bells"),
+        ("Foggy Lakeside Dock 🌊", "wooden dock on a misty mountain lake at early morning"),
+        ("Greenhouse at Dawn 🌿", "sunlit greenhouse with birdsong and dew on the glass"),
+        ("Bamboo Forest Path 🎋", "narrow path through a quiet bamboo forest with rustling leaves"),
+        ("Lavender Field at Dusk 💜", "open lavender field as the sun dips below the horizon"),
+
+        # City & Urban
+        ("City Window at Dusk 🌆", "apartment window overlooking a glowing city at golden hour"),
+        ("Subway Station Late Night 🚇", "nearly empty subway station after midnight with distant trains"),
+        ("Rainy Night Street 🌃", "narrow city street glistening with rain under yellow streetlights"),
+        ("Rooftop After Rain 🏙️", "quiet rooftop garden as the city steams after an evening storm"),
+        ("Jazz Club After Hours 🎷", "dimly lit jazz club after closing with chairs on tables"),
+
+        # Home & Interior
+        ("Cozy Bedroom Snowfall ❄️", "warm bedroom with fairy lights while snow falls silently outside"),
+        ("Attic Studio on a Rainy Day 🎨", "cluttered artist's attic studio with rain drumming on the skylight"),
+        ("Kitchen at Midnight 🍵", "quiet kitchen late at night with herbal tea and a sleeping house"),
+        ("Beachside Bungalow 🌊", "open bungalow with ocean waves and a warm sea breeze"),
+
+        # Seasonal & Time-of-Day
+        ("First Snow Morning ⛄", "waking up to the first snowfall of winter with everything hushed"),
+        ("Summer Night Balcony 🌌", "warm balcony on a summer night with crickets and city lights below"),
+        ("Rainy April Afternoon 🌦️", "slow April afternoon with rain on the window and nothing to do"),
+    ]
+
+    setting_name, setting_desc = random.choice(settings)
+
+    return {
+        "title": f"Lofi Study Music — {setting_name} | 3 Hours of Chill Beats",
+        "description": (
+            f"3 hours of lofi hip hop beats to study and relax to. "
+            f"Imagine yourself in a {setting_desc}. "
+            "Perfect for studying, homework, focus sessions, and deep work.\n\n"
+            "🎵 Lofi beats | Chill music | Study music | Focus music\n\n"
+            "Use this mix for:\n"
+            "• Studying and homework\n"
+            "• Deep work and concentration\n"
+            "• Relaxation and unwinding\n"
+            "• Reading and journaling\n\n"
+            "#lofi #studymusic #chillbeats #focusmusic #lofihiphop"
+        ),
+        "tags": [
+            "lofi hip hop", "study music", "focus music", "chill beats",
+            "lofi beats", "homework music", "concentration music",
+            "lofi mix", "study beats", "relaxing music"
+        ],
+        "mood": random.choice(["cozy", "melancholic", "focused", "dreamy"]),
+    }
+    
 # ─────────────────────────────────────────────
 # LOFI PIPELINE (fully free)
 # ─────────────────────────────────────────────
 
 def run_lofi():
+    import random
+
     print("\n" + "="*50)
     print("LOFI MUSIC CHANNEL — fully free pipeline")
     print("="*50)
 
-    title = prompt_input("Video title", "Lofi Study Music — Rainy Day Café ☕ 3 Hours")
-    description = prompt_multiline("Paste your video description")
-    tags_raw = prompt_input("Tags (comma-separated)", "lofi hip hop,study music,focus music,chill beats,lofi beats")
-    tags = [t.strip() for t in tags_raw.split(",")]
+    # ── Generate metadata locally ──────────────────
+    print("\nGenerating metadata locally...")
+    metadata = generate_lofi_metadata_local()
+
+    title       = metadata["title"]
+    description = metadata["description"]
+    tags        = metadata["tags"]
+
+    print(f"\n  Title : {title}")
+    print(f"  Mood  : {metadata.get('mood', 'n/a')}")
+    print(f"  Tags  : {', '.join(tags[:4])}...")
+
+    confirm = prompt_input("\nUse this metadata? (yes/no)", "yes")
+    if confirm.lower() not in ("yes", "y"):
+        title       = prompt_input("Video title", title)
+        description = prompt_multiline("Paste your video description")
+        tags_raw    = prompt_input("Tags (comma-separated)", ", ".join(tags))
+        tags        = [t.strip() for t in tags_raw.split(",")]
+
     duration_hours = int(prompt_input("Duration in hours", "3"))
 
-    # Check assets
-    lofi_dir = ASSETS_DIR / "lofi"
+    # ── Check assets ──────────────────────────────────
+    lofi_dir    = ASSETS_DIR / "lofi"
     music_files = sorted(lofi_dir.glob("*.mp3"))
     if not music_files:
         print(f"\nNo MP3 files found in {lofi_dir}")
-        print("Download lofi tracks from suno.ai (free) and place them there.")
-        print("Then re-run this script.")
+        print("Download lofi tracks from suno.ai and place them there.")
         sys.exit(1)
 
-    import random
-    visuals_dir = ASSETS_DIR / "lofi_visuals"
+    visuals_dir  = ASSETS_DIR / "lofi_visuals"
     visuals_dir.mkdir(exist_ok=True)
     visual_files = sorted(visuals_dir.glob("*.mp4"))
-
     if not visual_files:
         fallback = ASSETS_DIR / "lofi_loop.mp4"
         if fallback.exists():
             visual_files = [fallback]
         else:
             print(f"\nNo video files in {visuals_dir}")
-            print("Download free lofi animations from pixabay.com/videos")
-            print("Save them as assets/lofi_visuals/rainy_cafe.mp4, night_library.mp4, etc.")
+            print("Add .mp4 loops to assets/lofi_visuals/")
             sys.exit(1)
 
     visual_path = random.choice(visual_files)
-    print(f"\nUsing visual loop: {visual_path.name}")
+    print(f"\n  Music tracks : {len(music_files)}")
+    print(f"  Visual loop  : {visual_path.name}")
 
-    print(f"\nFound {len(music_files)} music tracks")
-    print(f"Visual loop: {visual_path.name}")
-
+    # ── Assemble ──────────────────────────────────────
     out_slug = slug(title)
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
-    # Assemble
     from ffmpeg_assembler import assemble_lofi_video
     assemble_lofi_video(
-        music_tracks=[str(f) for f in music_files],
-        loop_visual=str(visual_path),
-        output_path=out_path,
-        duration_hours=duration_hours,
-        title=title,
+        music_tracks   = [str(f) for f in music_files],
+        loop_visual    = str(visual_path),
+        output_path    = out_path,
+        duration_hours = duration_hours,
+        title          = title,
     )
 
-    # Upload
     _upload_video(out_path, title, description, tags, channel="lofi")
-
 
 # ─────────────────────────────────────────────
 # FAMILY PIPELINE (free with local TTS)
