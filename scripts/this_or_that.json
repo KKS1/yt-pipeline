@@ -1,202 +1,205 @@
 {
-  "title": "Dream House Showdown",
+  "title": "Sleep a Night at Adventurous Places",
   "format_label": "WOULD YOU RATHER?",
-  "subtitle": "The Ultimate Dream House Challenge",
-  "description": "Get ready to design your dream house and make some tough decisions!",
+  "subtitle": "Get ready for the most epic sleepovers ever!",
+  "description": "Imagine sleeping in the most amazing, crazy, and fantastic places on Earth. Which one would you choose?",
   "tags": [
-    "Dream House",
-    "Family Friendly",
-    "Game Show"
+    "adventure",
+    "travel",
+    "sleepover",
+    "fun",
+    "kids",
+    "family"
   ],
-  "intro": "Welcome to the most epic dream house challenge! Get ready to choose your perfect home features and compete with friends and family!",
+  "intro": "Welcome to the ultimate sleepover challenge! Today, we're going on a journey to the most incredible places on the planet. Get ready to dream big!",
   "questions": [
     {
       "number": 1,
       "question": "Would you rather have?",
-      "option_a": "A treehouse bedroom",
-      "option_b": "A bedroom with a secret passageway",
-      "image_a": "treehouse bedroom",
-      "image_b": "secret passageway",
-      "answer": "A treehouse bedroom",
-      "explanation": "Who wouldn't want to sleep in a treehouse every night?",
-      "image_keyword": "treehouse bedroom"
+      "option_a": "a treehouse in the jungle",
+      "option_b": "a castle in the clouds",
+      "image_a": "jungle treehouse",
+      "image_b": "castle clouds",
+      "answer": "a treehouse in the jungle",
+      "explanation": "Imagine waking up to the sounds of the jungle and swinging monkeys!",
+      "image_keyword": "jungle treehouse"
     },
     {
       "number": 2,
       "question": "Would you rather have?",
-      "option_a": "A backyard roller coaster",
-      "option_b": "A backyard water park",
-      "image_a": "backyard roller coaster",
-      "image_b": "backyard water park",
-      "answer": "A backyard water park",
-      "explanation": "Summer just got a whole lot cooler!",
-      "image_keyword": "backyard water park"
+      "option_a": "a spaceship bedroom",
+      "option_b": "a bedroom under the sea",
+      "image_a": "spaceship interior",
+      "image_b": "underwater bedroom",
+      "answer": "a spaceship bedroom",
+      "explanation": "Blast off into the cosmos and sleep among the stars!",
+      "image_keyword": "spaceship bedroom"
     },
     {
       "number": 3,
       "question": "Would you rather have?",
-      "option_a": "A movie theater in your basement",
-      "option_b": "A game room in your attic",
-      "image_a": "home movie theater",
-      "image_b": "game room",
-      "answer": "A movie theater in your basement",
-      "explanation": "Movie nights just got a whole lot better!",
-      "image_keyword": "home movie theater"
+      "option_a": "a sleepover in a haunted mansion",
+      "option_b": "a sleepover in a fairy tale cottage",
+      "image_a": "haunted mansion",
+      "image_b": "fairy tale cottage",
+      "answer": "a sleepover in a fairy tale cottage",
+      "explanation": "Live like a prince or princess in a magical fairy tale world!",
+      "image_keyword": "fairy tale cottage"
     },
     {
       "number": 4,
       "question": "Would you rather have?",
-      "option_a": "A house with a giant slide",
-      "option_b": "A house with a ball pit",
-      "image_a": "giant slide",
-      "image_b": "ball pit",
-      "answer": "A house with a ball pit",
-      "explanation": "Who needs a backyard when you can play inside?",
-      "image_keyword": "ball pit"
+      "option_a": "a room made entirely of candy",
+      "option_b": "a room made entirely of toys",
+      "image_a": "candy room",
+      "image_b": "toy room",
+      "answer": "a room made entirely of candy",
+      "explanation": "Indulge your sweet tooth and sleep in a sugary paradise!",
+      "image_keyword": "candy room"
     },
     {
       "number": 5,
       "question": "Would you rather have?",
-      "option_a": "A room filled with candy",
-      "option_b": "A room filled with toys",
-      "image_a": "candy room",
-      "image_b": "toy room",
-      "answer": "A room filled with candy",
-      "explanation": "The sweetest room ever!",
-      "image_keyword": "candy room"
+      "option_a": "a bedroom on a pirate ship",
+      "option_b": "a bedroom in a futuristic city",
+      "image_a": "pirate ship bedroom",
+      "image_b": "futuristic city bedroom",
+      "answer": "a bedroom on a pirate ship",
+      "explanation": "Ahoy matey! Set sail for adventure on the high seas!",
+      "image_keyword": "pirate ship bedroom"
     },
     {
       "number": 6,
       "question": "Would you rather have?",
-      "option_a": "A house with a rooftop garden",
-      "option_b": "A house with a greenhouse",
-      "image_a": "rooftop garden",
-      "image_b": "greenhouse",
-      "answer": "A house with a rooftop garden",
-      "explanation": "Get ready to grow your own food and enjoy the view!",
-      "image_keyword": "rooftop garden"
+      "option_a": "a sleepover in a giant animal enclosure",
+      "option_b": "a sleepover in a giant game of Minecraft",
+      "image_a": "animal enclosure",
+      "image_b": "Minecraft game",
+      "answer": "a sleepover in a giant animal enclosure",
+      "explanation": "Get up close and personal with wild animals in their natural habitats!",
+      "image_keyword": "animal enclosure"
     },
     {
       "number": 7,
       "question": "Would you rather have?",
-      "option_a": "A house with a private beach",
-      "option_b": "A house with a private lake",
-      "image_a": "private beach",
-      "image_b": "private lake",
-      "answer": "A house with a private beach",
-      "explanation": "Wake up to the sound of waves every morning!",
-      "image_keyword": "private beach"
+      "option_a": "a bedroom in a giant music instrument",
+      "option_b": "a bedroom in a giant book",
+      "image_a": "giant music instrument",
+      "image_b": "giant book",
+      "answer": "a bedroom in a giant music instrument",
+      "explanation": "Make sweet music and sleep in harmony!",
+      "image_keyword": "giant music instrument"
     },
     {
       "number": 8,
       "question": "Would you rather have?",
-      "option_a": "A house with a secret laboratory",
-      "option_b": "A house with a secret library",
-      "image_a": "secret laboratory",
-      "image_b": "secret library",
-      "answer": "A house with a secret laboratory",
-      "explanation": "Get ready to conduct some crazy experiments!",
-      "image_keyword": "secret laboratory"
+      "option_a": "a sleepover in a giant water park",
+      "option_b": "a sleepover in a giant amusement park",
+      "image_a": "water park",
+      "image_b": "amusement park",
+      "answer": "a sleepover in a giant water park",
+      "explanation": "Splash into fun and make a big splash!",
+      "image_keyword": "water park"
     },
     {
       "number": 9,
       "question": "Would you rather have?",
-      "option_a": "A house with a giant trampoline",
-      "option_b": "A house with a giant hammock",
-      "image_a": "giant trampoline",
-      "image_b": "giant hammock",
-      "answer": "A house with a giant trampoline",
-      "explanation": "Bounce your way to fun and excitement!",
-      "image_keyword": "giant trampoline"
+      "option_a": "a bedroom in a giant ice cream truck",
+      "option_b": "a bedroom in a giant donut shop",
+      "image_a": "ice cream truck",
+      "image_b": "donut shop",
+      "answer": "a bedroom in a giant ice cream truck",
+      "explanation": "Cool treats and sweet dreams await in this chilly bedroom!",
+      "image_keyword": "ice cream truck"
     },
     {
       "number": 10,
       "question": "Would you rather have?",
-      "option_a": "A house with a private movie studio",
-      "option_b": "A house with a private recording studio",
-      "image_a": "private movie studio",
-      "image_b": "private recording studio",
-      "answer": "A house with a private movie studio",
-      "explanation": "Create your own movies and become a star!",
-      "image_keyword": "private movie studio"
+      "option_a": "a sleepover in a giant sports stadium",
+      "option_b": "a sleepover in a giant video game",
+      "image_a": "sports stadium",
+      "image_b": "video game",
+      "answer": "a sleepover in a giant sports stadium",
+      "explanation": "Score big and sleep like a champion in this massive stadium!",
+      "image_keyword": "sports stadium"
     },
     {
       "number": 11,
       "question": "Would you rather have?",
-      "option_a": "A house with a virtual reality room",
-      "option_b": "A house with an augmented reality room",
-      "image_a": "virtual reality room",
-      "image_b": "augmented reality room",
-      "answer": "A house with a virtual reality room",
-      "explanation": "Enter a new world of possibilities and adventure!",
-      "image_keyword": "virtual reality room"
+      "option_a": "a bedroom in a giant flower garden",
+      "option_b": "a bedroom in a giant butterfly garden",
+      "image_a": "flower garden",
+      "image_b": "butterfly garden",
+      "answer": "a bedroom in a giant flower garden",
+      "explanation": "Bloom into beauty and sleep surrounded by nature's splendor!",
+      "image_keyword": "flower garden"
     },
     {
       "number": 12,
       "question": "Would you rather have?",
-      "option_a": "A house with a private amusement park",
-      "option_b": "A house with a private arcade",
-      "image_a": "private amusement park",
-      "image_b": "private arcade",
-      "answer": "A house with a private amusement park",
-      "explanation": "The ultimate fun destination!",
-      "image_keyword": "private amusement park"
+      "option_a": "a sleepover in a giant dinosaur exhibit",
+      "option_b": "a sleepover in a giant space museum",
+      "image_a": "dinosaur exhibit",
+      "image_b": "space museum",
+      "answer": "a sleepover in a giant dinosaur exhibit",
+      "explanation": "Roar into adventure and sleep among the ancient giants!",
+      "image_keyword": "dinosaur exhibit"
     },
     {
       "number": 13,
       "question": "Would you rather have?",
-      "option_a": "A house with a time machine",
-      "option_b": "A house with a teleporter",
-      "image_a": "time machine",
-      "image_b": "teleporter",
-      "answer": "A house with a time machine",
-      "explanation": "Travel through time and explore new eras!",
-      "image_keyword": "time machine"
+      "option_a": "a bedroom in a giant movie theater",
+      "option_b": "a bedroom in a giant concert hall",
+      "image_a": "movie theater",
+      "image_b": "concert hall",
+      "answer": "a bedroom in a giant movie theater",
+      "explanation": "Lights, camera, action! Sleep in the spotlight and make your own movie magic!",
+      "image_keyword": "movie theater"
     },
     {
       "number": 14,
       "question": "Would you rather have?",
-      "option_a": "A house with a private observatory",
-      "option_b": "A house with a private planetarium",
-      "image_a": "private observatory",
-      "image_b": "private planetarium",
-      "answer": "A house with a private observatory",
-      "explanation": "Explore the universe and discover new wonders!",
-      "image_keyword": "private observatory"
+      "option_a": "a sleepover in a giant trampoline park",
+      "option_b": "a sleepover in a giant laser tag arena",
+      "image_a": "trampoline park",
+      "image_b": "laser tag arena",
+      "answer": "a sleepover in a giant trampoline park",
+      "explanation": "Bounce into fun and sleep on a cloud of excitement!",
+      "image_keyword": "trampoline park"
     },
     {
       "number": 15,
       "question": "Would you rather have?",
-      "option_a": "A house that can fly",
-      "option_b": "A house that can float",
-      "image_a": "flying house",
-      "image_b": "floating house",
-      "answer": "A house that can fly",
-      "explanation": "Soar to new heights and explore the world from above!",
-      "image_keyword": "flying house"
+      "option_a": "a bedroom in a giant time machine",
+      "option_b": "a bedroom in a giant robot",
+      "image_a": "time machine",
+      "image_b": "giant robot",
+      "answer": "a bedroom in a giant time machine",
+      "explanation": "Travel through time and sleep in the past, present, or future!",
+      "image_keyword": "time machine"
     }
   ],
   "fun_facts": [
     {
       "after_question": 3,
-      "text": "The first movie theater in the world was opened in 1895 in Paris, France."
+      "text": "The world's largest treehouse is over 10,000 square feet and has 80 rooms!"
     },
     {
       "after_question": 6,
-      "text": "The largest rooftop garden in the world is located in Chicago, USA."
+      "text": "The longest recorded flight of a chicken is 13 seconds, but some chickens can sleep for up to 12 hours a day!"
     },
     {
       "after_question": 9,
-      "text": "The first trampoline was invented in the 1930s by a man named George Nissen."
+      "text": "The world's largest ice cream sundae was over 5,000 gallons and had 2,000 pounds of toppings!"
     },
     {
       "after_question": 12,
-      "text": "The first amusement park in the world was opened in 1583 in Denmark."
+      "text": "The largest dinosaur that ever existed is the Argentinosaurus, which could weigh over 100 tons and reach lengths of over 100 feet!"
     },
     {
       "after_question": 15,
-      "text": "The concept of a flying house has been around since the 17th century, but it's still not possible with current technology."
+      "text": "The first time machine was conceptually developed by H.G. Wells in his 1895 novel 'The Time Machine', and since then, time travel has become a staple of science fiction!"
     }
   ],
-  "outro": "Thanks for playing the dream house challenge! Don't forget to like and subscribe for more fun videos!"
+  "outro": "Thanks for joining us on this epic sleepover adventure! Don't forget to like, comment, and subscribe for more fun 'Would You Rather?' challenges!"
 }
