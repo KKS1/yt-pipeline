@@ -123,7 +123,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [1900, 200],
       "parameters": {
-        "url": "=http://localhost:5001/assemble",
+        "url": "=http://127.0.0.1:5001/assemble",
         "method": "POST",
         "headers": {
           "parameters": [{ "name": "Content-Type", "value": "application/json" }]
@@ -141,7 +141,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [2140, 200],
       "parameters": {
-        "url": "=http://localhost:5001/upload",
+        "url": "=http://127.0.0.1:5001/upload",
         "method": "POST",
         "headers": {
           "parameters": [{ "name": "Content-Type", "value": "application/json" }]
@@ -281,16 +281,18 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [700, 900],
       "parameters": {
-        "url": "http://localhost:5001/assemble-lofi",
+        "url": "http://127.0.0.1:5001/assemble-lofi",
         "method": "POST",
-        "headers": {
-          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
         },
-        "body": {
-          "mode": "json",
-          "jsonParameters": true,
-          "bodyParametersJson": "={\n  \"metadata\": {\n    \"title\": \"{{$json.title}}\",\n    \"description\": \"{{$json.description}}\",\n    \"tags\": {{$json.tags}},\n    \"mood\": \"{{$json.mood}}\"\n  },\n  \"duration_hours\": 3,\n  \"channel\": \"lofi\"\n}"
-        }
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"metadata\": {\n    \"title\": \"{{$json.title}}\",\n    \"description\": \"{{$json.description}}\",\n    \"tags\": {{$json.tags}},\n    \"mood\": \"{{$json.mood}}\"\n  },\n  \"duration_hours\": 3,\n  \"channel\": \"lofi\"\n}"
       }
     },
 
@@ -299,7 +301,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [940, 900],
       "parameters": {
-        "url": "http://localhost:5001/upload",
+        "url": "http://127.0.0.1:5001/upload",
         "method": "POST",
         "headers": {
           "parameters": [{ "name": "Content-Type", "value": "application/json" }]

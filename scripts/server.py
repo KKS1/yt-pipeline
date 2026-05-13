@@ -175,20 +175,26 @@ def assemble():
 @app.route("/assemble-lofi", methods=["POST"])
 def assemble_lofi():
     """Assemble a lofi video. Expects pre-downloaded music files in assets/lofi/."""
-    data = request.json
+     # Handle both parsed JSON and raw string body
+    data = request.get_json(force=True, silent=True)
+    if data is None:
+        try:
+            data = json.loads(request.data.decode("utf-8"))
+        except Exception:
+            return jsonify({"error": "Could not parse request body as JSON"}), 400
+
     job_id = f"lofi_{len(jobs)+1:04d}"
     jobs[job_id] = {"status": "running"}
 
-    # Parse metadata from Claude response
-    raw_metadata = data.get("metadata", "{}")
+    # metadata may arrive as a dict or a JSON string — handle both
+    raw_metadata = data.get("metadata", {})
     if isinstance(raw_metadata, str):
         raw_metadata = re.sub(r"```json|```", "", raw_metadata).strip()
         try:
-            metadata = json.loads(raw_metadata)
+            raw_metadata = json.loads(raw_metadata)
         except Exception:
-            metadata = {}
-    else:
-        metadata = raw_metadata
+            raw_metadata = {}
+    metadata = raw_metadata
 
     def run():
         try:
