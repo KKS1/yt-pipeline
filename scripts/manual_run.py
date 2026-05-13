@@ -50,6 +50,239 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+# CONSTANTS
+
+FAMILY_TOPIC_POOL = [
+
+    # Dream / Luxury
+    "Dream Houses",
+    "Luxury Lifestyle",
+    "Millionaire Life",
+    "Private Islands",
+    "Future Mansions",
+    "Ultimate Bedrooms",
+    "Epic Backyards",
+    "Crazy Swimming Pools",
+    "Fantasy Castles",
+    "Celebrity Lifestyle",
+
+    # Food
+    "Fast Food",
+    "Candy Universe",
+    "Desserts",
+    "Ice Cream Flavors",
+    "Pizza Creations",
+    "Chocolate Factory",
+    "International Foods",
+    "Giant Foods",
+    "Weird Food Combos",
+    "Restaurant Challenges",
+
+    # Animals
+    "Animals",
+    "Cute Pets",
+    "Wild Jungle Animals",
+    "Ocean Creatures",
+    "Dinosaurs",
+    "Mythical Creatures",
+    "Dragons",
+    "Zoo Adventures",
+    "Animal Superpowers",
+    "Tiny vs Giant Animals",
+
+    # Fantasy
+    "Fantasy Worlds",
+    "Magic Schools",
+    "Wizards",
+    "Fairy Tales",
+    "Pirates",
+    "Knights",
+    "Mermaids",
+    "Elves",
+    "Haunted Mansions",
+    "Treasure Hunts",
+
+    # Space / Sci-Fi
+    "Space Adventure",
+    "Aliens",
+    "Future Technology",
+    "Robots",
+    "Time Travel",
+    "Flying Cars",
+    "Virtual Reality",
+    "Mars Colonies",
+    "Spaceships",
+    "Future Cities",
+
+    # Gaming
+    "Video Games",
+    "Minecraft Style Builds",
+    "Arcade Games",
+    "Retro Games",
+    "Battle Royale Games",
+    "Racing Games",
+    "Gaming Rooms",
+    "Mobile Games",
+    "Virtual Worlds",
+    "Pixel Worlds",
+
+    # Adventure
+    "Jungle Adventure",
+    "Survival Challenges",
+    "Treasure Islands",
+    "Extreme Weather",
+    "Mountain Adventures",
+    "Deep Sea Exploration",
+    "Safari Adventures",
+    "Camping Trips",
+    "Secret Missions",
+    "Spy Gadgets",
+
+    # School / Kids
+    "School Life",
+    "Classroom Challenges",
+    "Summer Camp",
+    "Field Trips",
+    "School Lunches",
+    "Science Fair",
+    "Art Class",
+    "Talent Shows",
+    "Funny Teachers",
+    "Ultimate Playgrounds",
+
+    # Sports / Competition
+    "Sports Challenges",
+    "Olympic Games",
+    "Extreme Sports",
+    "Obstacle Courses",
+    "Water Sports",
+    "Snow Sports",
+    "Mini Golf",
+    "Theme Park Competitions",
+    "Race Challenges",
+    "Superhero Training",
+
+    # Entertainment
+    "Movies",
+    "Cartoon Worlds",
+    "Superheroes",
+    "Villains",
+    "Animated Adventures",
+    "Music Videos",
+    "Dance Battles",
+    "Talent Competitions",
+    "TV Game Shows",
+    "Circus Adventures",
+
+    # Travel
+    "World Travel",
+    "Famous Landmarks",
+    "Vacation Resorts",
+    "Underwater Hotels",
+    "Treehouse Hotels",
+    "Theme Parks",
+    "Safari Lodges",
+    "Snow Villages",
+    "Tropical Islands",
+    "Luxury Cruises",
+
+    # Nature
+    "Nature Wonders",
+    "Volcanoes",
+    "Waterfalls",
+    "Rainforests",
+    "Arctic Adventures",
+    "Desert Survival",
+    "Beautiful Beaches",
+    "National Parks",
+    "Weather Powers",
+    "Seasons",
+
+    # Silly / Fun
+    "Impossible Choices",
+    "Funny Situations",
+    "Superpowers",
+    "Tiny vs Giant",
+    "Invisible Powers",
+    "Flying Abilities",
+    "Teleportation",
+    "Mind Reading",
+    "Robot Helpers",
+    "Magical Objects",
+
+    # Holiday / Seasonal
+    "Christmas",
+    "Halloween",
+    "Easter",
+    "Summer Vacation",
+    "Winter Wonderland",
+    "Birthday Parties",
+    "New Year Celebrations",
+    "Valentine's Day",
+    "Holiday Foods",
+    "Spooky Adventures",
+
+    # Vehicles
+    "Supercars",
+    "Monster Trucks",
+    "Motorcycles",
+    "Luxury Yachts",
+    "Private Jets",
+    "Construction Vehicles",
+    "Emergency Vehicles",
+    "Trains",
+    "Rocket Ships",
+    "Submarines",
+
+    # Creative / Imagination
+    "Build Your Own World",
+    "Design Your Dream City",
+    "Invent Crazy Gadgets",
+    "Create Your Theme Park",
+    "Design Your Superhero",
+    "Magical Powers",
+    "Secret Laboratories",
+    "Crazy Inventions",
+    "Ultimate Treehouses",
+    "Future Schools",
+
+    # Challenge / Puzzle style
+    "Riddles",
+    "Mystery Challenges",
+    "Escape Rooms",
+    "Brain Teasers",
+    "Impossible Puzzles",
+    "Logic Challenges",
+    "Guess the Object",
+    "Secret Doors",
+    "Hidden Treasure",
+    "Choose Your Path",
+
+    # Viral / YouTube-friendly
+    "TikTok Trends",
+    "YouTube Challenges",
+    "24 Hour Challenges",
+    "Last To Leave",
+    "Impossible Decisions",
+    "Rich vs Poor",
+    "Gold vs Diamond",
+    "Luxury vs Survival",
+    "Future vs Ancient",
+    "Kids vs Adults",
+
+    # Misc Viral Concepts
+    "Rainbow World",
+    "Glow in the Dark",
+    "Candy Land",
+    "Neon Cities",
+    "Sky Islands",
+    "Underwater Cities",
+    "Cloud Kingdoms",
+    "Miniature Worlds",
+    "Giant Worlds",
+    "Secret Underground Bases",
+]
+
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
@@ -150,36 +383,12 @@ def generate_lofi_metadata_local() -> dict:
         ],
         "mood": random.choice(["cozy", "melancholic", "focused", "dreamy"]),
     }
-    
-TOPIC_POOL = [
-    "Dream Houses",
-    "Animals",
-    "Fast Food",
-    "Superheroes",
-    "Luxury Lifestyle",
-    "Fantasy Worlds",
-    "Space Adventure",
-    "Theme Parks",
-    "Magical Schools",
-    "Future Technology",
-    "Video Games",
-    "Dinosaurs",
-    "Underwater World",
-    "Candy Universe",
-    "Jungle Adventure",
-    "Pirates",
-    "Minecraft Style Builds",
-    "Robots",
-    "Mythical Creatures",
-    "Extreme Weather",
-]
-
 
 def generate_this_or_that_script(topic=None):
 
     # Auto-pick topic if none supplied
     if not topic:
-        topic = random.choice(TOPIC_POOL)
+        topic = random.choice(FAMILY_TOPIC_POOL)
 
     print(f"\nSelected topic: {topic}")
 
