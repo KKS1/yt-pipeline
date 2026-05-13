@@ -548,7 +548,8 @@ def run_lofi():
 
     # ── Check assets ──────────────────────────────────
     lofi_dir    = ASSETS_DIR / "lofi"
-    music_files = sorted(lofi_dir.glob("*.mp3"))
+    music_files = list(lofi_dir.glob("*.mp3"))
+    random.shuffle(music_files)
     if not music_files:
         print(f"\nNo MP3 files found in {lofi_dir}")
         print("Download lofi tracks from suno.ai and place them there.")
