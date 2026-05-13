@@ -83,7 +83,7 @@
       "type": "n8n-nodes-base.code",
       "position": [1180, 200],
       "parameters": {
-        "jsCode": "const raw = items[0].json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet topics;\ntry {\n  topics = JSON.parse(cleaned);\n} catch(e) {\n  // Fallback extraction\n  const match = raw.match(/\\[.*\\]/s);\n  topics = match ? JSON.parse(match[0]) : [];\n}\n\n// Sort by score, take top 3\ntopics.sort((a, b) => b.score - a.score);\nconst selected = topics.slice(0, 3);\n\n// Add metadata for downstream nodes\nreturn selected.map((t, i) => ({\n  json: {\n    ...t,\n    video_index: i + 1,\n    scheduled_for: new Date(Date.now() + i * 4 * 3600000).toISOString(), // Space 4hrs apart\n    status: 'pending'\n  }\n}));"
+        "jsCode": "const raw = items[0].json.content[0].text;\nconst cleaned = raw.replace(/```json|```/g, '').trim();\nlet topics;\ntry {\n  topics = JSON.parse(cleaned);\n} catch(e) {\n  // Fallback extraction\n  const match = raw.match(/\\[.*\\]/s);\n  topics = match ? JSON.parse(match[0]) : [];\n}\n\n// Sort by score, take top 3\ntopics.sort((a, b) => b.score - a.score);\nconst selected = topics.slice(0, 3);\n\n// Add metadata for downstream nodes\nreturn selected.map((t, i) => ({\n  json: {\n    ...t,\n    video_index: i + 1,\n    scheduled_for: new Date(Date.now() + i * 4 * 3600000).toISOString(),\n    status: 'pending'\n  }\n}));"
       }
     },
 
@@ -269,23 +269,10 @@
 
     {
       "name": "Generate Lofi Metadata",
-      "type": "n8n-nodes-base.httpRequest",
+      "type": "n8n-nodes-base.code",
       "position": [460, 900],
       "parameters": {
-        "url": "https://api.anthropic.com/v1/messages",
-        "method": "POST",
-        "headers": {
-          "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "Content-Type", "value": "application/json" }
-          ]
-        },
-        "body": {
-          "mode": "json",
-          "jsonParameters": true,
-          "bodyParametersJson": "{\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Generate YouTube metadata for a 3-hour lofi study music video. Pick a cozy mood (rainy café, night library, etc.). Return ONLY JSON: {\\\"title\\\": \\\"under 70 chars\\\", \\\"description\\\": \\\"200 words with lofi study music keywords and 30-min timestamps\\\", \\\"tags\\\": [\\\"lofi hip hop\\\",\\\"study music\\\",\\\"focus music\\\",\\\"chill beats\\\",\\\"lofi beats\\\",\\\"homework music\\\",\\\"concentration\\\",\\\"lofi mix\\\"], \\\"mood\\\": \\\"chosen mood\\\", \\\"visual_scene\\\": \\\"describe cozy looping animation for video background\\\", \\\"suno_prompt\\\": \\\"prompt for Suno AI to generate the music style\\\"}\"\n  }]\n}"
-        }
+        "jsCode": "const settings = [\n  // Café & Coffee\n  ['Rainy Tokyo Café ☕', 'rainy Tokyo café with soft jazz and rain on the windows'],\n  ['Paris Bistro Morning 🥐', 'quiet Paris bistro at dawn with espresso and cobblestone streets outside'],\n  ['Rooftop Café at Sunset 🌇', 'open rooftop café as the city glows orange at dusk'],\n  ['Foggy Seoul Coffee Shop 🌫️', 'cozy Seoul coffee shop wrapped in morning fog'],\n  ['Venice Canal Café 🛶', 'small café beside a quiet Venice canal with lapping water'],\n  // Libraries & Study Spaces\n  ['Midnight Library 🌙', 'vast quiet library at midnight with warm lamp light'],\n  ['Old University Library 📚', 'grand university library with tall oak shelves and ticking clocks'],\n  ['Bookshop in the Rain 📖', 'small independent bookshop on a rainy afternoon'],\n  ['Reading Room at Dusk 🕯️', 'candlelit reading room as evening falls outside'],\n  ['Archive Room 🗂️', 'forgotten archive room with dusty books and soft amber light'],\n  // Nature & Outdoors\n  ['Snowy Mountain Cabin 🏔️', 'cozy cabin during a snowstorm with a crackling fireplace'],\n  ['Autumn Forest Creek 🍂', 'peaceful forest path with falling leaves and a babbling creek'],\n  ['Rainy Countryside Cottage 🌧️', 'stone cottage in the English countryside during a gentle rain'],\n  ['Cherry Blossom Garden 🌸', 'Japanese garden in full bloom with soft wind and distant temple bells'],\n  ['Foggy Lakeside Dock 🌊', 'wooden dock on a misty mountain lake at early morning'],\n  ['Greenhouse at Dawn 🌿', 'sunlit greenhouse with birdsong and dew on the glass'],\n  ['Bamboo Forest Path 🎋', 'narrow path through a quiet bamboo forest with rustling leaves'],\n  ['Lavender Field at Dusk 💜', 'open lavender field as the sun dips below the horizon'],\n  // City & Urban\n  ['City Window at Dusk 🌆', 'apartment window overlooking a glowing city at golden hour'],\n  ['Subway Station Late Night 🚇', 'nearly empty subway station after midnight with distant trains'],\n  ['Rainy Night Street 🌃', 'narrow city street glistening with rain under yellow streetlights'],\n  ['Rooftop After Rain 🏙️', 'quiet rooftop garden as the city steams after an evening storm'],\n  ['Jazz Club After Hours 🎷', 'dimly lit jazz club after closing with chairs on tables'],\n  // Home & Interior\n  ['Cozy Bedroom Snowfall ❄️', 'warm bedroom with fairy lights while snow falls silently outside'],\n  ['Attic Studio on a Rainy Day 🎨', 'cluttered artist attic studio with rain drumming on the skylight'],\n  ['Kitchen at Midnight 🍵', 'quiet kitchen late at night with herbal tea and a sleeping house'],\n  ['Beachside Bungalow 🌊', 'open bungalow with ocean waves and a warm sea breeze'],\n  // Seasonal\n  ['First Snow Morning ⛄', 'waking up to the first snowfall of winter with everything hushed'],\n  ['Summer Night Balcony 🌌', 'warm balcony on a summer night with crickets and city lights below'],\n  ['Rainy April Afternoon 🌦️', 'slow April afternoon with rain on the window and nothing to do']\n];\n\nconst moods = ['cozy', 'melancholic', 'focused', 'dreamy'];\n\nconst idx = Math.floor(Math.random() * settings.length);\nconst [settingName, settingDesc] = settings[idx];\nconst mood = moods[Math.floor(Math.random() * moods.length)];\n\nconst title = `Lofi Study Music — ${settingName} | 3 Hours of Chill Beats`;\nconst description = `3 hours of lofi hip hop beats to study and relax to. Imagine yourself in a ${settingDesc}. Perfect for studying, homework, focus sessions, and deep work.\\n\\n🎵 Lofi beats | Chill music | Study music | Focus music\\n\\nUse this mix for:\\n• Studying and homework\\n• Deep work and concentration\\n• Relaxation and unwinding\\n• Reading and journaling\\n\\n#lofi #studymusic #chillbeats #focusmusic #lofihiphop`;\nconst tags = ['lofi hip hop', 'study music', 'focus music', 'chill beats', 'lofi beats', 'homework music', 'concentration music', 'lofi mix', 'study beats', 'relaxing music'];\n\nreturn [{ json: { title, description, tags, mood, setting: settingName } }];"
       }
     },
 
@@ -302,7 +289,7 @@
         "body": {
           "mode": "json",
           "jsonParameters": true,
-          "bodyParametersJson": "={\n  \"metadata\": {{$json.content[0].text}},\n  \"duration_hours\": 3,\n  \"channel\": \"lofi\"\n}"
+          "bodyParametersJson": "={\n  \"metadata\": {\n    \"title\": \"{{$json.title}}\",\n    \"description\": \"{{$json.description}}\",\n    \"tags\": {{$json.tags}},\n    \"mood\": \"{{$json.mood}}\"\n  },\n  \"duration_hours\": 3,\n  \"channel\": \"lofi\"\n}"
         }
       }
     },
