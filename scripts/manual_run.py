@@ -24,6 +24,9 @@ from pathlib import Path
 from datetime import datetime
 import cProfile
 import pstats
+import requests
+import time
+
 
 # Add parent dirs to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -43,6 +46,8 @@ ASSETS_DIR = Path(__file__).parent.parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -145,6 +150,166 @@ def generate_lofi_metadata_local() -> dict:
         "mood": random.choice(["cozy", "melancholic", "focused", "dreamy"]),
     }
     
+def generate_this_or_that_script(topic="Dream House"):
+
+    prompt = f"""
+You are generating content for a YouTube family-friendly
+"Would You Rather?" game video.
+
+TOPIC:
+{topic}
+
+CRITICAL RULES:
+- Output ONLY valid JSON
+- No markdown
+- No explanations
+- No comments
+- No code fences
+- No extra text before or after JSON
+- JSON must parse with json.loads()
+
+STYLE:
+- Exciting YouTube energy
+- Fun for kids and families
+- Highly visual
+- Funny and imaginative
+- Bright colorful ideas
+- Questions should be easy to visualize
+
+REQUIRED JSON SCHEMA:
+
+{{
+  "title": "string",
+  "format_label": "WOULD YOU RATHER?",
+  "subtitle": "string",
+  "description": "string",
+  "tags": ["string"],
+  "intro": "string",
+
+  "questions": [
+    {{
+      "number": 1,
+      "question": "Would you rather have?",
+      "option_a": "string",
+      "option_b": "string",
+      "image_a": "short visual image search keyword",
+      "image_b": "short visual image search keyword",
+      "answer": "must exactly match option_a or option_b",
+      "explanation": "1 sentence explanation",
+      "image_keyword": "short visual image search keyword"
+    }}
+  ],
+
+  "fun_facts": [
+    {{
+      "after_question": 3,
+      "text": "interesting fun fact"
+    }}
+  ],
+
+  "outro": "string"
+}}
+
+REQUIREMENTS:
+- Exactly 15 questions
+- Exactly 5 fun facts
+- Fun facts after questions:
+  3, 6, 9, 12, 15
+- Every question object MUST contain ALL fields
+- image keywords should be short and visual
+- answer MUST exactly match either option_a or option_b
+- Use different creative scenarios
+- Avoid repeated ideas
+
+IMPORTANT:
+Return ONLY the JSON object.
+"""
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a JSON API that generates "
+                    "perfect structured YouTube game scripts."
+                ),
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        "temperature": 0.8,
+        "max_tokens": 7000,
+        "response_format": {
+            "type": "json_object"
+        },
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        timeout=120,
+    )
+
+    if response.status_code != 200:
+
+        raise Exception(
+            f"Groq API error "
+            f"{response.status_code}: {response.text}"
+        )
+
+    data = response.json()
+
+    raw_text = (
+        data["choices"][0]["message"]["content"]
+    )
+
+    try:
+
+        script = json.loads(raw_text)
+
+    except json.JSONDecodeError:
+
+        print("\nINVALID JSON RETURNED:\n")
+        print(raw_text)
+
+        raise
+
+    # Optional lightweight validation only
+    required_top = [
+        "title",
+        "questions",
+        "fun_facts",
+        "intro",
+        "outro",
+    ]
+
+    for field in required_top:
+
+        if field not in script:
+
+            raise ValueError(
+                f"Missing required field: {field}"
+            )
+
+    if len(script["questions"]) != 15:
+
+        raise ValueError(
+            "Expected exactly 15 questions"
+        )
+
+    return script
+    
 # ─────────────────────────────────────────────
 # LOFI PIPELINE (fully free)
 # ─────────────────────────────────────────────
@@ -221,36 +386,86 @@ def run_lofi():
 # ─────────────────────────────────────────────
 
 def run_family():
-    from family_assembler import assemble_family_video, cleanup_family_temp
-    print("\n" + "="*50)
-    print("FAMILY-FRIENDLY CHANNEL — This or That card format")
-    print("="*50)
-    print("\nTip: Go to claude.ai and ask:")
-    print('  "Write a This or That JSON script about animals"')
-    print("Then paste the JSON below.\n")
 
-    json_file = "scripts/this_or_that.json"
-    raw_json = Path(json_file).read_text()
+    from family_assembler import (
+        assemble_family_video,
+        cleanup_family_temp,
+    )
+
+    print("\n" + "=" * 50)
+    print("FAMILY-FRIENDLY CHANNEL — This or That")
+    print("=" * 50)
+
+    topic = input(
+        "\nEnter topic "
+        "(animals, superheroes, dream house, etc): "
+    ).strip()
+
+    if not topic:
+        topic = "Dream House"
 
     try:
+
         cleanup_family_temp()
-        script = json.loads(raw_json)
-    except json.JSONDecodeError as e:
-        print(f"\nInvalid JSON: {e}")
-        print("Make sure you paste valid JSON — check claude.ai output carefully.")
+
+        print(
+            f"\nGenerating script with Groq "
+            f"for topic: {topic}\n"
+        )
+
+        script = generate_this_or_that_script(topic)
+
+        Path("scripts").mkdir(exist_ok=True)
+
+        json_file = "scripts/this_or_that.json"
+
+        Path(json_file).write_text(
+            json.dumps(script, indent=2),
+            encoding="utf-8",
+        )
+
+        print(
+            f"\nSaved generated script to:\n"
+            f"{json_file}"
+        )
+
+    except Exception as e:
+
+        print(f"\nFailed generating script: {e}")
+
         sys.exit(1)
 
-    title = script.get("title", "family_video")
+    title = script.get(
+        "title",
+        "family_video",
+    )
 
     out_slug = slug(title)
-    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
-    
-    assemble_family_video(script, out_path)
+    out_path = str(
+        OUTPUT_DIR / f"{out_slug}.mp4"
+    )
+
+    print("\nAssembling video...\n")
+
+    assemble_family_video(
+        script,
+        out_path,
+    )
+
     cleanup_family_temp()
 
-    _upload_video(out_path, title, script.get("description", ""), script.get("tags", []), channel="family")
+    print("\nUploading video...\n")
 
+    _upload_video(
+        out_path,
+        title,
+        script.get("description", ""),
+        script.get("tags", []),
+        channel="family",
+    )
+
+    print("\nDone!\n")
 
 # ─────────────────────────────────────────────
 # TRENDING PIPELINE (manual script entry)
