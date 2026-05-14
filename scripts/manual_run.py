@@ -736,10 +736,10 @@ def _upload_video(video_path, title, description, tags, channel):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
-    upload = prompt_input("\nUpload to YouTube now? (yes/no)", "yes")
-    if upload.lower() not in ("yes", "y"):
-        print(f"\nDone. Upload manually from: {video_path}")
-        return
+    # upload = prompt_input("\nUpload to YouTube now? (yes/no)", "yes")
+    # if upload.lower() not in ("yes", "y"):
+    #     print(f"\nDone. Upload manually from: {video_path}")
+    #     return
 
     creds_path = ASSETS_DIR / f"yt_credentials_{channel}.json"
     if not creds_path.exists():
