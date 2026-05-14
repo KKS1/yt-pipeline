@@ -537,15 +537,6 @@ def run_lofi():
     print(f"  Mood  : {metadata.get('mood', 'n/a')}")
     print(f"  Tags  : {', '.join(tags[:4])}...")
 
-    confirm = prompt_input("\nUse this metadata? (yes/no)", "yes")
-    if confirm.lower() not in ("yes", "y"):
-        title       = prompt_input("Video title", title)
-        description = prompt_multiline("Paste your video description")
-        tags_raw    = prompt_input("Tags (comma-separated)", ", ".join(tags))
-        tags        = [t.strip() for t in tags_raw.split(",")]
-
-    duration_hours = int(prompt_input("Duration in hours", "3"))
-
     # ── Check assets ──────────────────────────────────
     lofi_dir    = ASSETS_DIR / "lofi"
     music_files = list(lofi_dir.glob("*.mp3"))
@@ -570,6 +561,15 @@ def run_lofi():
     visual_path = random.choice(visual_files)
     print(f"\n  Music tracks : {len(music_files)}")
     print(f"  Visual loop  : {visual_path.name}")
+
+    confirm = prompt_input("\nUse this metadata? (yes/no)", "yes")
+    if confirm.lower() not in ("yes", "y"):
+        title       = prompt_input("Video title", title)
+        description = prompt_multiline("Paste your video description")
+        tags_raw    = prompt_input("Tags (comma-separated)", ", ".join(tags))
+        tags        = [t.strip() for t in tags_raw.split(",")]
+
+    duration_hours = int(prompt_input("Duration in hours", "3"))
 
     # ── Assemble ──────────────────────────────────────
     out_slug = slug(title)
@@ -762,6 +762,8 @@ def _upload_video(video_path, title, description, tags, channel):
         result = resp.json()
         if "youtube_id" in result:
             print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
+            # delete video file
+            Path(video_path).unlink(missing_ok=True)
         else:
             print(f"\nUpload response: {result}")
     except Exception as e:
