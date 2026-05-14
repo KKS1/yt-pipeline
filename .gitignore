@@ -12,6 +12,7 @@ assets/background_music.mp3
 assets/lofi_loop.mp4
 assets/lofi/
 assets/lofi_visuals/
+scripts/this_or_that.json
 
 # Python
 __pycache__/
