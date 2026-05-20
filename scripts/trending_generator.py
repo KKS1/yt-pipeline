@@ -22,6 +22,13 @@ DEFAULT_REGION = "CA"
 DEFAULT_TRENDS_URL = (
     "https://trends.google.com/trending/rss?geo={region}"
 )
+DAILY_INSIGHTS_BRAND = """
+Channel: Daily Insights Hub
+Promise: The world explained — daily.
+Editorial lanes: finance, health, AI, true crime, lifestyle, science, culture, and useful facts.
+Voice: clear, engaging, intelligent, and time-respectful.
+Standard: no fluff, no filler, no hype for its own sake. Explain why the story matters.
+"""
 
 UNSAFE_TOPIC_PATTERNS = [
     r"\belection\b",
@@ -138,11 +145,14 @@ def _groq_chat(prompt: str, max_tokens: int, temperature: float = 0.7) -> dict:
 
 def choose_topic_with_groq(topics: list[str], region: str = DEFAULT_REGION) -> dict:
     prompt = f"""
-You are a YouTube content strategist for a faceless trending explainer channel.
+You are a YouTube content strategist for Daily Insights Hub.
+
+{DAILY_INSIGHTS_BRAND}
 
 Pick the SINGLE best topic for a broad English-speaking audience in {region}.
 Avoid politics, tragedy, unverified breaking news, and topics that need live updates.
-Prefer culture, sports storylines, tech, entertainment, lifestyle, science, and explainers.
+Prefer topics that can teach viewers something useful or surprising across finance, health,
+AI, true crime, lifestyle, science, culture, and high-interest explainers.
 
 Trending topics:
 {chr(10).join(f"- {topic}" for topic in topics)}
@@ -165,12 +175,14 @@ TRENDING_SCRIPT_FORMATS = {
         "prompt": """
 You are an expert YouTube Shorts scriptwriter for a faceless daily trending insights channel.
 
+{brand}
+
 Topic: {chosen_topic}
 Angle: {angle}
 Keywords: {keywords}
 
 Write a clear 45-90 second YouTube Short for general viewers.
-Tone: calm, current, informed, and conversational.
+Tone: clear, engaging, intelligent, current, and conversational.
 
 Rules:
 - Start with a strong hook in the first 3 seconds.
@@ -180,6 +192,7 @@ Rules:
 - Avoid inflammatory language and political persuasion.
 - Use [PAUSE] sparingly and [VISUAL: short vertical cue] for mobile-friendly B-roll moments.
 - No markdown and no "in today's video" filler.
+- No fluff, no filler, and no vague hype.
 - End with one short comment or follow prompt.
 
 Return ONLY valid JSON:
@@ -201,12 +214,14 @@ Return ONLY valid JSON:
         "prompt": """
 You are an expert YouTube scriptwriter for a faceless trending explainer channel.
 
+{brand}
+
 Topic: {chosen_topic}
 Angle: {angle}
 Keywords: {keywords}
 
 Write a clear, calm 5-7 minute explainer that can show up in search the same day a topic peaks.
-Tone: informed, accessible, and conversational.
+Tone: clear, engaging, intelligent, informed, accessible, and conversational.
 
 Rules:
 - Start with a strong hook in the first 15 seconds.
@@ -216,6 +231,8 @@ Rules:
 - Avoid inflammatory language and political persuasion.
 - Use [PAUSE] sparingly and [VISUAL: short cue] for useful B-roll moments.
 - No markdown and no "in today's video" filler.
+- No fluff, no filler, and no vague hype.
+- Respect the viewer's time and intelligence.
 
 Return ONLY valid JSON:
 {{
@@ -238,6 +255,7 @@ Return ONLY valid JSON:
 def generate_script_with_groq(topic_data: dict, video_format: str = "shorts") -> dict:
     script_format = TRENDING_SCRIPT_FORMATS.get(video_format, TRENDING_SCRIPT_FORMATS["shorts"])
     prompt = script_format["prompt"].format(
+        brand=DAILY_INSIGHTS_BRAND.strip(),
         chosen_topic=topic_data["chosen_topic"],
         angle=topic_data["angle"],
         keywords=", ".join(topic_data["keywords"]),

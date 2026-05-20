@@ -34,6 +34,25 @@ class ManualRunUploadTests(unittest.TestCase):
                     upload.assert_called_once()
                     self.assertFalse(video.exists())
 
+    def test_cleanup_uploaded_video_files_skips_directories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            video = tmp_path / "video.mp4"
+            captions = tmp_path / "video.srt"
+            voice = tmp_path / "video_voice.m4a"
+            temp_dir = tmp_path / "temp"
+            video.write_bytes(b"fake video")
+            captions.write_text("captions", encoding="utf-8")
+            voice.write_bytes(b"fake audio")
+            temp_dir.mkdir()
+
+            manual_run._cleanup_uploaded_video_files(str(video))
+
+            self.assertFalse(video.exists())
+            self.assertFalse(captions.exists())
+            self.assertFalse(voice.exists())
+            self.assertTrue(temp_dir.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

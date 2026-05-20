@@ -10,6 +10,14 @@ import re
 client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
 MODEL = "claude-sonnet-4-20250514"
 
+DAILY_INSIGHTS_BRAND = """
+Channel: Daily Insights Hub
+Promise: The world explained — daily.
+Editorial lanes: finance, health, AI, true crime, lifestyle, science, culture, and useful facts.
+Voice: clear, engaging, intelligent, and time-respectful.
+Standard: no fluff, no filler, no hype for its own sake. Explain why the story matters.
+"""
+
 
 # ─────────────────────────────────────────────
 # CHANNEL CONFIGS
@@ -17,12 +25,12 @@ MODEL = "claude-sonnet-4-20250514"
 
 CHANNEL_CONFIGS = {
     "trending": {
-        "name": "Daily Trending Shorts",
-        "tone": "engaging, authoritative, slightly conversational",
+        "name": "Daily Insights Hub",
+        "tone": "clear, engaging, intelligent, time-respectful",
         "audience": "general adults 18-45",
         "video_length_min": 0.75,
         "video_length_max": 1.5,
-        "style": "mobile-first daily insight narrator",
+        "style": "world-explained-daily narrator",
     },
     "family": {
         "name": "Family-Friendly",
@@ -55,6 +63,8 @@ def score_and_pick_topic(raw_topics: list[str], channel_type: str) -> dict:
     config = CHANNEL_CONFIGS[channel_type]
 
     prompt = f"""You are a YouTube content strategist specializing in {config['name']} channels.
+
+{DAILY_INSIGHTS_BRAND if channel_type == 'trending' else ''}
 
 Given these trending topics, pick the SINGLE best one for a {config['name']} YouTube channel.
 Target audience: {config['audience']}
@@ -104,7 +114,9 @@ Pick the winner and return ONLY valid JSON, no markdown, no explanation:
 def generate_trending_script(topic_data: dict) -> dict:
     """Generate a full narrated script for the trending channel."""
 
-    prompt = f"""You are an expert YouTube Shorts scriptwriter for a faceless daily trending insights channel.
+    prompt = f"""You are an expert YouTube Shorts scriptwriter for Daily Insights Hub.
+{DAILY_INSIGHTS_BRAND}
+
 Style: {CHANNEL_CONFIGS['trending']['style']}
 Tone: {CHANNEL_CONFIGS['trending']['tone']}
 Target length: 45–90 seconds when read at about 140–160 words/minute
@@ -131,6 +143,8 @@ Rules:
 - Use [EMPHASIS] before a word that should be stressed
 - Use [VISUAL: description] to suggest mobile-friendly vertical B-roll or images
 - No filler phrases like "in today's video" or "don't forget to like"
+- No fluff, no filler, and no vague hype
+- Respect the viewer's time and intelligence
 - Total word count should be 120–230 words
 - Include #Shorts in the description
 

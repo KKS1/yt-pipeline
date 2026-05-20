@@ -89,7 +89,7 @@ whisper --help
 3. Create three channels with these names (or your own branding):
    - **Lofi Study Hub** (or similar)
    - **Family Fun Zone** (or similar)  
-   - **Daily Insights** (or similar, for trending content)
+   - **Daily Insights Hub** (for trending insight content)
 4. For each channel: add a basic description, pick a category
 5. Do NOT set audience to "made for kids" on the family channel — set it to "Yes, set this channel as made for kids" ONLY on the lofi kids nursery channel if you create one later
 
@@ -327,10 +327,10 @@ This will auto-generate and upload lofi videos twice a week while you sleep.
 
 ---
 
-## Phase 8 — Publish your first Daily Insights video (trending channel)
+## Phase 8 — Publish your first Daily Insights Hub video (trending channel)
 
-The Daily Insights channel covers topics people are actively searching right now —
-sports storylines, viral moments, news explainers, cultural moments. The goal is
+Daily Insights Hub explains the topics people are actively searching right now —
+finance, health, AI, true crime, lifestyle, science, culture, and useful facts. The goal is
 a clear, calm 45-90 second vertical Short that shows up while a topic is peaking.
 For bigger search-friendly topics, you can also run the original 5-7 minute
 landscape explainer format.

@@ -2,6 +2,7 @@ import json
 import unittest
 
 from scripts.trending_generator import (
+    DAILY_INSIGHTS_BRAND,
     TRENDING_SCRIPT_FORMATS,
     filter_topics,
     normalize_script_data,
@@ -109,6 +110,7 @@ class TrendingGeneratorTests(unittest.TestCase):
 
         for config in TRENDING_SCRIPT_FORMATS.values():
             prompt = config["prompt"].format(
+                brand=DAILY_INSIGHTS_BRAND.strip(),
                 chosen_topic=topic_data["chosen_topic"],
                 angle=topic_data["angle"],
                 keywords=", ".join(topic_data["keywords"]),

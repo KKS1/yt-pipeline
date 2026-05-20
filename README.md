@@ -6,7 +6,7 @@ A fully autonomous YouTube content pipeline for 3 channels, running on ~$20/mont
 
 | Channel | Content | CPM | Effort/week |
 |---------|---------|-----|-------------|
-| **Trending Narrated** | Finance, health, AI, lifestyle, true crime | $8–40 | ~10 min |
+| **Daily Insights Hub** | Finance, health, AI, lifestyle, true crime, useful facts | $8–40 | ~10 min |
 | **Family-Friendly** | This or that, fun facts, riddles, trivia | $4–12 | ~5 min |
 | **Lofi Study Music** | 3-hour focus/study sessions | $1–4 | ~5 min |
 

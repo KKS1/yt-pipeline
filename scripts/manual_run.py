@@ -902,18 +902,30 @@ def _upload_video(video_path, title, description, tags, channel):
             tags=tags,
             channel=channel,
         )
-        if "youtube_id" in result:
-            print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
-            # delete video file
-            video = Path(video_path)
-            video.unlink(missing_ok=True)
-            video.with_suffix(".srt").unlink(missing_ok=True)
-            video.with_name(f"{video.stem}_voice.m4a").unlink(missing_ok=True)
-        else:
-            print(f"\nUpload response: {result}")
     except Exception as e:
         print(f"\nUpload failed. You can retry after fixing the issue.")
         print(f"Error: {e}")
+        return
+
+    if "youtube_id" in result:
+        print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
+        _cleanup_uploaded_video_files(video_path)
+    else:
+        print(f"\nUpload response: {result}")
+
+
+def _cleanup_uploaded_video_files(video_path):
+    video = Path(video_path)
+    for path in [
+        video,
+        video.with_suffix(".srt"),
+        video.with_name(f"{video.stem}_voice.m4a"),
+    ]:
+        try:
+            if path.is_file():
+                path.unlink()
+        except OSError as e:
+            print(f"  Cleanup skipped for {path}: {e}")
 
 
 def _upload_existing_video(video_path, channel, title=None, description=None, tags=None):
