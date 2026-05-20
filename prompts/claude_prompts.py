@@ -17,12 +17,12 @@ MODEL = "claude-sonnet-4-20250514"
 
 CHANNEL_CONFIGS = {
     "trending": {
-        "name": "Trending Narrated",
+        "name": "Daily Trending Shorts",
         "tone": "engaging, authoritative, slightly conversational",
         "audience": "general adults 18-45",
-        "video_length_min": 8,
-        "video_length_max": 14,
-        "style": "documentary narrator meets YouTube explainer",
+        "video_length_min": 0.75,
+        "video_length_max": 1.5,
+        "style": "mobile-first daily insight narrator",
     },
     "family": {
         "name": "Family-Friendly",
@@ -104,43 +104,46 @@ Pick the winner and return ONLY valid JSON, no markdown, no explanation:
 def generate_trending_script(topic_data: dict) -> dict:
     """Generate a full narrated script for the trending channel."""
 
-    prompt = f"""You are an expert YouTube scriptwriter for a faceless narrated channel.
+    prompt = f"""You are an expert YouTube Shorts scriptwriter for a faceless daily trending insights channel.
 Style: {CHANNEL_CONFIGS['trending']['style']}
 Tone: {CHANNEL_CONFIGS['trending']['tone']}
-Target length: {CHANNEL_CONFIGS['trending']['video_length_min']}–{CHANNEL_CONFIGS['trending']['video_length_max']} minutes when read at 140 words/minute
+Target length: 45–90 seconds when read at about 140–160 words/minute
 
 Topic: {topic_data['chosen_topic']}
 Angle: {topic_data['angle']}
 Keywords to weave in naturally: {', '.join(topic_data['keywords'])}
 
-Write a complete YouTube script with this exact structure:
+Write a complete YouTube Short script with this exact structure:
 
-HOOK (first 30 seconds — must be irresistible, start with a provocative statement or shocking fact, NO "welcome to my channel"):
+HOOK (first 3 seconds — must be instantly clear and curiosity-driven):
 
-INTRO (30–60 seconds — briefly set up what they'll learn, build anticipation):
+WHAT HAPPENED (one concise beat):
 
-MAIN CONTENT (split into 4–6 clearly labeled sections, each with a punchy heading):
+WHY IT MATTERS (two concise beats):
 
-CALL TO ACTION (30 seconds — subscribe + comment prompt, make it specific and compelling):
+WHAT TO WATCH NEXT (one useful forward-looking beat):
+
+CALL TO ACTION (one short comment or follow prompt):
 
 Rules:
 - Write exactly as it will be spoken — no markdown headers in the final narration
 - Use [PAUSE] for dramatic effect
 - Use [EMPHASIS] before a word that should be stressed
-- Use [VISUAL: description] to suggest what B-roll or image should appear
+- Use [VISUAL: description] to suggest mobile-friendly vertical B-roll or images
 - No filler phrases like "in today's video" or "don't forget to like"
-- End every section with a micro-hook that pulls into the next section
-- Total word count should be {CHANNEL_CONFIGS['trending']['video_length_min'] * 140}–{CHANNEL_CONFIGS['trending']['video_length_max'] * 140} words
+- Total word count should be 120–230 words
+- Include #Shorts in the description
 
 Return ONLY valid JSON:
 {{
   "title_options": ["title1 (under 60 chars)", "title2", "title3"],
-  "description": "YouTube description 150-200 words with keywords naturally placed",
+  "description": "YouTube Shorts description 80-120 words with keywords naturally placed",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
   "thumbnail_text": "3-5 bold words for thumbnail overlay",
   "script": "full script text with [PAUSE], [EMPHASIS], [VISUAL:] markers",
   "word_count": 0,
-  "estimated_duration_min": 0
+  "estimated_duration_seconds": 0,
+  "video_format": "shorts"
 }}"""
 
     response = client.messages.create(

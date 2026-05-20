@@ -104,7 +104,7 @@
         "body": {
           "mode": "json",
           "jsonParameters": true,
-          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Write a complete YouTube script for a faceless narrated channel. Topic: {{$json.topic}}. Angle: {{$json.angle}}. Keywords: {{$json.keywords.join(', ')}}. Style: engaging documentary narrator. Length: 10-12 minutes (1400-1680 words). Structure: HOOK (30s, provocative fact or question), INTRO (45s), 5 SECTIONS with punchy headings, CTA (30s). Use [PAUSE] for drama, [VISUAL: description] for B-roll cues, [EMPHASIS] before stressed words. No filler like 'in today\\u0027s video'. Return ONLY valid JSON: {\\\"title_options\\\": [\\\"t1\\\", \\\"t2\\\", \\\"t3\\\"], \\\"description\\\": \\\"150 words with keywords\\\", \\\"tags\\\": [\\\"t1\\\",...,\\\"t8\\\"], \\\"thumbnail_text\\\": \\\"3-5 bold words\\\", \\\"script\\\": \\\"full script\\\", \\\"word_count\\\": 0}\"\n  }]\n}"
+          "bodyParametersJson": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1800,\n  \"messages\": [{\n    \"role\": \"user\",\n    \"content\": \"Write a complete YouTube Short script for a faceless daily trending insights channel. Topic: {{$json.topic}}. Angle: {{$json.angle}}. Keywords: {{$json.keywords.join(', ')}}. Style: mobile-first insight narrator. Length: 45-90 seconds (120-230 words). Structure: HOOK (first 3 seconds), WHAT HAPPENED, WHY IT MATTERS, WHAT TO WATCH NEXT, one short CTA. Use [PAUSE] sparingly, [VISUAL: short vertical cue] for mobile-friendly B-roll, and [EMPHASIS] before stressed words. Do not present speculation as fact. No filler like 'in today\\u0027s video'. Include #Shorts in the description. Return ONLY valid JSON: {\\\"title_options\\\": [\\\"t1\\\", \\\"t2\\\", \\\"t3\\\"], \\\"description\\\": \\\"80-120 words with keywords and #Shorts\\\", \\\"tags\\\": [\\\"t1\\\",...,\\\"t8\\\"], \\\"thumbnail_text\\\": \\\"3-5 bold words\\\", \\\"script\\\": \\\"full spoken script\\\", \\\"word_count\\\": 0, \\\"estimated_duration_seconds\\\": 0, \\\"video_format\\\": \\\"shorts\\\"}\"\n  }]\n}"
         }
       }
     },
@@ -131,7 +131,7 @@
         "body": {
           "mode": "json",
           "jsonParameters": true,
-          "bodyParametersJson": "={\n  \"channel_type\": \"{{$json.channel_type}}\",\n  \"title\": \"{{$json.title_options[0]}}\",\n  \"script\": \"{{$json.script}}\",\n  \"description\": \"{{$json.description}}\",\n  \"tags\": {{$json.tags}},\n  \"thumbnail_text\": \"{{$json.thumbnail_text}}\",\n  \"keywords\": [\"{{$('Parse Scored Topics').first().json.keywords[0]}}\"]\n}"
+          "bodyParametersJson": "={\n  \"channel_type\": \"{{$json.channel_type}}\",\n  \"title\": \"{{$json.title_options[0]}}\",\n  \"script\": \"{{$json.script}}\",\n  \"description\": \"{{$json.description}}\",\n  \"tags\": {{$json.tags}},\n  \"thumbnail_text\": \"{{$json.thumbnail_text}}\",\n  \"video_format\": \"shorts\",\n  \"keywords\": [\"{{$('Parse Scored Topics').first().json.keywords[0]}}\"]\n}"
         }
       }
     },

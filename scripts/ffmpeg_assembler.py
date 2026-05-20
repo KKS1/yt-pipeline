@@ -43,6 +43,8 @@ FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
 # Video settings
 VIDEO_WIDTH = 1920
 VIDEO_HEIGHT = 1080
+SHORTS_WIDTH = 1080
+SHORTS_HEIGHT = 1920
 VIDEO_FPS = 30
 BG_MUSIC_VOLUME = 0.08   # Keep background music subtle under narration
 NARRATION_VOLUME = 1.0
@@ -136,7 +138,12 @@ def get_audio_duration(audio_path: str) -> float:
 # 3. FETCH STOCK VIDEOS (Pexels)
 # ─────────────────────────────────────────────
 
-def fetch_stock_videos(query: str, total_duration: float, output_dir: str) -> list[str]:
+def fetch_stock_videos(
+    query: str,
+    total_duration: float,
+    output_dir: str,
+    orientation: str = "landscape",
+) -> list[str]:
     """
     Download enough Pexels stock clips to cover total_duration seconds.
     Returns list of downloaded file paths.
@@ -146,12 +153,15 @@ def fetch_stock_videos(query: str, total_duration: float, output_dir: str) -> li
     accumulated = 0.0
     page = 1
 
-    print(f"  Fetching stock videos for '{query}' (need {total_duration:.0f}s)...")
+    print(f"  Fetching {orientation} stock videos for '{query}' (need {total_duration:.0f}s)...")
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     while accumulated < total_duration:
-        url = f"https://api.pexels.com/videos/search?query={query}&per_page=10&page={page}&orientation=landscape&size=medium"
+        url = (
+            f"https://api.pexels.com/videos/search?query={query}&per_page=10"
+            f"&page={page}&orientation={orientation}&size=medium"
+        )
         resp = requests.get(url, headers=headers)
         resp.raise_for_status()
         videos = resp.json().get("videos", [])
@@ -363,6 +373,124 @@ def assemble_narrated_video(
     return output_path
 
 
+def assemble_shorts_video(
+    narration_audio: str,
+    stock_clips: list[str],
+    background_music: str,
+    captions_srt: str,
+    output_path: str,
+    title: str = "",
+) -> str:
+    """
+    Assemble a vertical 9:16 narrated video for YouTube Shorts.
+    """
+
+    narration_duration = get_audio_duration(narration_audio)
+    print(f"\nAssembling Short: '{title}'")
+    print(f"  Narration duration: {narration_duration:.1f}s ({narration_duration/60:.1f} min)")
+
+    normalized_clips = []
+    for i, clip in enumerate(stock_clips):
+        norm_path = str(TEMP_DIR / f"short_norm_{i:03d}.mp4")
+        cmd = [
+            FFMPEG, "-y", "-i", clip,
+            "-vf", f"scale={SHORTS_WIDTH}:{SHORTS_HEIGHT}:force_original_aspect_ratio=increase,"
+                   f"crop={SHORTS_WIDTH}:{SHORTS_HEIGHT},fps={VIDEO_FPS}",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-an",
+            norm_path
+        ]
+        run_ffmpeg(cmd)
+        normalized_clips.append(norm_path)
+
+    concat_path = str(TEMP_DIR / "short_concat.mp4")
+    total_clip_duration = sum(get_audio_duration(c) for c in normalized_clips)
+
+    if total_clip_duration < narration_duration:
+        loops_needed = math.ceil(narration_duration / total_clip_duration)
+        normalized_clips = normalized_clips * loops_needed
+
+    list_path = str(TEMP_DIR / "short_clips.txt")
+    with open(list_path, "w") as f:
+        for clip in normalized_clips:
+            f.write(f"file '{os.path.abspath(clip)}'\n")
+
+    cmd = [
+        FFMPEG, "-y",
+        "-f", "concat", "-safe", "0", "-i", list_path,
+        "-t", str(narration_duration),
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-an",
+        concat_path
+    ]
+    run_ffmpeg(cmd)
+
+    mixed_audio_path = str(TEMP_DIR / "short_mixed_audio.m4a")
+    cmd = [
+        FFMPEG, "-y",
+        "-i", narration_audio,
+        "-stream_loop", "-1", "-i", background_music,
+        "-filter_complex",
+        f"[0:a]volume={NARRATION_VOLUME}[narr];"
+        f"[1:a]volume={BG_MUSIC_VOLUME}[bg];"
+        f"[narr][bg]amix=inputs=2:duration=first:dropout_transition=3[out]",
+        "-map", "[out]",
+        "-t", str(narration_duration),
+        "-c:a", "aac", "-b:a", "192k",
+        mixed_audio_path
+    ]
+    run_ffmpeg(cmd)
+
+    caption_style = (
+        "FontName=Arial,"
+        "FontSize=42,"
+        "PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00000000,"
+        "BackColour=&H80000000,"
+        "Bold=1,"
+        "Outline=2,"
+        "Shadow=1,"
+        "Alignment=2,"
+        "MarginV=220"
+    )
+
+    has_captions = captions_srt and Path(captions_srt).exists()
+    fade_start = max(narration_duration - 1, 0)
+    vf_filter = f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1"
+    if has_captions:
+        vf_filter += f",subtitles={captions_srt}:force_style='{caption_style}'"
+
+    cmd = [
+        FFMPEG, "-y",
+        "-i", concat_path,
+        "-i", mixed_audio_path,
+        "-map", "0:v", "-map", "1:a",
+        "-vf", vf_filter,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        "-metadata", f"title={title}",
+        output_path
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("  Caption burn failed, assembling Short without captions...")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", concat_path, "-i", mixed_audio_path,
+            "-map", "0:v", "-map", "1:a",
+            "-vf", f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:a", "copy", "-movflags", "+faststart",
+            output_path
+        ]
+        run_ffmpeg(cmd)
+
+    size_mb = Path(output_path).stat().st_size / 1024 / 1024
+    print(f"  ✓ Short assembled: {output_path} ({size_mb:.1f} MB)")
+    return output_path
+
+
 # ─────────────────────────────────────────────
 # 6. ASSEMBLE LOFI VIDEO
 # ─────────────────────────────────────────────
@@ -533,7 +661,8 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
     End-to-end: script_data → finished MP4 ready for upload.
     script_data is the JSON output from claude_prompts.py
     """
-    slug = script_data["title_options"][0][:40].replace(" ", "_").lower()
+    title = script_data.get("title") or (script_data.get("title_options") or ["untitled_video"])[0]
+    slug = title[:40].replace(" ", "_").lower()
     slug = "".join(c for c in slug if c.isalnum() or c == "_")
 
     print(f"\n{'='*50}")
@@ -546,10 +675,12 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
 
     # 2. Get duration, fetch stock video
     duration = get_audio_duration(narration_path)
+    video_format = script_data.get("video_format", "shorts" if channel_type == "trending" else "landscape")
     clips = fetch_stock_videos(
         query=script_data.get("keywords", ["nature"])[0],
         total_duration=duration + 30,  # Buffer
-        output_dir=str(TEMP_DIR)
+        output_dir=str(TEMP_DIR),
+        orientation="portrait" if video_format == "shorts" else "landscape",
     )
 
     # 3. Generate captions
@@ -562,21 +693,31 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
 
     # 4. Assemble video
     output_video = str(OUTPUT_DIR / f"{slug}.mp4")
-    assemble_narrated_video(
-        narration_audio=narration_path,
-        stock_clips=clips,
-        background_music=bg_music_path,
-        captions_srt=srt_path,
-        output_path=output_video,
-        title=script_data["title_options"][0],
-    )
+    if video_format == "shorts":
+        assemble_shorts_video(
+            narration_audio=narration_path,
+            stock_clips=clips,
+            background_music=bg_music_path,
+            captions_srt=srt_path,
+            output_path=output_video,
+            title=title,
+        )
+    else:
+        assemble_narrated_video(
+            narration_audio=narration_path,
+            stock_clips=clips,
+            background_music=bg_music_path,
+            captions_srt=srt_path,
+            output_path=output_video,
+            title=title,
+        )
 
     # 5. Cleanup
     cleanup_temp()
 
     return {
         "video_path": output_video,
-        "title": script_data["title_options"][0],
+        "title": title,
         "description": script_data["description"],
         "tags": script_data["tags"],
         "thumbnail_text": script_data.get("thumbnail_text", ""),

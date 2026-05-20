@@ -243,13 +243,16 @@ curl http://localhost:5001/job/job_0001
 
 Every Monday morning you'll receive a digest email. It contains:
 - Top 3 videos from the past week (views, watch time, revenue)
-- What's queued for this week (5-7 trending + 2 lofi)
+- What's queued for this week (5-7 trending Shorts + 2 lofi)
 - Any errors that need attention
 
 Your only job: skim the email, check the YouTube Studio queue if anything looks off, done.
 
 The pipeline handles everything else: 6AM daily trend fetch, scoring, scripting, 
 voice generation, video assembly, and upload scheduling.
+Daily trending defaults to vertical Shorts. Use the manual runner's
+`--video-format explainer` option when a topic deserves the original 5-7 minute
+search-focused landscape treatment.
 
 ---
 
@@ -290,7 +293,7 @@ Check n8n workflow is activated (toggle in top-right). Check logs: `journalctl -
 OAuth tokens expire every hour but auto-refresh. If persistent: re-run `/setup-auth/trending`
 
 **Video assembly slow:**  
-Normal — a 10-minute video takes 15-25 minutes to assemble on CX22. Use CX32 ($8/mo) to halve assembly time.
+Trending Shorts should assemble quickly because they are under 2 minutes. Long lofi videos can still take 20-40 minutes on a typical machine.
 
 **Whisper captions failing:**  
 Run `pip install openai-whisper --break-system-packages` and ensure ffmpeg is installed.

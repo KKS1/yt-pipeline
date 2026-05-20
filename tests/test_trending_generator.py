@@ -2,6 +2,7 @@ import json
 import unittest
 
 from scripts.trending_generator import (
+    TRENDING_SCRIPT_FORMATS,
     filter_topics,
     normalize_script_data,
     normalize_topic_data,
@@ -64,6 +65,8 @@ class TrendingGeneratorTests(unittest.TestCase):
                 "description": "A quick explainer.",
                 "tags": "AI, glasses, technology",
                 "script": "Here is the full narrated script.",
+                "estimated_duration_seconds": 12,
+                "video_format": "shorts",
             },
             topic,
         )
@@ -71,9 +74,46 @@ class TrendingGeneratorTests(unittest.TestCase):
         self.assertEqual(data["title"], "Why AI Glasses Are Back")
         self.assertEqual(data["stock_keyword"], "technology")
         self.assertEqual(data["tags"], ["AI", "glasses", "technology"])
+        self.assertEqual(data["estimated_duration_seconds"], 12)
+        self.assertEqual(data["video_format"], "shorts")
 
         with self.assertRaises(ValueError):
             normalize_script_data({"title": "No script"}, topic)
+
+    def test_normalize_script_data_defaults_to_shorts_format(self):
+        topic = {
+            "chosen_topic": "AI glasses",
+            "angle": "Why everyone is talking about them",
+            "keywords": ["AI glasses"],
+            "stock_keyword": "technology",
+        }
+        script = " ".join(["word"] * 120)
+
+        data = normalize_script_data(
+            {
+                "title": "Quick AI Glasses Update",
+                "script": script,
+            },
+            topic,
+        )
+
+        self.assertEqual(data["video_format"], "shorts")
+        self.assertEqual(data["estimated_duration_seconds"], 50)
+
+    def test_trending_script_formats_render(self):
+        topic_data = {
+            "chosen_topic": "AI glasses",
+            "angle": "Why everyone is talking about them",
+            "keywords": ["AI glasses", "wearables"],
+        }
+
+        for config in TRENDING_SCRIPT_FORMATS.values():
+            prompt = config["prompt"].format(
+                chosen_topic=topic_data["chosen_topic"],
+                angle=topic_data["angle"],
+                keywords=", ".join(topic_data["keywords"]),
+            )
+            self.assertIn("AI glasses", prompt)
 
 
 if __name__ == "__main__":

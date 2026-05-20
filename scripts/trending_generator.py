@@ -160,20 +160,58 @@ Return ONLY valid JSON:
     return normalize_topic_data(data, fallback_topic=topics[0] if topics else "Canada trends")
 
 
-def generate_script_with_groq(topic_data: dict) -> dict:
-    prompt = f"""
-You are an expert YouTube scriptwriter for a faceless narrated trending channel.
+TRENDING_SCRIPT_FORMATS = {
+    "shorts": {
+        "prompt": """
+You are an expert YouTube Shorts scriptwriter for a faceless daily trending insights channel.
 
-Topic: {topic_data["chosen_topic"]}
-Angle: {topic_data["angle"]}
-Keywords: {", ".join(topic_data["keywords"])}
+Topic: {chosen_topic}
+Angle: {angle}
+Keywords: {keywords}
 
-Write a clear 5-7 minute explainer for general viewers.
+Write a clear 45-90 second YouTube Short for general viewers.
 Tone: calm, current, informed, and conversational.
 
 Rules:
+- Start with a strong hook in the first 3 seconds.
+- Use this pacing: hook, what happened, why it matters, what to watch next.
+- Keep the spoken script to 120-230 words.
+- Do not present speculation as fact.
+- Avoid inflammatory language and political persuasion.
+- Use [PAUSE] sparingly and [VISUAL: short vertical cue] for mobile-friendly B-roll moments.
+- No markdown and no "in today's video" filler.
+- End with one short comment or follow prompt.
+
+Return ONLY valid JSON:
+{{
+  "title": "YouTube Shorts title under 70 characters",
+  "description": "80-120 word YouTube description with relevant keywords and #Shorts",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+  "thumbnail_text": "3-5 bold words",
+  "stock_keyword": "2-4 word Pexels search phrase",
+  "script": "full spoken script with visual cues",
+  "word_count": 0,
+  "estimated_duration_seconds": 0,
+  "video_format": "shorts"
+}}
+""",
+        "max_tokens": 1800,
+    },
+    "explainer": {
+        "prompt": """
+You are an expert YouTube scriptwriter for a faceless trending explainer channel.
+
+Topic: {chosen_topic}
+Angle: {angle}
+Keywords: {keywords}
+
+Write a clear, calm 5-7 minute explainer that can show up in search the same day a topic peaks.
+Tone: informed, accessible, and conversational.
+
+Rules:
 - Start with a strong hook in the first 15 seconds.
-- Use 4-5 main points.
+- Use this structure: hook, brief context, 4-5 main points, what happens next, concise CTA.
+- Keep the spoken script to 700-980 words.
 - Do not present speculation as fact.
 - Avoid inflammatory language and political persuasion.
 - Use [PAUSE] sparingly and [VISUAL: short cue] for useful B-roll moments.
@@ -187,10 +225,25 @@ Return ONLY valid JSON:
   "thumbnail_text": "3-5 bold words",
   "stock_keyword": "2-4 word Pexels search phrase",
   "script": "full spoken script with visual cues",
-  "word_count": 0
+  "word_count": 0,
+  "estimated_duration_seconds": 0,
+  "video_format": "explainer"
 }}
-"""
-    data = _groq_chat(prompt, max_tokens=5500, temperature=0.75)
+""",
+        "max_tokens": 4200,
+    },
+}
+
+
+def generate_script_with_groq(topic_data: dict, video_format: str = "shorts") -> dict:
+    script_format = TRENDING_SCRIPT_FORMATS.get(video_format, TRENDING_SCRIPT_FORMATS["shorts"])
+    prompt = script_format["prompt"].format(
+        chosen_topic=topic_data["chosen_topic"],
+        angle=topic_data["angle"],
+        keywords=", ".join(topic_data["keywords"]),
+    )
+    data = _groq_chat(prompt, max_tokens=script_format["max_tokens"], temperature=0.75)
+    data.setdefault("video_format", video_format if video_format in TRENDING_SCRIPT_FORMATS else "shorts")
     return normalize_script_data(data, topic_data)
 
 
@@ -230,13 +283,19 @@ def normalize_script_data(data: dict, topic_data: dict) -> dict:
         "stock_keyword": stock_keyword,
         "script": script,
         "word_count": int(data.get("word_count") or len(script.split())),
+        "estimated_duration_seconds": int(data.get("estimated_duration_seconds") or round(len(script.split()) / 2.4)),
+        "video_format": str(data.get("video_format") or "shorts").strip(),
         "chosen_topic": topic_data["chosen_topic"],
         "angle": topic_data["angle"],
         "keywords": topic_data["keywords"],
     }
 
 
-def generate_trending_package(topic: str = None, region: str = DEFAULT_REGION) -> dict:
+def generate_trending_package(
+    topic: str = None,
+    region: str = DEFAULT_REGION,
+    video_format: str = "shorts",
+) -> dict:
     """Create a complete trending video script package."""
     if topic:
         topic_data = normalize_topic_data(
@@ -254,4 +313,4 @@ def generate_trending_package(topic: str = None, region: str = DEFAULT_REGION) -
             raise RuntimeError(f"No usable Google Trends topics found for region {region}.")
         topic_data = choose_topic_with_groq(topics, region=region)
 
-    return generate_script_with_groq(topic_data)
+    return generate_script_with_groq(topic_data, video_format=video_format)

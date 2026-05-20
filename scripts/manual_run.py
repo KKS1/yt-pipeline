@@ -727,7 +727,7 @@ def _ensure_background_music(duration_seconds: float) -> str:
     return str(silent_path)
 
 
-def run_trending(topic=None, region="CA", upload=True):
+def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
     print("\n" + "="*50)
     print("TRENDING NARRATED CHANNEL — free automated pipeline")
     print("="*50)
@@ -742,7 +742,7 @@ def run_trending(topic=None, region="CA", upload=True):
     else:
         print(f"\nFetching Google Trends for region: {region.upper()}")
 
-    package = generate_trending_package(topic=topic, region=region)
+    package = generate_trending_package(topic=topic, region=region, video_format=video_format)
 
     title = package["title"]
     script = package["script"]
@@ -756,6 +756,7 @@ def run_trending(topic=None, region="CA", upload=True):
     print(f"  Title : {title}")
     print(f"  B-roll: {keyword}")
     print(f"  Words : {package.get('word_count', len(script.split()))}")
+    print(f"  Format: {package.get('video_format', 'shorts')}")
 
     out_slug   = slug(title)
     audio_path = str(OUTPUT_DIR / f"{out_slug}_voice.m4a")
@@ -767,14 +768,15 @@ def run_trending(topic=None, region="CA", upload=True):
 
     from ffmpeg_assembler import (
         get_audio_duration, fetch_stock_videos,
-        generate_captions, assemble_narrated_video, cleanup_temp, TEMP_DIR
+        generate_captions, assemble_narrated_video, assemble_shorts_video, cleanup_temp, TEMP_DIR
     )
 
     duration = get_audio_duration(audio_path)
     bg_music = _ensure_background_music(duration)
     temp_dir = TEMP_DIR
     temp_dir.mkdir(exist_ok=True)
-    clips    = fetch_stock_videos(keyword, duration + 30, str(temp_dir))
+    orientation = "portrait" if package.get("video_format") == "shorts" else "landscape"
+    clips    = fetch_stock_videos(keyword, duration + 30, str(temp_dir), orientation=orientation)
     if not clips:
         print("\nNo Pexels clips were downloaded. Try rerunning with --topic and a broader topic.")
         sys.exit(1)
@@ -787,7 +789,8 @@ def run_trending(topic=None, region="CA", upload=True):
         print(f"  Captions skipped: {e}")
         srt_path = None
 
-    assemble_narrated_video(
+    assembler = assemble_shorts_video if package.get("video_format") == "shorts" else assemble_narrated_video
+    assembler(
         narration_audio=audio_path,
         stock_clips=clips,
         background_music=bg_music,
@@ -871,6 +874,12 @@ def main():
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
+    parser.add_argument(
+        "--video-format",
+        choices=["shorts", "explainer"],
+        default="shorts",
+        help="Trending format: shorts for daily vertical Shorts, explainer for 5-7 minute landscape search videos",
+    )
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
     parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
     parser.add_argument("--title", help="Title to use with --upload-existing")
@@ -907,7 +916,12 @@ def main():
     elif args.channel == "family":
         run_family()
     elif args.channel == "trending":
-        run_trending(topic=args.topic, region=args.region, upload=not args.no_upload)
+        run_trending(
+            topic=args.topic,
+            region=args.region,
+            upload=not args.no_upload,
+            video_format=args.video_format,
+        )
 
 
 def profile_script():

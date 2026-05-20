@@ -331,7 +331,9 @@ This will auto-generate and upload lofi videos twice a week while you sleep.
 
 The Daily Insights channel covers topics people are actively searching right now —
 sports storylines, viral moments, news explainers, cultural moments. The goal is
-a clear, calm 5-7 minute explainer that shows up in search the same day a topic peaks.
+a clear, calm 45-90 second vertical Short that shows up while a topic is peaking.
+For bigger search-friendly topics, you can also run the original 5-7 minute
+landscape explainer format.
 
 **Good topic example:** If "Montreal Canadiens" is trending on Google (playoff run,
 big trade, coaching news), a video like *"Why Everyone is Talking About the Canadiens
