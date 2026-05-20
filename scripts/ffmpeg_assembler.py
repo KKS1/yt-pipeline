@@ -48,6 +48,15 @@ BG_MUSIC_VOLUME = 0.08   # Keep background music subtle under narration
 NARRATION_VOLUME = 1.0
 
 
+def run_ffmpeg(cmd: list[str]) -> subprocess.CompletedProcess:
+    """Run ffmpeg and surface stderr when a command fails."""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(f"FFmpeg command failed with exit code {result.returncode}:\n{stderr}")
+    return result
+
+
 # ─────────────────────────────────────────────
 # 1. TEXT-TO-SPEECH (ElevenLabs)
 # ─────────────────────────────────────────────
@@ -253,7 +262,7 @@ def assemble_narrated_video(
             "-an",  # Drop original audio from stock clips
             norm_path
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        run_ffmpeg(cmd)
         normalized_clips.append(norm_path)
 
     # Step 2: Concatenate clips, looping if needed to match narration length
@@ -280,11 +289,11 @@ def assemble_narrated_video(
         "-an",
         concat_path
     ]
-    subprocess.run(cmd, capture_output=True, check=True)
+    run_ffmpeg(cmd)
     print(f"  Video track ready: {narration_duration:.1f}s")
 
     # Step 3: Mix narration + background music
-    mixed_audio_path = str(TEMP_DIR / "mixed_audio.mp3")
+    mixed_audio_path = str(TEMP_DIR / "mixed_audio.m4a")
     cmd = [
         FFMPEG, "-y",
         "-i", narration_audio,
@@ -298,7 +307,7 @@ def assemble_narrated_video(
         "-c:a", "aac", "-b:a", "192k",
         mixed_audio_path
     ]
-    subprocess.run(cmd, capture_output=True, check=True)
+    run_ffmpeg(cmd)
     print(f"  Audio mixed (narration + background music)")
 
     # Step 4: Combine video + audio + burn captions
@@ -347,7 +356,7 @@ def assemble_narrated_video(
             "-c:a", "copy", "-movflags", "+faststart",
             output_path
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        run_ffmpeg(cmd)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Video assembled: {output_path} ({size_mb:.1f} MB)")
