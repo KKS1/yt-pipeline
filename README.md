@@ -71,8 +71,9 @@ yt-pipeline/
 ├── scripts/
 │   ├── ffmpeg_assembler.py    # Video assembly pipeline
 │   ├── server.py              # Flask API bridge for n8n
-│   ├── manual_run.py          # Run pipeline manually — no API keys needed
-│   └── free_tts.py            # Free local voiceover (Coqui TTS)
+│   ├── manual_run.py          # Run free-mode channel publishing commands
+│   ├── trending_generator.py  # Google Trends + Groq script generation
+│   └── free_tts.py            # Free local voiceover (Kokoro TTS)
 ├── n8n/
 │   └── workflow.json          # Import into n8n
 ├── assets/                    # Your media files go here (gitignored)

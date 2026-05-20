@@ -20,6 +20,7 @@ import sys
 import json
 import argparse
 import subprocess
+import shutil
 from pathlib import Path
 from datetime import datetime
 import cProfile
@@ -656,57 +657,128 @@ def run_family():
     print("\nDone!\n")
 
 # ─────────────────────────────────────────────
-# TRENDING PIPELINE (manual script entry)
+# TRENDING PIPELINE (free automated path)
 # ─────────────────────────────────────────────
 
-def run_trending():
-    print("\n" + "="*50)
-    print("TRENDING NARRATED CHANNEL — manual script entry")
-    print("="*50)
-    print("\nTip: Go to claude.ai and ask:")
-    print('  "Write a 10-minute YouTube script about [trending topic]"')
-    print("Then paste everything below.\n")
+def _preflight_trending(upload: bool = True) -> bool:
+    """Validate required free-mode dependencies before doing expensive work."""
+    problems = []
 
-    title   = prompt_input("Video title")
-    script  = prompt_multiline("Paste your full script")
-    desc    = prompt_multiline("Paste your description")
-    tags_r  = prompt_input("Tags (comma-separated)")
-    tags    = [t.strip() for t in tags_r.split(",")]
-    keyword = prompt_input("Stock video keyword (e.g. 'business finance')", "business")
+    if not GROQ_API_KEY:
+        problems.append("Missing GROQ_API_KEY in .env. Add a Groq free-tier API key.")
+
+    if not os.getenv("PEXELS_API_KEY", "").strip():
+        problems.append("Missing PEXELS_API_KEY in .env. Create a free key at pexels.com/api.")
+
+    from kokoro_tts import KOKORO_MODEL, KOKORO_VOICES
+
+    if not Path(KOKORO_MODEL).exists() or not Path(KOKORO_VOICES).exists():
+        problems.append(
+            "Missing Kokoro model files. Download kokoro-v0_19.onnx and voices.bin into the project root."
+        )
+
+    ffmpeg_cmd = os.getenv("FFMPEG_CMD", "ffmpeg")
+    if not shutil.which(ffmpeg_cmd):
+        problems.append(f"FFmpeg not found as '{ffmpeg_cmd}'. Install ffmpeg or set FFMPEG_CMD in .env.")
+
+    if upload:
+        creds_path = ASSETS_DIR / "yt_credentials_trending.json"
+        if not creds_path.exists():
+            problems.append(
+                "Missing assets/yt_credentials_trending.json. Start python scripts/server.py and visit "
+                "http://localhost:5001/setup-auth/trending once."
+            )
+
+    if problems:
+        print("\nTrending preflight failed:")
+        for problem in problems:
+            print(f"  - {problem}")
+        return False
+
+    return True
+
+
+def _ensure_background_music(duration_seconds: float) -> str:
+    """Use optional background music, or generate silent audio for narrated assembly."""
+    bg_music = ASSETS_DIR / "background_music.mp3"
+    if bg_music.exists():
+        return str(bg_music)
+
+    silent_path = OUTPUT_DIR / "silent_background.mp3"
+    if silent_path.exists():
+        return str(silent_path)
+
+    print("  No background_music.mp3 found; generating silent background audio.")
+    subprocess.run(
+        [
+            os.getenv("FFMPEG_CMD", "ffmpeg"),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=stereo",
+            "-t",
+            str(max(int(duration_seconds) + 5, 30)),
+            str(silent_path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+    return str(silent_path)
+
+
+def run_trending(topic=None, region="CA", upload=True):
+    print("\n" + "="*50)
+    print("TRENDING NARRATED CHANNEL — free automated pipeline")
+    print("="*50)
+
+    if not _preflight_trending(upload=upload):
+        sys.exit(1)
+
+    from trending_generator import generate_trending_package
+
+    if topic:
+        print(f"\nUsing provided topic: {topic}")
+    else:
+        print(f"\nFetching Google Trends for region: {region.upper()}")
+
+    package = generate_trending_package(topic=topic, region=region)
+
+    title = package["title"]
+    script = package["script"]
+    desc = package["description"]
+    tags = package["tags"]
+    keyword = package["stock_keyword"]
+
+    print("\nGenerated trending package:")
+    print(f"  Topic : {package.get('chosen_topic', title)}")
+    print(f"  Angle : {package.get('angle', '')}")
+    print(f"  Title : {title}")
+    print(f"  B-roll: {keyword}")
+    print(f"  Words : {package.get('word_count', len(script.split()))}")
 
     out_slug   = slug(title)
     audio_path = str(OUTPUT_DIR / f"{out_slug}_voice.m4a")
     out_path   = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
-    # Choose TTS
-    print("\nVoiceover options:")
-    print("  1. Free local TTS (Coqui) — no cost")
-    print("  2. ElevenLabs API — better quality, costs ~$0.002/script")
-    choice = prompt_input("Choose (1 or 2)", "1")
-
-    if choice == "2":
-        api_key = os.environ.get("ELEVENLABS_API_KEY") or prompt_input("ElevenLabs API key")
-        voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
-        os.environ["ELEVENLABS_API_KEY"] = api_key
-        from ffmpeg_assembler import generate_voiceover
-        generate_voiceover(script, audio_path, voice_id)
-    else:
-        from free_tts import generate_tts, clean_script
-        generate_tts(clean_script(script), audio_path)
-
-    bg_music = str(ASSETS_DIR / "background_music.mp3")
-    if not Path(bg_music).exists():
-        bg_music = None
+    print("\nGenerating free local Kokoro voiceover...")
+    from free_tts import generate_tts, clean_script
+    generate_tts(clean_script(script), audio_path, voice="af_bella", speed=1.08)
 
     from ffmpeg_assembler import (
         get_audio_duration, fetch_stock_videos,
-        generate_captions, assemble_narrated_video, cleanup_temp
+        generate_captions, assemble_narrated_video, cleanup_temp, TEMP_DIR
     )
 
     duration = get_audio_duration(audio_path)
-    temp_dir = OUTPUT_DIR / "temp"
+    bg_music = _ensure_background_music(duration)
+    temp_dir = TEMP_DIR
     temp_dir.mkdir(exist_ok=True)
     clips    = fetch_stock_videos(keyword, duration + 30, str(temp_dir))
+    if not clips:
+        print("\nNo Pexels clips were downloaded. Try rerunning with --topic and a broader topic.")
+        sys.exit(1)
+
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
 
     try:
@@ -718,14 +790,17 @@ def run_trending():
     assemble_narrated_video(
         narration_audio=audio_path,
         stock_clips=clips,
-        background_music=bg_music if bg_music else None,
+        background_music=bg_music,
         captions_srt=srt_path,
         output_path=out_path,
         title=title,
     )
     cleanup_temp()
 
-    _upload_video(out_path, title, desc, tags, channel="trending")
+    if upload:
+        _upload_video(out_path, title, desc, tags, channel="trending")
+    else:
+        print(f"\nDone. Upload skipped. Video ready at: {out_path}")
 
 
 # ─────────────────────────────────────────────
@@ -736,11 +811,6 @@ def _upload_video(video_path, title, description, tags, channel):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
-    # upload = prompt_input("\nUpload to YouTube now? (yes/no)", "yes")
-    # if upload.lower() not in ("yes", "y"):
-    #     print(f"\nDone. Upload manually from: {video_path}")
-    #     return
-
     creds_path = ASSETS_DIR / f"yt_credentials_{channel}.json"
     if not creds_path.exists():
         print(f"\nNo YouTube credentials found at {creds_path}")
@@ -750,16 +820,14 @@ def _upload_video(video_path, title, description, tags, channel):
 
     print("\nUploading to YouTube...")
     try:
-        # Call the server upload endpoint
-        import requests
-        resp = requests.post("http://localhost:5001/upload", json={
-            "video_path": str(Path(video_path).absolute()),
-            "title": title,
-            "description": description,
-            "tags": tags,
-            "channel": channel,
-        })
-        result = resp.json()
+        from youtube_uploader import youtube_upload
+        result = youtube_upload(
+            video_path=str(Path(video_path).absolute()),
+            title=title,
+            description=description,
+            tags=tags,
+            channel=channel,
+        )
         if "youtube_id" in result:
             print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
             # delete video file
@@ -767,8 +835,7 @@ def _upload_video(video_path, title, description, tags, channel):
         else:
             print(f"\nUpload response: {result}")
     except Exception as e:
-        print(f"\nServer not running. Start it with: python scripts/server.py")
-        print(f"Then upload manually or retry.")
+        print(f"\nUpload failed. You can retry after fixing the issue.")
         print(f"Error: {e}")
 
 
@@ -780,6 +847,9 @@ def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
     parser.add_argument("--channel", choices=["lofi", "family", "trending"],
                         help="Which channel to produce for")
+    parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
+    parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
+    parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
     args = parser.parse_args()
 
     if not args.channel:
@@ -795,7 +865,7 @@ def main():
     elif args.channel == "family":
         run_family()
     elif args.channel == "trending":
-        run_trending()
+        run_trending(topic=args.topic, region=args.region, upload=not args.no_upload)
 
 
 def profile_script():

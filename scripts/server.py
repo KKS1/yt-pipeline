@@ -18,6 +18,7 @@ from flask import Flask, request, jsonify
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "prompts"))
+from youtube_uploader import youtube_upload
 
 app = Flask(__name__)
 
@@ -32,104 +33,6 @@ for d in [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR]:
 
 # Background job tracker
 jobs = {}
-
-
-# ─────────────────────────────────────────────
-# YOUTUBE UPLOAD (via YouTube Data API v3)
-# ─────────────────────────────────────────────
-
-def youtube_upload(video_path: str, title: str, description: str,
-                   tags: list, thumbnail_path: str = None,
-                   channel: str = "trending", schedule_time: str = None) -> dict:
-    """Upload video to YouTube using the Data API."""
-
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-
-    # Load channel-specific credentials
-    creds_file = ASSETS_DIR / f"yt_credentials_{channel}.json"
-    if not creds_file.exists():
-        raise FileNotFoundError(f"No credentials found: {creds_file}\nRun setup_youtube_auth.py first.")
-
-    with open(creds_file) as f:
-        creds_data = json.load(f)
-
-    creds = Credentials(
-        token=creds_data["token"],
-        refresh_token=creds_data["refresh_token"],
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=creds_data["client_id"],
-        client_secret=creds_data["client_secret"],
-    )
-
-    youtube = build("youtube", "v3", credentials=creds)
-
-    # Category IDs: 22=People&Blogs, 27=Education, 10=Music, 24=Entertainment
-    category_map = {
-        "trending": "22",
-        "family":   "24",
-        "lofi":     "10",
-        "kids":     "24",
-    }
-
-    body = {
-        "snippet": {
-            "title": title[:100],
-            "description": description[:5000],
-            "tags": tags[:500],
-            "categoryId": category_map.get(channel, "22"),
-            "defaultLanguage": "en",
-        },
-        "status": {
-            "privacyStatus": "private" if schedule_time else "public",
-            "selfDeclaredMadeForKids": channel == "kids",
-        }
-    }
-
-    # Add scheduled publish time if provided
-    if schedule_time:
-        body["status"]["publishAt"] = schedule_time
-        body["status"]["privacyStatus"] = "private"
-
-    print(f"  Uploading to YouTube [{channel}]: {title[:60]}...")
-
-    media = MediaFileUpload(
-        video_path,
-        mimetype="video/mp4",
-        resumable=True,
-        chunksize=10 * 1024 * 1024,  # 10MB chunks
-    )
-
-    request_obj = youtube.videos().insert(
-        part="snippet,status",
-        body=body,
-        media_body=media,
-    )
-
-    response = None
-    while response is None:
-        status, response = request_obj.next_chunk()
-        if status:
-            pct = int(status.progress() * 100)
-            print(f"    Upload progress: {pct}%")
-
-    video_id = response["id"]
-    print(f"  ✓ Uploaded: https://youtu.be/{video_id}")
-
-    # Set thumbnail if provided
-    if thumbnail_path and Path(thumbnail_path).exists():
-        youtube.thumbnails().set(
-            videoId=video_id,
-            media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg")
-        ).execute()
-        print(f"  ✓ Thumbnail set")
-
-    return {
-        "youtube_id": video_id,
-        "url": f"https://youtu.be/{video_id}",
-        "status": "scheduled" if schedule_time else "public",
-    }
 
 
 # ─────────────────────────────────────────────

@@ -11,8 +11,10 @@ google-api-python-client>=2.125.0
 # Captions (runs locally, free)
 openai-whisper>=20231117
 
-# Free local TTS — no API key needed (replaces ElevenLabs for $0 publishing)
+# Free local TTS — no API key needed
 TTS>=0.22.0
+kokoro-onnx>=0.4.5
+soundfile>=0.12.1
 
 # Audio utilities
 pydub>=0.25.1

@@ -348,37 +348,28 @@ broad enough for casual viewers, not just fans.
 Avoid: niche sports stats, political controversy, or anything that could age badly
 within 24 hours (breaking news with lots of unknowns).
 
-### Step 22 — Generate a script in Claude.ai
-
-Go to claude.ai and ask:
-
-```
-Write a YouTube script for a 5-7 minute explainer video about [YOUR TOPIC].
-Format: hook in the first 15 seconds, 4-5 key points, closing call to action.
-Tone: calm, clear, informed — like a knowledgeable friend explaining the news.
-Also write a title (under 70 chars), a 150-word description with relevant 
-keywords, and 10 tags.
-```
-
-For a sports topic like the Canadiens, add context to the prompt:
-
-```
-The trending angle is [e.g. "the Canadiens are in a playoff push and 
-Juraj Slafkovsky is having a breakout season"]. Make it approachable 
-for casual fans, not just hockey diehards.
-```
-
-### Step 23 — Run the trending pipeline
+### Step 22 — Run the trending pipeline
 
 ```bash
 python scripts/manual_run.py --channel trending
 ```
 
-Paste your script, title, description, and tags when prompted.
-Choose option 1 (free local TTS) for voiceover.
-The pipeline will pull a relevant stock video clip from Pexels using your
-`PEXELS_API_KEY`, add captions via Whisper, and assemble the final video.
-Upload when done.
+The command fetches Canada trends, uses Groq free tier to pick an angle and
+write the script, generates local Kokoro voiceover, pulls relevant stock video
+from Pexels using your `PEXELS_API_KEY`, adds captions via Whisper, assembles the
+final video, and uploads it to the trending YouTube channel.
+
+To force a specific topic instead of auto-picking from Google Trends:
+
+```bash
+python scripts/manual_run.py --channel trending --topic "Montreal Canadiens"
+```
+
+To assemble without uploading:
+
+```bash
+python scripts/manual_run.py --channel trending --no-upload
+```
 
 **Timing matters:** Trending videos have a short window. Check Google Trends
 in the morning and aim to publish by early afternoon the same day.
