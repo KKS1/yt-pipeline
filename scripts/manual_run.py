@@ -727,30 +727,13 @@ def _ensure_background_music(duration_seconds: float) -> str:
     return str(silent_path)
 
 
-def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
-    print("\n" + "="*50)
-    print("TRENDING NARRATED CHANNEL — free automated pipeline")
-    print("="*50)
-
-    if not _preflight_trending(upload=upload):
-        sys.exit(1)
-
-    from trending_generator import generate_trending_package
-
-    if topic:
-        print(f"\nUsing provided topic: {topic}")
-    else:
-        print(f"\nFetching Google Trends for region: {region.upper()}")
-
-    package = generate_trending_package(topic=topic, region=region, video_format=video_format)
-
+def _build_trending_video(package: dict) -> dict:
+    """Generate voiceover, assemble video, and return upload metadata."""
     title = package["title"]
     script = package["script"]
-    desc = package["description"]
-    tags = package["tags"]
     keyword = package["stock_keyword"]
 
-    print("\nGenerated trending package:")
+    print(f"\nGenerated trending package ({package.get('video_format', 'shorts')}):")
     print(f"  Topic : {package.get('chosen_topic', title)}")
     print(f"  Angle : {package.get('angle', '')}")
     print(f"  Title : {title}")
@@ -800,10 +783,98 @@ def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
     )
     cleanup_temp()
 
-    if upload:
-        _upload_video(out_path, title, desc, tags, channel="trending")
+    return {
+        "video_path": out_path,
+        "title": title,
+        "description": package["description"],
+        "tags": package["tags"],
+        "format": package.get("video_format", "shorts"),
+    }
+
+
+def run_trending(topic=None, region="CA", upload=True, video_format="both"):
+    print("\n" + "="*50)
+    print("TRENDING NARRATED CHANNEL — free automated pipeline")
+    print("="*50)
+
+    if not _preflight_trending(upload=upload):
+        sys.exit(1)
+
+    from trending_generator import generate_trending_package
+
+    if topic:
+        print(f"\nUsing provided topic: {topic}")
     else:
-        print(f"\nDone. Upload skipped. Video ready at: {out_path}")
+        print(f"\nFetching Google Trends for region: {region.upper()}")
+
+    package = generate_trending_package(topic=topic, region=region, video_format=video_format)
+    result = _build_trending_video(package)
+
+    if upload:
+        _upload_video(
+            result["video_path"],
+            result["title"],
+            result["description"],
+            result["tags"],
+            channel="trending",
+        )
+    else:
+        print(f"\nDone. Upload skipped. Video ready at: {result['video_path']}")
+
+
+def run_trending_pair(topic=None, region="CA", upload=True):
+    print("\n" + "="*50)
+    print("TRENDING CHANNEL — Short + Explainer batch")
+    print("="*50)
+
+    if not _preflight_trending(upload=upload):
+        sys.exit(1)
+
+    from trending_generator import (
+        choose_topic_with_groq,
+        fetch_google_trends,
+        generate_trending_package,
+        normalize_topic_data,
+    )
+
+    if topic:
+        print(f"\nUsing provided topic for both videos: {topic}")
+        topic_data = normalize_topic_data(
+            {
+                "chosen_topic": topic,
+                "angle": f"Why {topic} is trending right now",
+                "keywords": [topic],
+                "stock_keyword": topic,
+            },
+            fallback_topic=topic,
+        )
+    else:
+        print(f"\nFetching Google Trends for region: {region.upper()}")
+        topics = fetch_google_trends(region)
+        if not topics:
+            raise RuntimeError(f"No usable Google Trends topics found for region {region}.")
+        topic_data = choose_topic_with_groq(topics, region=region)
+
+    results = []
+    for video_format in ["shorts", "explainer"]:
+        print(f"\nGenerating {video_format} from shared topic...")
+        package = generate_trending_package(topic_data=topic_data, video_format=video_format)
+        result = _build_trending_video(package)
+        results.append(result)
+
+        if upload:
+            _upload_video(
+                result["video_path"],
+                result["title"],
+                result["description"],
+                result["tags"],
+                channel="trending",
+            )
+
+    if not upload:
+        print("\nDone. Upload skipped. Videos ready:")
+        for result in results:
+            print(f"  {result['format']}: {result['video_path']}")
 
 
 # ─────────────────────────────────────────────
@@ -834,7 +905,10 @@ def _upload_video(video_path, title, description, tags, channel):
         if "youtube_id" in result:
             print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
             # delete video file
-            Path(video_path).unlink(missing_ok=True)
+            video = Path(video_path)
+            video.unlink(missing_ok=True)
+            video.with_suffix(".srt").unlink(missing_ok=True)
+            video.with_name(f"{video.stem}_voice.m4a").unlink(missing_ok=True)
         else:
             print(f"\nUpload response: {result}")
     except Exception as e:
@@ -876,9 +950,9 @@ def main():
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
     parser.add_argument(
         "--video-format",
-        choices=["shorts", "explainer"],
+        choices=["shorts", "explainer", "both"],
         default="shorts",
-        help="Trending format: shorts for daily vertical Shorts, explainer for 5-7 minute landscape search videos",
+        help="Trending format: shorts, explainer, or both for one Short plus one 5-7 minute explainer",
     )
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
     parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
@@ -916,12 +990,15 @@ def main():
     elif args.channel == "family":
         run_family()
     elif args.channel == "trending":
-        run_trending(
-            topic=args.topic,
-            region=args.region,
-            upload=not args.no_upload,
-            video_format=args.video_format,
-        )
+        if args.video_format == "both":
+            run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload)
+        else:
+            run_trending(
+                topic=args.topic,
+                region=args.region,
+                upload=not args.no_upload,
+                video_format=args.video_format,
+            )
 
 
 def profile_script():

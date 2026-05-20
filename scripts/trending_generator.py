@@ -295,9 +295,12 @@ def generate_trending_package(
     topic: str = None,
     region: str = DEFAULT_REGION,
     video_format: str = "shorts",
+    topic_data: dict = None,
 ) -> dict:
     """Create a complete trending video script package."""
-    if topic:
+    if topic_data:
+        topic_data = normalize_topic_data(topic_data, fallback_topic=topic_data.get("chosen_topic", "Trending topic"))
+    elif topic:
         topic_data = normalize_topic_data(
             {
                 "chosen_topic": topic,
