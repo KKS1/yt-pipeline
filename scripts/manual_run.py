@@ -839,6 +839,28 @@ def _upload_video(video_path, title, description, tags, channel):
         print(f"Error: {e}")
 
 
+def _upload_existing_video(video_path, channel, title=None, description=None, tags=None):
+    video = Path(video_path).expanduser()
+    if not video.is_absolute():
+        video = Path.cwd() / video
+
+    if not video.exists():
+        print(f"\nVideo file not found: {video}")
+        sys.exit(1)
+
+    if not title:
+        title = video.stem.replace("_", " ").replace("-", " ").title()
+
+    if description is None:
+        description = prompt_multiline("Paste your video description")
+
+    if tags is None:
+        tags_raw = prompt_input("Tags (comma-separated)", "")
+        tags = [tag.strip() for tag in tags_raw.split(",") if tag.strip()]
+
+    _upload_video(str(video), title, description, tags, channel=channel)
+
+
 # ─────────────────────────────────────────────
 # ENTRY POINT
 # ─────────────────────────────────────────────
@@ -850,7 +872,27 @@ def main():
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
+    parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
+    parser.add_argument("--title", help="Title to use with --upload-existing")
+    parser.add_argument("--description", help="Description to use with --upload-existing")
+    parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     args = parser.parse_args()
+
+    if args.upload_existing and not args.channel:
+        parser.error("--upload-existing requires --channel")
+
+    if args.upload_existing:
+        tags = None
+        if args.tags is not None:
+            tags = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
+        _upload_existing_video(
+            args.upload_existing,
+            args.channel,
+            title=args.title,
+            description=args.description,
+            tags=tags,
+        )
+        return
 
     if not args.channel:
         print("\nWhich channel are you producing for?")
