@@ -657,6 +657,94 @@ def run_family():
     print("\nDone!\n")
 
 # ─────────────────────────────────────────────
+# ENGLISH VIBES HUB PIPELINE
+# ─────────────────────────────────────────────
+
+def run_english():
+    from english_generator import generate_english_script
+    from english_assembler import generate_podcast_audio, assemble_english_video, cleanup_english_temp
+    from ffmpeg_assembler import generate_captions
+    
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Podcast Generator")
+    print("=" * 50)
+    
+    try:
+        cleanup_english_temp()
+        
+        print("\nGenerating script with Groq...\n")
+        script = generate_english_script()
+        
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_podcast.json"
+        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        
+        print(f"\nGenerated:\n  Title: {script.get('title')}")
+        
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        sys.exit(1)
+        
+    title = script["title"]
+    out_slug = slug(title)
+    
+    # Generate Audio
+    audio_path = generate_podcast_audio(script)
+    
+    # Generate Captions
+    srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+    try:
+        generate_captions(audio_path, srt_path)
+    except Exception as e:
+        print(f"  Captions skipped: {e}")
+        srt_path = None
+        
+    # Check assets
+    visuals_dir = ASSETS_DIR / "english_visuals"
+    visuals_dir.mkdir(exist_ok=True)
+    visual_files = sorted(visuals_dir.glob("*.mp4"))
+    
+    if not visual_files:
+        print(f"\nNo video files in {visuals_dir}")
+        print("Please add at least one .mp4 loop to assets/english_visuals/")
+        sys.exit(1)
+        
+    visual_path = random.choice(visual_files)
+    print(f"\n  Visual loop  : {visual_path.name}")
+    
+    bg_music = ASSETS_DIR / "background_music.mp3"
+    if not bg_music.exists():
+        print(f"  Warning: background_music.mp3 not found in {ASSETS_DIR}, proceeding without music.")
+        bg_music_str = None
+    else:
+        bg_music_str = str(bg_music)
+        
+    # Assemble Video
+    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    
+    assemble_english_video(
+        podcast_audio=audio_path,
+        loop_visual=str(visual_path),
+        output_path=out_path,
+        captions_srt=srt_path,
+        background_music=bg_music_str,
+        title=title
+    )
+    
+    cleanup_english_temp()
+    
+    print("\nUploading video...\n")
+    _upload_video(
+        out_path,
+        title,
+        script.get("description", ""),
+        script.get("tags", []),
+        channel="english",
+    )
+    
+    print("\nDone!\n")
+
+# ─────────────────────────────────────────────
 # TRENDING PIPELINE (free automated path)
 # ─────────────────────────────────────────────
 
@@ -956,7 +1044,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -994,13 +1082,16 @@ def main():
         print("  1. lofi     — study music (fully free)")
         print("  2. family   — family-friendly quiz/facts (free with local TTS)")
         print("  3. trending — narrated topics (free with local TTS or ElevenLabs)")
-        choice = prompt_input("Enter 1, 2, or 3", "1")
-        args.channel = {"1": "lofi", "2": "family", "3": "trending"}.get(choice, "lofi")
+        print("  4. english  — english vibes hub podcast (free with dual local TTS)")
+        choice = prompt_input("Enter 1, 2, 3, or 4", "1")
+        args.channel = {"1": "lofi", "2": "family", "3": "trending", "4": "english"}.get(choice, "lofi")
 
     if args.channel == "lofi":
         run_lofi()
     elif args.channel == "family":
         run_family()
+    elif args.channel == "english":
+        run_english()
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload)
