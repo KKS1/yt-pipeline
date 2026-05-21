@@ -443,7 +443,7 @@ def assemble_shorts_video(
 
     caption_style = (
         "FontName=Arial,"
-        "FontSize=42,"
+        "FontSize=24,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
         "BackColour=&H80000000,"
