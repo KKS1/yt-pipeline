@@ -792,7 +792,7 @@ def _build_trending_video(package: dict) -> dict:
     }
 
 
-def run_trending(topic=None, region="CA", upload=True, video_format="both"):
+def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
     print("\n" + "="*50)
     print("TRENDING NARRATED CHANNEL — free automated pipeline")
     print("="*50)
