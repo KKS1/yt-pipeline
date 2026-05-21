@@ -443,7 +443,7 @@ def assemble_shorts_video(
 
     caption_style = (
         "FontName=Arial,"
-        "FontSize=24,"
+        "FontSize=18,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
         "BackColour=&H80000000,"
@@ -451,7 +451,7 @@ def assemble_shorts_video(
         "Outline=2,"
         "Shadow=1,"
         "Alignment=2,"
-        "MarginV=220"
+        "MarginV=60"
     )
 
     has_captions = captions_srt and Path(captions_srt).exists()
