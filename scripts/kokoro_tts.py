@@ -21,7 +21,7 @@ import soundfile as sf
 from pathlib import Path
 
 PROJECT_ROOT  = Path(__file__).parent.parent
-KOKORO_MODEL  = str(PROJECT_ROOT / "kokoro-v0_19.onnx")
+KOKORO_MODEL  = str(PROJECT_ROOT / "kokoro-v1.0.onnx")
 KOKORO_VOICES = str(PROJECT_ROOT / "voices.bin")
 
 # Use ffmpeg_static if available (needed on Mac where brew ffmpeg lacks drawtext)
@@ -47,8 +47,8 @@ def get_kokoro(model: str = KOKORO_MODEL, voices: str = KOKORO_VOICES):
     if not Path(model).exists():
         print(f"Kokoro model not found: {model}")
         print("Download from:")
-        print("  curl -L -o kokoro-v0_19.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx")
-        print("  curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin")
+        print("  curl -L -o kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx")
+        print("  curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin")
         sys.exit(1)
 
     return Kokoro(model, voices)

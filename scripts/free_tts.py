@@ -6,9 +6,9 @@ Install:
   pip install kokoro-onnx soundfile --break-system-packages
   brew install espeak-ng
 
-Model files in project root (one-time download ~80MB):
-  curl -L -o kokoro-v0_19.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx
-  curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin
+Model files in project root (one-time download ~300MB):
+  curl -L -o kokoro-v1.0.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+  curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
 Usage:
   python free_tts.py "Your script text here" output.mp3
@@ -40,10 +40,12 @@ def generate_tts(
     Drop-in replacement for old Coqui-based generate_tts().
 
     Voices:
+      af_heart  — warm, natural (default for many)
       af_sarah  — warm, friendly
       af_bella  — authoritative, clear (default for trending)
       af_nicole — soft, calm
       af_sky    — energetic
+      am_echo   — clear, resonant male voice
     """
     return synthesize(text, output_path, voice=voice, speed=speed)
 
@@ -54,6 +56,8 @@ def list_voices():
         ("af_bella",  "Authoritative, clear — great for trending/narration"),
         ("af_nicole", "Soft, calm — great for ambient narration"),
         ("af_sky",    "Energetic, upbeat"),
+        ("af_heart",  "Warm, natural — premium-quality default"),
+        ("am_echo",   "Clear, resonant — radio-style male"),
     ]
     print("\nAvailable voices:\n")
     for name, desc in voices:
