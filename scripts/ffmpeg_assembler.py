@@ -223,8 +223,8 @@ def generate_captions(audio_path: str, output_srt: str) -> str:
     if result.returncode != 0:
         print(f"  Whisper warning: {result.stderr[:200]}")
 
-    # Whisper names the SRT after the input file
-    generated_srt = Path(audio_path).with_suffix(".srt")
+    # Whisper names the SRT after the input file but places it in output_dir
+    generated_srt = Path(output_srt).parent / Path(audio_path).with_suffix(".srt").name
     if generated_srt.exists() and str(generated_srt) != output_srt:
         generated_srt.rename(output_srt)
 

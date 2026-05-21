@@ -11,8 +11,8 @@ from ffmpeg_assembler import get_audio_duration, TEMP_DIR, OUTPUT_DIR, ASSETS_DI
 from kokoro_tts import synthesize
 
 ENGLISH_VOICES = {
-    "Emma": "af_sarah",
-    "Liam": "am_adam"
+    "Emma": "af_heart",
+    "Liam": "am_echo"
 }
 
 def generate_podcast_audio(script_data: dict) -> str:
@@ -36,7 +36,7 @@ def generate_podcast_audio(script_data: dict) -> str:
         try:
             print(f"  [{speaker}] -> {out_path}")
             # we use speed=1.0 for a more relaxed learning pace
-            synthesize(text, out_path, voice=voice, speed=1.0)
+            synthesize(text, out_path, voice=voice, speed=0.95)
             audio_files.append(out_path)
         except Exception as e:
             print(f"  Error generating audio for line {i}: {e}")
@@ -113,12 +113,13 @@ def assemble_english_video(
     caption_style = (
         "FontName=Arial,"
         "FontSize=22,"
-        "PrimaryColour=&H00FFFFFF,"
+        "PrimaryColour=&H0000FFFF,"
         "OutlineColour=&H00000000,"
         "BackColour=&H80000000,"
         "Bold=1,"
-        "Outline=2,"
-        "Shadow=1,"
+        "BorderStyle=3,"
+        "Outline=1,"
+        "Shadow=0,"
         "MarginV=40"
     )
 
