@@ -13,10 +13,11 @@ from urllib.parse import quote
 import xml.etree.ElementTree as ET
 
 import requests
+import sys
+from pathlib import Path
 
-
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from groq_client import GROQ_MODEL, groq_chat_json, parse_groq_json
 
 DEFAULT_REGION = "CA"
 DEFAULT_TRENDS_URL = (
@@ -106,41 +107,12 @@ def fetch_google_trends(region: str = DEFAULT_REGION) -> list[str]:
     return filter_topics(parse_google_trends_rss(response.text))
 
 
-def parse_groq_json(raw: str) -> dict:
-    """Parse a Groq message body that should contain a single JSON object."""
-    cleaned = re.sub(r"```(?:json)?|```", "", raw).strip()
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", cleaned, flags=re.S)
-        if not match:
-            raise
-        return json.loads(match.group(0))
-
-
 def _groq_chat(prompt: str, max_tokens: int, temperature: float = 0.7) -> dict:
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("Missing GROQ_API_KEY. Add it to .env for free-tier script generation.")
-
-    response = requests.post(
-        GROQ_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": GROQ_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "response_format": {"type": "json_object"},
-        },
-        timeout=120,
+    return groq_chat_json(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
-    response.raise_for_status()
-    raw = response.json()["choices"][0]["message"]["content"]
-    return parse_groq_json(raw)
 
 
 def choose_topic_with_groq(topics: list[str], region: str = DEFAULT_REGION) -> dict:

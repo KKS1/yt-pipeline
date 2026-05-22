@@ -1,10 +1,15 @@
 import json
+import os
 import random
 import re
-import requests
-import os
+import sys
+from pathlib import Path
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from groq_client import groq_chat_json, groq_part_cooldown
+
+# Free tier TPM is 12k; three 7k-cap calls in a row exceed it. Lower cap + pause between parts.
+ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
 
 ENGLISH_TOPIC_POOL = [
     "Using Phrasal Verbs with 'Look'",
@@ -98,15 +103,9 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
     return final_script
 
 
-def call_groq_json(user_prompt):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
+def call_groq_json(user_prompt: str) -> dict:
+    return groq_chat_json(
+        messages=[
             {
                 "role": "system",
                 "content": (
@@ -115,25 +114,12 @@ def call_groq_json(user_prompt):
                     "never add subscribe or goodbye language in middle parts."
                 ),
             },
-            {
-                "role": "user",
-                "content": user_prompt,
-            },
+            {"role": "user", "content": user_prompt},
         ],
-        "temperature": 0.7,
-        "max_tokens": 7000,
-        "response_format": {
-            "type": "json_object"
-        },
-    }
+        max_tokens=ENGLISH_MAX_TOKENS,
+        temperature=0.7,
+    )
 
-    response = requests.post(url, headers=headers, json=payload, timeout=120)
-    if response.status_code != 200:
-        raise Exception(f"Groq API error {response.status_code}: {response.text}")
-
-    data = response.json()
-    raw = data["choices"][0]["message"]["content"]
-    return json.loads(raw)
 
 def generate_english_script(topic=None):
     if not topic:
@@ -148,7 +134,7 @@ TOPIC: {topic}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 50-60 turns.
+- The `dialogue` array MUST contain around 35-45 turns.
 
 STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" and introducing the topic of the day.
@@ -174,6 +160,7 @@ JSON SCHEMA:
 }}
 """
     part1_data = call_groq_json(prompt_1)
+    groq_part_cooldown("Part 2")
 
     print("Generating Part 2 (Deep Dive & Stories)...")
     last_turn = part1_data["dialogue"][-1] if part1_data.get("dialogue") else {"speaker": "Emma", "text": "Let's continue."}
@@ -186,7 +173,7 @@ Pick up the conversation naturally from here.
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 50-60 turns.
+- The `dialogue` array MUST contain around 35-45 turns.
 
 STRUCTURE & CONTENT (PART 2):
 1. **Deep Dive**: Continue the extensive discussion of the topic.
@@ -209,6 +196,7 @@ JSON SCHEMA:
 }}
 """
     part2_data = call_groq_json(prompt_2)
+    groq_part_cooldown("Part 3")
 
     print("Generating Part 3 (Wrap-up & Outro)...")
     last_turn_2 = part2_data["dialogue"][-1] if part2_data.get("dialogue") else {"speaker": "Emma", "text": "Let's wrap up."}
@@ -221,7 +209,7 @@ Pick up the conversation naturally from here.
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 40-50 turns.
+- The `dialogue` array MUST contain around 30-40 turns.
 
 STRUCTURE & CONTENT (PART 3):
 1. **Wrap-up**: Share final thoughts, tips, or examples (most of this part).
