@@ -35,7 +35,7 @@ def generate_english_script(topic=None):
     print(f"\nSelected topic: {topic}")
 
     prompt = f"""
-You are writing a 15-minute simple English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
+You are writing a LONG, comprehensive 15-to-20-minute simple English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
 The podcast is designed to help English learners improve their listening and speaking skills.
 
 TOPIC:
@@ -53,8 +53,8 @@ STYLE:
 - Conversational, friendly, and natural
 - Simple English vocabulary but natural phrasing
 - The hosts are Emma and Liam. Emma is energetic and helpful. Liam is curious and friendly.
-- The conversation should include examples, clear explanations of any idioms or phrasal verbs used, and natural back-and-forth banter.
-- Provide around 20-30 dialogue turns total to fill out a substantial podcast episode.
+- The conversation should be very extensive, including deep discussions, multiple stories, examples, and thorough explanations of any idioms or phrasal verbs used. 
+- Provide around 150-200 dialogue turns total to fill out a full 15-20 minute podcast episode. Do not cut the conversation short! The script must be long enough to reach 15 to 20 minutes when spoken at a normal pace.
 
 JSON SCHEMA:
 
