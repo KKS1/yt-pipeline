@@ -1,5 +1,6 @@
 import json
 import random
+import re
 import requests
 import os
 
@@ -28,6 +29,75 @@ ENGLISH_TOPIC_POOL = [
     "Phrasal Verbs with 'Get'"
 ]
 
+# Mid-episode sign-offs the model often adds at part boundaries.
+_OUTRO_PATTERNS = [
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\bsubscribe\b",
+        r"\blike\s+(?:and\s+)?subscribe\b",
+        r"\bhit\s+the\s+(?:like|bell)\b",
+        r"\bnotification\s+bell\b",
+        r"\bthanks?\s+for\s+(?:listening|watching|tuning\s+in|joining)\b",
+        r"\btune\s+in\s+(?:next|for\s+more|again)\b",
+        r"\bsee\s+you\s+(?:next|soon|later)\b",
+        r"\buntil\s+next\s+time\b",
+        r"\bdon'?t\s+forget\s+to\s+(?:like|subscribe)\b",
+        r"\bEnglishVibesHub\b.*\b(?:bye|goodbye|see\s+you)\b",
+        r"\b(?:bye|goodbye)\b.*\bEnglishVibesHub\b",
+    )
+]
+
+_NOT_FINAL_PART_RULES = """
+CONTINUITY (THIS IS NOT THE FINAL PART OF THE EPISODE):
+- Do NOT thank listeners for watching or say goodbye.
+- Do NOT ask viewers to like, subscribe, or hit the bell.
+- Do NOT say "see you next time", "tune in next episode", or similar closings.
+- End on an open conversation beat so the next part continues naturally.
+"""
+
+
+def is_outro_line(text: str) -> bool:
+    return any(p.search(text) for p in _OUTRO_PATTERNS)
+
+
+def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0) -> list:
+    """Drop sign-off / CTA lines; Part 3 may keep them only in the last N turns."""
+    if not dialogue:
+        return []
+    if max_outro_turns_at_end <= 0:
+        return [t for t in dialogue if not is_outro_line(t.get("text", ""))]
+
+    keep_tail = min(max_outro_turns_at_end, len(dialogue))
+    body = dialogue[:-keep_tail]
+    tail = dialogue[-keep_tail:]
+    body = [t for t in body if not is_outro_line(t.get("text", ""))]
+    return body + tail
+
+
+def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
+    final_script = {
+        "title": part1_data.get("title", f"English Conversation: {topic}"),
+        "description": part1_data.get(
+            "description", f"Learn English with this detailed conversation about {topic}."
+        ),
+        "tags": part1_data.get("tags", ["English", "Conversation", "Learning", "Phrasal Verbs"]),
+        "dialogue": [],
+    }
+
+    for part_data, max_outro in (
+        (part1_data, 0),
+        (part2_data, 0),
+        (part3_data, 2),
+    ):
+        cleaned = sanitize_dialogue_part(part_data.get("dialogue", []), max_outro)
+        removed = len(part_data.get("dialogue", [])) - len(cleaned)
+        if removed:
+            print(f"  Removed {removed} mid-episode sign-off line(s)")
+        final_script["dialogue"].extend(cleaned)
+
+    return final_script
+
+
 def call_groq_json(user_prompt):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -39,7 +109,11 @@ def call_groq_json(user_prompt):
         "messages": [
             {
                 "role": "system",
-                "content": "You generate perfect JSON for educational English conversation podcasts.",
+                "content": (
+                    "You generate perfect JSON for educational English conversation podcasts. "
+                    "Each multi-part episode has exactly ONE closing outro at the very end; "
+                    "never add subscribe or goodbye language in middle parts."
+                ),
             },
             {
                 "role": "user",
@@ -80,7 +154,7 @@ STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" and introducing the topic of the day.
 2. **Setup**: Begin the deep dive discussion into the topic.
 3. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-
+{_NOT_FINAL_PART_RULES}
 STYLE:
 - Conversational, friendly, and natural.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
@@ -118,7 +192,7 @@ STRUCTURE & CONTENT (PART 2):
 1. **Deep Dive**: Continue the extensive discussion of the topic.
 2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally.
 3. Use and carefully explain 4-5 additional phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-
+{_NOT_FINAL_PART_RULES}
 STYLE:
 - Conversational, friendly, and natural.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
@@ -150,9 +224,9 @@ CRITICAL RULES:
 - The `dialogue` array MUST contain around 40-50 turns.
 
 STRUCTURE & CONTENT (PART 3):
-1. **Wrap-up**: Share final thoughts, tips, or examples.
+1. **Wrap-up**: Share final thoughts, tips, or examples (most of this part).
 2. Use and carefully explain 3-4 final phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-3. **Outro**: MUST end by thanking the listeners, asking them to like, subscribe, and tune in for more learning and conversations on EnglishVibesHub.
+3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like, subscribe, and tune in for more on EnglishVibesHub. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
 
 STYLE:
 - Conversational, friendly, and natural.
@@ -171,19 +245,4 @@ JSON SCHEMA:
 """
     part3_data = call_groq_json(prompt_3)
 
-    # Combine all parts
-    final_script = {
-        "title": part1_data.get("title", f"English Conversation: {topic}"),
-        "description": part1_data.get("description", f"Learn English with this detailed conversation about {topic}."),
-        "tags": part1_data.get("tags", ["English", "Conversation", "Learning", "Phrasal Verbs"]),
-        "dialogue": []
-    }
-
-    if "dialogue" in part1_data:
-        final_script["dialogue"].extend(part1_data["dialogue"])
-    if "dialogue" in part2_data:
-        final_script["dialogue"].extend(part2_data["dialogue"])
-    if "dialogue" in part3_data:
-        final_script["dialogue"].extend(part3_data["dialogue"])
-
-    return final_script
+    return combine_english_parts(part1_data, part2_data, part3_data, topic)

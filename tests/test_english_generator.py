@@ -1,0 +1,59 @@
+from scripts.english_generator import (
+    combine_english_parts,
+    is_outro_line,
+    sanitize_dialogue_part,
+)
+
+
+def test_is_outro_line_detects_cta():
+    assert is_outro_line("Thanks for listening, and don't forget to subscribe!")
+    assert is_outro_line("See you next time on EnglishVibesHub!")
+    assert not is_outro_line("Welcome to EnglishVibesHub, today we talk about travel.")
+
+
+def test_sanitize_strips_mid_part_signoffs():
+    dialogue = [
+        {"speaker": "Emma", "text": "Let's look at this phrasal verb."},
+        {"speaker": "Liam", "text": "Thanks for watching, subscribe for more!"},
+        {"speaker": "Emma", "text": "Another teaching point here."},
+    ]
+    cleaned = sanitize_dialogue_part(dialogue, max_outro_turns_at_end=0)
+    assert len(cleaned) == 2
+    assert cleaned[0]["text"].startswith("Let's look")
+
+
+def test_sanitize_keeps_outro_only_at_end_of_part3():
+    dialogue = [
+        {"speaker": "Emma", "text": "One more idiom before we close."},
+        {"speaker": "Liam", "text": "Like and subscribe to EnglishVibesHub!"},
+        {"speaker": "Emma", "text": "Thanks for listening, see you next time!"},
+    ]
+    cleaned = sanitize_dialogue_part(dialogue, max_outro_turns_at_end=2)
+    assert len(cleaned) == 3
+    assert is_outro_line(cleaned[-1]["text"])
+    assert is_outro_line(cleaned[-2]["text"])
+
+
+def test_combine_english_parts_sanitizes_each_segment():
+    script = combine_english_parts(
+        {
+            "title": "Test",
+            "dialogue": [
+                {"speaker": "Emma", "text": "Welcome to EnglishVibesHub!"},
+                {"speaker": "Liam", "text": "Subscribe for more lessons!"},
+            ],
+        },
+        {"dialogue": [{"speaker": "Emma", "text": "Deep dive content."}]},
+        {
+            "dialogue": [
+                {"speaker": "Liam", "text": "Wrap-up lesson here."},
+                {"speaker": "Emma", "text": "Hit the like button and subscribe!"},
+                {"speaker": "Liam", "text": "Thanks for listening, tune in next time!"},
+            ]
+        },
+        "Travel",
+    )
+    assert len(script["dialogue"]) == 5
+    assert script["dialogue"][0]["text"].startswith("Welcome")
+    assert not any(is_outro_line(t["text"]) for t in script["dialogue"][:3])
+    assert is_outro_line(script["dialogue"][-1]["text"])
