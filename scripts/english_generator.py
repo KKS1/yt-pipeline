@@ -35,8 +35,8 @@ def generate_english_script(topic=None):
     print(f"\nSelected topic: {topic}")
 
     prompt = f"""
-You are writing a LONG, comprehensive 15-to-20-minute simple English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
-The podcast is designed to help English learners improve their listening and speaking skills.
+You are writing a MASSIVE, 2500+ word English conversation podcast script for the YouTube channel 'EnglishVibesHub'. 
+This script MUST translate to 15-20 minutes of spoken audio. Do NOT generate a short script.
 
 TOPIC:
 {topic}
@@ -48,13 +48,20 @@ CRITICAL RULES:
 - No comments
 - No code fences
 - JSON must parse perfectly
+- The `dialogue` array MUST contain at least 150 items.
+
+STRUCTURE & CONTENT REQUIREMENTS:
+1. **Intro**: Must start by welcoming the audience to "EnglishVibesHub" and introducing the topic of the day.
+2. **Deep Dive**: Extensive discussion of the topic.
+3. **Vocabulary & Phrasal Verbs**: Deliberately use AT LEAST 10 different relevant phrasal verbs and idioms. When used, the hosts MUST naturally explain what they mean to the listeners with clear examples.
+4. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally.
+5. **Outro**: Must end by thanking the listeners, asking them to like, subscribe, and tune in for more learning and conversations.
 
 STYLE:
-- Conversational, friendly, and natural
-- Simple English vocabulary but natural phrasing
+- Conversational, friendly, and natural.
+- Simple English vocabulary but natural phrasing.
 - The hosts are Emma and Liam. Emma is energetic and helpful. Liam is curious and friendly.
-- The conversation should be very extensive, including deep discussions, multiple stories, examples, and thorough explanations of any idioms or phrasal verbs used. 
-- Provide around 150-200 dialogue turns total to fill out a full 15-20 minute podcast episode. Do not cut the conversation short! The script must be long enough to reach 15 to 20 minutes when spoken at a normal pace.
+- Ensure back-and-forth banter is highly detailed. Avoid short 1-sentence replies; instead, each turn should be a few sentences long to build up the word count.
 
 JSON SCHEMA:
 
