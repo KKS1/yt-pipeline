@@ -683,6 +683,8 @@ def run_english():
         
     except Exception as e:
         print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
         
     title = script["title"]

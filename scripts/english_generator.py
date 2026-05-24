@@ -65,18 +65,31 @@ def is_outro_line(text: str) -> bool:
     return any(p.search(text) for p in _OUTRO_PATTERNS)
 
 
-def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0) -> list:
+def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_intro: bool = False, is_outro: bool = False) -> list:
     """Drop sign-off / CTA lines; Part 3 may keep them only in the last N turns."""
     if not dialogue:
         return []
-    if max_outro_turns_at_end <= 0:
-        return [t for t in dialogue if not is_outro_line(t.get("text", ""))]
 
-    keep_tail = min(max_outro_turns_at_end, len(dialogue))
-    body = dialogue[:-keep_tail]
-    tail = dialogue[-keep_tail:]
-    body = [t for t in body if not is_outro_line(t.get("text", ""))]
-    return body + tail
+    # If this is the very first part of the episode, we want to preserve the 
+    # intro turns even if they contain "thanks for joining" language.
+    prefix = []
+    if is_intro:
+        keep_prefix = min(3, len(dialogue))
+        prefix = dialogue[:keep_prefix]
+        dialogue = dialogue[keep_prefix:]
+
+    # If this is the final part of the episode, we want to preserve the 
+    # wrap-up turns even if they contain "thanks for listening" language.
+    suffix = []
+    if is_outro:
+        n_to_keep = max(max_outro_turns_at_end, 3)
+        keep_suffix = min(n_to_keep, len(dialogue))
+        suffix = dialogue[-keep_suffix:]
+        dialogue = dialogue[:-keep_suffix]
+
+    # Filter out mid-episode sign-off lines from the remaining body
+    body = [t for t in dialogue if not is_outro_line(t.get("text", ""))]
+    return prefix + body + suffix
 
 
 def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
@@ -89,12 +102,17 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
         "dialogue": [],
     }
 
-    for part_data, max_outro in (
+    for i, (part_data, max_outro) in enumerate((
         (part1_data, 0),
         (part2_data, 0),
-        (part3_data, 2),
-    ):
-        cleaned = sanitize_dialogue_part(part_data.get("dialogue", []), max_outro)
+        (part3_data, 3),
+    )):
+        cleaned = sanitize_dialogue_part(
+            part_data.get("dialogue", []), 
+            max_outro, 
+            is_intro=(i == 0),
+            is_outro=(i == 2)
+        )
         removed = len(part_data.get("dialogue", [])) - len(cleaned)
         if removed:
             print(f"  Removed {removed} mid-episode sign-off line(s)")
