@@ -158,7 +158,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
 
 
 def call_groq_json(user_prompt: str) -> dict:
-    return groq_chat_json(
+    res = groq_chat_json(
         messages=[
             {
                 "role": "system",
@@ -173,6 +173,10 @@ def call_groq_json(user_prompt: str) -> dict:
         max_tokens=ENGLISH_MAX_TOKENS,
         temperature=0.7,
     )
+    # Ensure we always return a dictionary; sometimes the LLM returns a list of items directly.
+    if isinstance(res, list):
+        return {"dialogue": res}
+    return res
 
 
 def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
@@ -371,7 +375,8 @@ JSON SCHEMA:
     groq_part_cooldown("Part 2")
 
     print("Generating Part 2 (Deep Dive & Stories)...")
-    last_turn = part1_data["dialogue"][-1] if part1_data.get("dialogue") else {"speaker": "Emma", "text": "Let's continue."}
+    d1 = part1_data.get("dialogue", [])
+    last_turn = d1[-1] if d1 else {"speaker": "Emma", "text": "Let's continue."}
     prompt_2 = f"""
 You are writing PART 2 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
 TOPIC: {topic}
@@ -407,7 +412,8 @@ JSON SCHEMA:
     groq_part_cooldown("Part 3")
 
     print("Generating Part 3 (Wrap-up & Outro)...")
-    last_turn_2 = part2_data["dialogue"][-1] if part2_data.get("dialogue") else {"speaker": "Emma", "text": "Let's wrap up."}
+    d2 = part2_data.get("dialogue", [])
+    last_turn_2 = d2[-1] if d2 else {"speaker": "Emma", "text": "Let's wrap up."}
     prompt_3 = f"""
 You are writing PART 3 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
 TOPIC: {topic}
