@@ -700,6 +700,7 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     assemble_english_video(
         podcast_audio=audio_path,
         loop_visual=str(visual_path),
+        output_path=out_path,
         captions_srt=srt_path,
         background_music=bg_music_str,
         title=script["title"]
