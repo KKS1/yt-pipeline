@@ -661,14 +661,15 @@ def run_family():
 # ENGLISH VIBES HUB PIPELINE
 # ─────────────────────────────────────────────
 
-def _english_video_assets():
-    visuals_dir = ASSETS_DIR / "english_visuals"
+def _english_video_assets(subfolder="english_visuals"):
+    """Fetch visuals from a specific subfolder in assets."""
+    visuals_dir = ASSETS_DIR / subfolder
     visuals_dir.mkdir(exist_ok=True)
     visual_files = sorted(visuals_dir.glob("*.mp4"))
 
     if not visual_files:
         print(f"\nNo video files in {visuals_dir}")
-        print("Please add at least one .mp4 loop to assets/english_visuals/")
+        print(f"Please add at least one .mp4 loop to assets/{subfolder}/")
         sys.exit(1)
 
     bg_music = ASSETS_DIR / "background_music.mp3"
@@ -699,7 +700,6 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     assemble_english_video(
         podcast_audio=audio_path,
         loop_visual=str(visual_path),
-        output_path=out_path,
         captions_srt=srt_path,
         background_music=bg_music_str,
         title=script["title"]
