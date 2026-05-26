@@ -730,6 +730,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
 
 
 def run_english(upload=True):
+    from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
     print("\n" + "=" * 50)
