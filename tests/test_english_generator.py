@@ -1,4 +1,5 @@
 from scripts.english_generator import (
+    _clean_challenge_dialogue,
     combine_english_parts,
     is_outro_line,
     sanitize_dialogue_part,
@@ -57,3 +58,28 @@ def test_combine_english_parts_sanitizes_each_segment():
     assert script["dialogue"][0]["text"].startswith("Welcome")
     assert not any(is_outro_line(t["text"]) for t in script["dialogue"][:3])
     assert is_outro_line(script["dialogue"][-1]["text"])
+
+
+def test_clean_challenge_dialogue_strips_midweek_outros():
+    script = {
+        "dialogue": [
+            {"speaker": "Emma", "text": "Welcome to Day 2 of the challenge."},
+            {"speaker": "Liam", "text": "Subscribe and hit the bell!"},
+            {"speaker": "Emma", "text": "Now practice this sentence out loud."},
+        ]
+    }
+    cleaned = _clean_challenge_dialogue(script, day_number=2)
+    assert len(cleaned["dialogue"]) == 2
+    assert not any(is_outro_line(t["text"]) for t in cleaned["dialogue"])
+
+
+def test_clean_challenge_dialogue_keeps_day_7_final_outro():
+    script = {
+        "dialogue": [
+            {"speaker": "Emma", "text": "Welcome to the recap."},
+            {"speaker": "Liam", "text": "Here is question one."},
+            {"speaker": "Emma", "text": "Thanks for listening, see you next time!"},
+        ]
+    }
+    cleaned = _clean_challenge_dialogue(script, day_number=7)
+    assert is_outro_line(cleaned["dialogue"][-1]["text"])

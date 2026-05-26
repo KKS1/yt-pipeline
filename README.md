@@ -1,6 +1,6 @@
 # YouTube Autonomous Pipeline 🎬
 
-A fully autonomous YouTube content pipeline for 3 channels, running on ~$20/month with under 20 minutes of human effort per week.
+A fully autonomous YouTube content pipeline for multiple channels, running on ~$20/month with under 20 minutes of human effort per week.
 
 ## Channels
 
@@ -8,6 +8,7 @@ A fully autonomous YouTube content pipeline for 3 channels, running on ~$20/mont
 |---------|---------|-----|-------------|
 | **Daily Insights Hub** | Finance, health, AI, lifestyle, true crime, useful facts | $8–40 | ~10 min |
 | **Family-Friendly** | This or that, fun facts, riddles, trivia | $4–12 | ~5 min |
+| **EnglishVibesHub** | English learning podcasts and 7-day weekly challenge playlists | $4–15 | ~10 min |
 | **Lofi Study Music** | 3-hour focus/study sessions | $1–4 | ~5 min |
 
 ## How it works
@@ -62,6 +63,16 @@ python scripts/server.py
 
 Then import `n8n/workflow.json` into your n8n instance and activate.
 
+### English weekly challenge playlist
+
+Generate a 7-video weekly challenge for the English channel:
+
+```bash
+python scripts/manual_run.py --channel english-challenge --topic "Small Talk Without Freezing" --start-date 2026-06-01
+```
+
+This creates Day 1-6 daily learning videos plus a Day 7 recap/question challenge. Uploads use the existing `english` YouTube credentials and are scheduled one video per day at 9AM local time by default. Add `--no-upload` to only assemble the videos.
+
 ## Project structure
 
 ```
@@ -73,6 +84,7 @@ yt-pipeline/
 │   ├── server.py              # Flask API bridge for n8n
 │   ├── manual_run.py          # Run free-mode channel publishing commands
 │   ├── trending_generator.py  # Google Trends + Groq script generation
+│   ├── english_generator.py   # English podcast + weekly challenge scripts
 │   └── free_tts.py            # Free local voiceover (Kokoro TTS)
 ├── n8n/
 │   └── workflow.json          # Import into n8n

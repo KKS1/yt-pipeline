@@ -53,6 +53,39 @@ class ManualRunUploadTests(unittest.TestCase):
             self.assertFalse(voice.exists())
             self.assertTrue(temp_dir.exists())
 
+    def test_challenge_schedule_time_uses_regina_timezone(self):
+        schedule_time = manual_run._challenge_schedule_time(
+            start_date="2026-06-01",
+            day_offset=2,
+            publish_hour=9,
+        )
+
+        self.assertEqual(schedule_time, "2026-06-03T15:00:00Z")
+
+    def test_upload_existing_challenge_uses_english_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            assets = tmp_path / "assets"
+            assets.mkdir()
+            (assets / "yt_credentials_english.json").write_text("{}", encoding="utf-8")
+            video = tmp_path / "video.mp4"
+            video.write_bytes(b"fake video")
+
+            with patch.object(manual_run, "ASSETS_DIR", assets):
+                with patch("youtube_uploader.youtube_upload") as upload:
+                    upload.return_value = {"youtube_id": "abc123"}
+
+                    with redirect_stdout(StringIO()):
+                        manual_run._upload_existing_video(
+                            str(video),
+                            "english-challenge",
+                            title="Title",
+                            description="Description",
+                            tags=["tag"],
+                        )
+
+                    self.assertEqual(upload.call_args.kwargs["channel"], "english")
+
 
 if __name__ == "__main__":
     unittest.main()

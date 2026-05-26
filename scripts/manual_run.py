@@ -22,7 +22,8 @@ import argparse
 import subprocess
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import cProfile
 import pstats
 import requests
@@ -660,10 +661,76 @@ def run_family():
 # ENGLISH VIBES HUB PIPELINE
 # ─────────────────────────────────────────────
 
-def run_english():
-    from english_generator import generate_english_script
+def _english_video_assets():
+    visuals_dir = ASSETS_DIR / "english_visuals"
+    visuals_dir.mkdir(exist_ok=True)
+    visual_files = sorted(visuals_dir.glob("*.mp4"))
+
+    if not visual_files:
+        print(f"\nNo video files in {visuals_dir}")
+        print("Please add at least one .mp4 loop to assets/english_visuals/")
+        sys.exit(1)
+
+    bg_music = ASSETS_DIR / "background_music.mp3"
+    bg_music_str = str(bg_music) if bg_music.exists() else None
+    if not bg_music_str:
+        print(f"  Warning: background_music.mp3 not found in {ASSETS_DIR}, proceeding without music.")
+
+    return visual_files, bg_music_str
+
+
+def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     from english_assembler import generate_podcast_audio, assemble_english_video, cleanup_english_temp
     from ffmpeg_assembler import generate_captions
+
+    cleanup_english_temp()
+    audio_path = generate_podcast_audio(script)
+
+    srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+    try:
+        generate_captions(audio_path, srt_path)
+    except Exception as e:
+        print(f"  Captions skipped: {e}")
+        srt_path = None
+
+    print(f"\n  Visual loop  : {visual_path.name}")
+
+    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    assemble_english_video(
+        podcast_audio=audio_path,
+        loop_visual=str(visual_path),
+        output_path=out_path,
+        captions_srt=srt_path,
+        background_music=bg_music_str,
+        title=script["title"]
+    )
+
+    cleanup_english_temp()
+    return out_path
+
+
+def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publish_hour: int = 9) -> str:
+    timezone_name = os.getenv("LOCAL_TIMEZONE", "America/Regina")
+    tz = ZoneInfo(timezone_name)
+    now = datetime.now(tz)
+    if start_date:
+        first_day = datetime.strptime(start_date, "%Y-%m-%d").date()
+    else:
+        first_day = now.date()
+        first_publish = datetime.combine(first_day, datetime.min.time(), tzinfo=tz).replace(hour=publish_hour)
+        if first_publish <= now + timedelta(minutes=20):
+            first_day += timedelta(days=1)
+
+    publish_at = datetime.combine(
+        first_day + timedelta(days=day_offset),
+        datetime.min.time(),
+        tzinfo=tz,
+    ).replace(hour=publish_hour)
+    return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
+
+
+def run_english(upload=True):
+    from english_generator import generate_english_script
     
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Podcast Generator")
@@ -689,62 +756,83 @@ def run_english():
         
     title = script["title"]
     out_slug = slug(title)
-    
-    # Generate Audio
-    audio_path = generate_podcast_audio(script)
-    
-    # Generate Captions
-    srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
-    try:
-        generate_captions(audio_path, srt_path)
-    except Exception as e:
-        print(f"  Captions skipped: {e}")
-        srt_path = None
-        
-    # Check assets
-    visuals_dir = ASSETS_DIR / "english_visuals"
-    visuals_dir.mkdir(exist_ok=True)
-    visual_files = sorted(visuals_dir.glob("*.mp4"))
-    
-    if not visual_files:
-        print(f"\nNo video files in {visuals_dir}")
-        print("Please add at least one .mp4 loop to assets/english_visuals/")
-        sys.exit(1)
-        
-    visual_path = random.choice(visual_files)
-    print(f"\n  Visual loop  : {visual_path.name}")
-    
-    bg_music = ASSETS_DIR / "background_music.mp3"
-    if not bg_music.exists():
-        print(f"  Warning: background_music.mp3 not found in {ASSETS_DIR}, proceeding without music.")
-        bg_music_str = None
+
+    visual_files, bg_music_str = _english_video_assets("english_visuals")
+    selected_visual = random.choice(visual_files)
+    out_path = _assemble_english_script(script, out_slug, selected_visual, bg_music_str)
+
+    if upload:
+        print("\nUploading video...\n")
+        _upload_video(
+            out_path,
+            title,
+            script.get("description", ""),
+            script.get("tags", []),
+            channel="english",
+        )
     else:
-        bg_music_str = str(bg_music)
-        
-    # Assemble Video
-    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
-    
-    assemble_english_video(
-        podcast_audio=audio_path,
-        loop_visual=str(visual_path),
-        output_path=out_path,
-        captions_srt=srt_path,
-        background_music=bg_music_str,
-        title=title
-    )
-    
-    cleanup_english_temp()
-    
-    print("\nUploading video...\n")
-    _upload_video(
-        out_path,
-        title,
-        script.get("description", ""),
-        script.get("tags", []),
-        channel="english",
-    )
+        print(f"\nVideo assembled without upload: {out_path}")
     
     print("\nDone!\n")
+
+
+def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=9):
+    from english_generator import generate_weekly_challenge_scripts
+
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Weekly Challenge Playlist")
+    print("=" * 50)
+
+    try:
+        print("\nGenerating 7-day weekly challenge with Groq...\n")
+        package = generate_weekly_challenge_scripts(topic=topic)
+
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_weekly_challenge.json"
+        Path(json_file).write_text(json.dumps(package, indent=2), encoding="utf-8")
+
+        print(f"\nGenerated weekly challenge:\n  Series: {package.get('series_title')}")
+    except Exception as e:
+        print(f"\nWeekly challenge generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+    # Use a specific folder for weekly challenges to keep branding consistent
+    visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
+    # Pick ONE visual to use for the entire 7-day challenge
+    weekly_visual = random.choice(visual_files)
+
+    for index, script in enumerate(package["scripts"]):
+        day_number = script.get("day", index + 1)
+        title = script["title"]
+        out_slug = slug(f"day_{day_number}_{title}")
+
+        print("\n" + "-" * 50)
+        print(f"Assembling Day {day_number}: {title}")
+        print("-" * 50)
+
+        out_path = _assemble_english_script(script, out_slug, weekly_visual, bg_music_str)
+
+        if upload:
+            schedule_time = _challenge_schedule_time(
+                start_date=start_date,
+                day_offset=index,
+                publish_hour=publish_hour,
+            )
+            print(f"\nScheduling Day {day_number} for {schedule_time}...\n")
+            _upload_video(
+                out_path,
+                title,
+                script.get("description", ""),
+                script.get("tags", package.get("tags", [])),
+                channel="english",
+                schedule_time=schedule_time,
+            )
+        else:
+            print(f"\nDay {day_number} assembled without upload: {out_path}")
+
+    print("\nWeekly challenge pipeline done!\n")
 
 # ─────────────────────────────────────────────
 # TRENDING PIPELINE (free automated path)
@@ -971,7 +1059,7 @@ def run_trending_pair(topic=None, region="CA", upload=True):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel):
+def _upload_video(video_path, title, description, tags, channel, schedule_time=None):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -991,6 +1079,7 @@ def _upload_video(video_path, title, description, tags, channel):
             description=description,
             tags=tags,
             channel=channel,
+            schedule_time=schedule_time,
         )
     except Exception as e:
         print(f"\nUpload failed. You can retry after fixing the issue.")
@@ -998,7 +1087,8 @@ def _upload_video(video_path, title, description, tags, channel):
         return
 
     if "youtube_id" in result:
-        print(f"\nPublished: https://youtu.be/{result['youtube_id']}")
+        status = "Scheduled" if schedule_time else "Published"
+        print(f"\n{status}: https://youtu.be/{result['youtube_id']}")
         _cleanup_uploaded_video_files(video_path)
     else:
         print(f"\nUpload response: {result}")
@@ -1037,7 +1127,8 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
         tags_raw = prompt_input("Tags (comma-separated)", "")
         tags = [tag.strip() for tag in tags_raw.split(",") if tag.strip()]
 
-    _upload_video(str(video), title, description, tags, channel=channel)
+    upload_channel = "english" if channel == "english-challenge" else channel
+    _upload_video(str(video), title, description, tags, channel=upload_channel)
 
 
 # ─────────────────────────────────────────────
@@ -1046,7 +1137,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1057,11 +1148,16 @@ def main():
         help="Trending format: shorts, explainer, or both for one Short plus one 5-7 minute explainer",
     )
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
+    parser.add_argument("--start-date", help="First publish date for english-challenge, YYYY-MM-DD")
+    parser.add_argument("--publish-hour", type=int, default=9, help="Local publish hour for scheduled english-challenge videos")
     parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
     parser.add_argument("--title", help="Title to use with --upload-existing")
     parser.add_argument("--description", help="Description to use with --upload-existing")
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     args = parser.parse_args()
+
+    if args.publish_hour < 0 or args.publish_hour > 23:
+        parser.error("--publish-hour must be between 0 and 23")
 
     if args.upload_existing and not args.channel:
         parser.error("--upload-existing requires --channel")
@@ -1085,15 +1181,29 @@ def main():
         print("  2. family   — family-friendly quiz/facts (free with local TTS)")
         print("  3. trending — narrated topics (free with local TTS or ElevenLabs)")
         print("  4. english  — english vibes hub podcast (free with dual local TTS)")
-        choice = prompt_input("Enter 1, 2, 3, or 4", "1")
-        args.channel = {"1": "lofi", "2": "family", "3": "trending", "4": "english"}.get(choice, "lofi")
+        print("  5. english-challenge — 7-day English weekly challenge playlist")
+        choice = prompt_input("Enter 1, 2, 3, 4, or 5", "1")
+        args.channel = {
+            "1": "lofi",
+            "2": "family",
+            "3": "trending",
+            "4": "english",
+            "5": "english-challenge",
+        }.get(choice, "lofi")
 
     if args.channel == "lofi":
         run_lofi()
     elif args.channel == "family":
         run_family()
     elif args.channel == "english":
-        run_english()
+        run_english(upload=not args.no_upload)
+    elif args.channel == "english-challenge":
+        run_english_challenge(
+            topic=args.topic,
+            upload=not args.no_upload,
+            start_date=args.start_date,
+            publish_hour=args.publish_hour,
+        )
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload)
