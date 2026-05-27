@@ -33,9 +33,9 @@ ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWA
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR   = PROJECT_ROOT / "output"
 ASSETS_DIR   = PROJECT_ROOT / "assets"
-TEMP_DIR     = PROJECT_ROOT / "temp"
+TEMP_DIR     = PROJECT_ROOT / "temp" / str(os.getpid())
 
-for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR]:
+for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR.parent, TEMP_DIR]:
     d.mkdir(exist_ok=True)
 
 FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")

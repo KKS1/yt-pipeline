@@ -28,11 +28,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).parent.parent
 OUTPUT_DIR   = PROJECT_ROOT / "output"
-TEMP_DIR     = PROJECT_ROOT / "output" / "family_temp"
+TEMP_DIR     = PROJECT_ROOT / "temp" / f"family_{os.getpid()}"
 ASSETS_DIR   = PROJECT_ROOT / "assets"
 CACHE_DIR    = PROJECT_ROOT / "cache_images"
 
-for d in [OUTPUT_DIR, TEMP_DIR, ASSETS_DIR, CACHE_DIR]:
+for d in [OUTPUT_DIR, TEMP_DIR.parent, TEMP_DIR, ASSETS_DIR, CACHE_DIR]:
     d.mkdir(exist_ok=True)
 
 FFMPEG         = os.environ.get("FFMPEG_CMD", "ffmpeg")
