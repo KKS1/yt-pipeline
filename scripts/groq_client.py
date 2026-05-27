@@ -47,6 +47,18 @@ def parse_groq_json(raw: str) -> dict:
         return json.loads(match.group(0))
 
 
+def is_json_validation_error(response: requests.Response) -> bool:
+    """Groq sometimes returns this when JSON mode rejects a generated draft."""
+    try:
+        error = response.json().get("error", {})
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        error = {}
+
+    code = str(error.get("code", "")).lower()
+    message = str(error.get("message", response.text)).lower()
+    return code == "json_validate_failed" or "failed to generate json" in message
+
+
 def groq_chat_json(
     messages: list,
     max_tokens: int = 4096,
@@ -72,6 +84,22 @@ def groq_chat_json(
 
     last_error = None
     for attempt in range(1, max_retries + 1):
+        retry_messages = messages
+        if attempt > 1:
+            retry_messages = [
+                *messages,
+                {
+                    "role": "system",
+                    "content": (
+                        "Retry the request as strict JSON only. Use double quotes for every "
+                        "key and string, escape all newlines inside strings, and do not include "
+                        "markdown, comments, trailing commas, or text outside the JSON object."
+                    ),
+                },
+            ]
+        payload["messages"] = retry_messages
+        payload["temperature"] = max(0.1, temperature - (0.15 * (attempt - 1)))
+
         response = requests.post(
             GROQ_URL, headers=headers, json=payload, timeout=timeout
         )
@@ -95,6 +123,17 @@ def groq_chat_json(
             time.sleep(wait)
             last_error = response.text
             continue
+
+        if response.status_code == 400 and is_json_validation_error(response):
+            last_error = response.text
+            if attempt < max_retries:
+                wait = min(2 * attempt, 10)
+                print(
+                    f"  Groq JSON validation failed — retrying with stricter JSON "
+                    f"instructions in {wait}s (retry {attempt}/{max_retries})..."
+                )
+                time.sleep(wait)
+                continue
 
         if response.status_code != 200:
             raise RuntimeError(
