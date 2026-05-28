@@ -1,3 +1,5 @@
+import os
+import types
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -82,9 +84,75 @@ class ManualRunUploadTests(unittest.TestCase):
                             title="Title",
                             description="Description",
                             tags=["tag"],
+                            schedule_time="2026-06-03T15:00:00Z",
                         )
 
                     self.assertEqual(upload.call_args.kwargs["channel"], "english")
+                    self.assertEqual(upload.call_args.kwargs["schedule_time"], "2026-06-03T15:00:00Z")
+
+    def test_english_challenge_creates_playlist_and_adds_uploaded_videos(self):
+        package = {
+            "series_title": "Small Talk Without Freezing",
+            "tags": ["English conversation", "small talk"],
+            "scripts": [
+                {
+                    "day": 1,
+                    "title": "Day 1: Start Small Talk",
+                    "description": "Day 1 description",
+                    "tags": ["day 1"],
+                },
+                {
+                    "day": 2,
+                    "title": "Day 2: Keep It Going",
+                    "description": "Day 2 description",
+                    "tags": ["day 2"],
+                },
+            ],
+        }
+        fake_generator = types.SimpleNamespace(
+            generate_weekly_challenge_scripts=lambda topic=None: package
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_cwd = os.getcwd()
+            os.chdir(tmp)
+            Path("scripts/output").mkdir(parents=True)
+            try:
+                with patch.dict("sys.modules", {"english_generator": fake_generator}):
+                    with patch.object(manual_run, "_english_video_assets", return_value=([Path("visual.mp4")], "")):
+                        with patch.object(manual_run, "_assemble_english_script", return_value="video.mp4"):
+                            with patch("youtube_uploader.create_playlist") as create_playlist:
+                                with patch("youtube_uploader.add_video_to_playlist") as add_to_playlist:
+                                    with patch.object(manual_run, "_upload_video") as upload_video:
+                                        create_playlist.return_value = {"playlist_id": "playlist123"}
+                                        upload_video.side_effect = [
+                                            {"youtube_id": "video1"},
+                                            {"youtube_id": "video2"},
+                                        ]
+
+                                        with redirect_stdout(StringIO()):
+                                            manual_run.run_english_challenge(
+                                                topic="small talk",
+                                                upload=True,
+                                                start_date="2026-05-28",
+                                                publish_hour=9,
+                                            )
+            finally:
+                os.chdir(old_cwd)
+
+        create_playlist.assert_called_once()
+        self.assertEqual(
+            create_playlist.call_args.kwargs["title"],
+            "Small Talk Without Freezing | 7-Day English Challenge",
+        )
+        self.assertEqual(create_playlist.call_args.kwargs["channel"], "english")
+        self.assertEqual(
+            [call.kwargs["video_id"] for call in add_to_playlist.call_args_list],
+            ["video1", "video2"],
+        )
+        self.assertTrue(
+            all(call.kwargs["playlist_id"] == "playlist123" for call in add_to_playlist.call_args_list)
+        )
 
 
 if __name__ == "__main__":

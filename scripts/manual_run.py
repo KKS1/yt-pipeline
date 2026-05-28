@@ -800,6 +800,27 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         traceback.print_exc()
         sys.exit(1)
 
+    playlist_id = None
+    if upload:
+        playlist_title = f"{package.get('series_title', 'English Weekly Challenge')} | 7-Day English Challenge"
+        playlist_description = (
+            f"Complete 7-day English weekly challenge from EnglishVibesHub: "
+            f"{package.get('series_title', 'English Weekly Challenge')}."
+        )
+        try:
+            from youtube_uploader import create_playlist
+
+            print(f"\nCreating weekly challenge playlist: {playlist_title}")
+            playlist = create_playlist(
+                title=playlist_title,
+                description=playlist_description,
+                channel="english",
+            )
+            playlist_id = playlist["playlist_id"]
+        except Exception as e:
+            print(f"\nPlaylist creation failed. Videos will still upload without a playlist.")
+            print(f"Error: {e}")
+
     # Use a specific folder for weekly challenges to keep branding consistent
     visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
     # Pick ONE visual to use for the entire 7-day challenge
@@ -823,7 +844,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 publish_hour=publish_hour,
             )
             print(f"\nScheduling Day {day_number} for {schedule_time}...\n")
-            _upload_video(
+            result = _upload_video(
                 out_path,
                 title,
                 script.get("description", ""),
@@ -831,6 +852,18 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 channel="english",
                 schedule_time=schedule_time,
             )
+            if playlist_id and result and result.get("youtube_id"):
+                try:
+                    from youtube_uploader import add_video_to_playlist
+
+                    add_video_to_playlist(
+                        video_id=result["youtube_id"],
+                        playlist_id=playlist_id,
+                        channel="english",
+                    )
+                except Exception as e:
+                    print(f"\nCould not add Day {day_number} to playlist.")
+                    print(f"Error: {e}")
         else:
             print(f"\nDay {day_number} assembled without upload: {out_path}")
 
@@ -1092,8 +1125,10 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
         status = "Scheduled" if schedule_time else "Published"
         print(f"\n{status}: https://youtu.be/{result['youtube_id']}")
         _cleanup_uploaded_video_files(video_path)
+        return result
     else:
         print(f"\nUpload response: {result}")
+        return result
 
 
 def _cleanup_uploaded_video_files(video_path):
@@ -1110,7 +1145,7 @@ def _cleanup_uploaded_video_files(video_path):
             print(f"  Cleanup skipped for {path}: {e}")
 
 
-def _upload_existing_video(video_path, channel, title=None, description=None, tags=None):
+def _upload_existing_video(video_path, channel, title=None, description=None, tags=None, schedule_time=None):
     video = Path(video_path).expanduser()
     if not video.is_absolute():
         video = Path.cwd() / video
@@ -1130,7 +1165,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
         tags = [tag.strip() for tag in tags_raw.split(",") if tag.strip()]
 
     upload_channel = "english" if channel == "english-challenge" else channel
-    _upload_video(str(video), title, description, tags, channel=upload_channel)
+    _upload_video(str(video), title, description, tags, channel=upload_channel, schedule_time=schedule_time)
 
 
 # ─────────────────────────────────────────────
@@ -1156,6 +1191,7 @@ def main():
     parser.add_argument("--title", help="Title to use with --upload-existing")
     parser.add_argument("--description", help="Description to use with --upload-existing")
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
+    parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1174,6 +1210,7 @@ def main():
             title=args.title,
             description=args.description,
             tags=tags,
+            schedule_time=args.schedule_time,
         )
         return
 

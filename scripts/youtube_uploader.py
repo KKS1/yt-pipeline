@@ -55,6 +55,82 @@ def _is_retriable_upload_error(exc: Exception) -> bool:
     return False
 
 
+def _youtube_service(channel: str):
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+
+    creds_file = ASSETS_DIR / f"yt_credentials_{channel}.json"
+    if not creds_file.exists():
+        raise FileNotFoundError(
+            f"No credentials found: {creds_file}\n"
+            f"Run python scripts/server.py and visit http://localhost:5001/setup-auth/{channel}"
+        )
+
+    with open(creds_file) as f:
+        creds_data = json.load(f)
+
+    creds = Credentials(
+        token=creds_data["token"],
+        refresh_token=creds_data["refresh_token"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=creds_data["client_id"],
+        client_secret=creds_data["client_secret"],
+    )
+
+    return build("youtube", "v3", credentials=creds)
+
+
+def create_playlist(
+    title: str,
+    description: str = "",
+    channel: str = "english",
+    privacy_status: str = "public",
+) -> dict:
+    """Create a YouTube playlist and return its ID and URL."""
+
+    youtube = _youtube_service(channel)
+    response = youtube.playlists().insert(
+        part="snippet,status",
+        body={
+            "snippet": {
+                "title": title[:150],
+                "description": description[:5000],
+            },
+            "status": {
+                "privacyStatus": privacy_status,
+            },
+        },
+    ).execute()
+
+    playlist_id = response["id"]
+    print(f"  Playlist created: https://www.youtube.com/playlist?list={playlist_id}")
+    return {
+        "playlist_id": playlist_id,
+        "url": f"https://www.youtube.com/playlist?list={playlist_id}",
+    }
+
+
+def add_video_to_playlist(video_id: str, playlist_id: str, channel: str = "english") -> dict:
+    """Add a video to an existing YouTube playlist."""
+
+    youtube = _youtube_service(channel)
+    response = youtube.playlistItems().insert(
+        part="snippet",
+        body={
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": video_id,
+                },
+            },
+        },
+    ).execute()
+
+    print(f"  Added video to playlist: {video_id}")
+    return response
+
+
 def _save_resumable_session(path: Path, request_obj, video_path: str, channel: str) -> None:
     resumable_uri = getattr(request_obj, "resumable_uri", None)
     if not resumable_uri:
@@ -86,29 +162,9 @@ def youtube_upload(
 ) -> dict:
     """Upload a video to YouTube using channel-specific OAuth credentials."""
 
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
 
-    creds_file = ASSETS_DIR / f"yt_credentials_{channel}.json"
-    if not creds_file.exists():
-        raise FileNotFoundError(
-            f"No credentials found: {creds_file}\n"
-            f"Run python scripts/server.py and visit http://localhost:5001/setup-auth/{channel}"
-        )
-
-    with open(creds_file) as f:
-        creds_data = json.load(f)
-
-    creds = Credentials(
-        token=creds_data["token"],
-        refresh_token=creds_data["refresh_token"],
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=creds_data["client_id"],
-        client_secret=creds_data["client_secret"],
-    )
-
-    youtube = build("youtube", "v3", credentials=creds)
+    youtube = _youtube_service(channel)
 
     category_map = {
         "trending": "22",
