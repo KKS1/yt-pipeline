@@ -194,9 +194,9 @@ def generate_weekly_challenge_plan(topic=None) -> dict:
     if not topic:
         topic = generate_dynamic_topic(is_challenge=True)
 
-    print(f"\nSelected weekly challenge topic: {topic}")
+    print(f"\nSelected weekly challenge topic: {topic} for @EnglishVibesHub-s6w")
     prompt = f"""
-Create a 7-day weekly challenge playlist plan for the YouTube channel 'EnglishVibesHub'.
+Create a 7-day weekly challenge playlist plan for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 WEEKLY THEME: {topic}
 
 CRITICAL RULES:
@@ -245,7 +245,7 @@ def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
     if day_number == 7:
         structure = f"""
 STRUCTURE & CONTENT:
-1. Welcome listeners to Day 7 of the weekly challenge and name the playlist: {series_title}.
+1. Welcome listeners to Day 7 of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
 2. Recap Days 1-6 using these exact learning points:
 {chr(10).join('- ' + item for item in previous_days)}
 3. Ask at least 8 practical challenge questions. Include a short pause cue after each question, then have the hosts explain a strong sample answer.
@@ -257,7 +257,7 @@ STRUCTURE & CONTENT:
     else:
         structure = f"""
 STRUCTURE & CONTENT:
-1. Welcome listeners to Day {day_number} of the weekly challenge and name the playlist: {series_title}.
+1. Welcome listeners to Day {day_number} of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
 2. Teach the focused skill: {day.get('focus')}.
 3. Explain useful phrases, phrasal verbs, idioms, pronunciation tips, or sentence patterns connected to the skill.
 4. Include short roleplay moments between Emma and Liam.
@@ -268,7 +268,7 @@ STRUCTURE & CONTENT:
         turn_count = "28-36"
 
     prompt = f"""
-You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub'.
+You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 
 SERIES: {series_title}
 DAY: {day_number}
@@ -341,7 +341,7 @@ def generate_english_script(topic=None):
 
     print("Generating Part 1 (Intro & Setup)...")
     prompt_1 = f"""
-You are writing PART 1 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
+You are writing PART 1 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 
 CRITICAL RULES:
@@ -349,7 +349,7 @@ CRITICAL RULES:
 - The `dialogue` array MUST contain around 35-45 turns.
 
 STRUCTURE & CONTENT (PART 1):
-1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" and introducing the topic of the day.
+1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
 2. **Setup**: Begin the deep dive discussion into the topic.
 3. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
@@ -378,7 +378,7 @@ JSON SCHEMA:
     d1 = part1_data.get("dialogue", [])
     last_turn = d1[-1] if d1 else {"speaker": "Emma", "text": "Let's continue."}
     prompt_2 = f"""
-You are writing PART 2 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
+You are writing PART 2 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 
 The previous turn ended with {last_turn['speaker']} saying: "{last_turn['text']}"
@@ -415,7 +415,7 @@ JSON SCHEMA:
     d2 = part2_data.get("dialogue", [])
     last_turn_2 = d2[-1] if d2 else {"speaker": "Emma", "text": "Let's wrap up."}
     prompt_3 = f"""
-You are writing PART 3 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub'.
+You are writing PART 3 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 
 The previous turn ended with {last_turn_2['speaker']} saying: "{last_turn_2['text']}"
@@ -428,7 +428,7 @@ CRITICAL RULES:
 STRUCTURE & CONTENT (PART 3):
 1. **Wrap-up**: Share final thoughts, tips, or examples (most of this part).
 2. Use and carefully explain 3-4 final phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like, subscribe, and tune in for more on EnglishVibesHub. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
+3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like, subscribe, and tune in for more on EnglishVibesHub (@EnglishVibesHub-s6w). Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
 
 STYLE:
 - Conversational, friendly, and natural.
