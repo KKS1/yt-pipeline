@@ -804,8 +804,12 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
     if upload:
         playlist_title = f"{package.get('series_title', 'English Weekly Challenge')} | 7-Day English Challenge"
         playlist_description = (
-            f"Complete 7-day English weekly challenge from EnglishVibesHub: "
-            f"{package.get('series_title', 'English Weekly Challenge')}."
+            f"🚀 {package.get('series_title', 'English Weekly Challenge')}\n\n"
+            f"Master your English skills with this intensive 7-day challenge from EnglishVibesHub (@EnglishVibesHub-s6w). "
+            f"Each day covers a new focus area with practical tasks, idioms, and phrasal verbs "
+            f"to help you build confidence in real-world conversations.\n\n"
+            f"Join Emma and Liam as they guide you through this journey!\n\n"
+            f"#EnglishLearning #EnglishChallenge #EnglishVibesHub"
         )
         try:
             from youtube_uploader import create_playlist
