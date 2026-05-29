@@ -206,7 +206,7 @@ def fetch_stock_videos(
 # 4. GENERATE CAPTIONS (Whisper via subprocess)
 # ─────────────────────────────────────────────
 
-def generate_captions(audio_path: str, output_srt: str) -> str:
+def generate_captions(audio_path: str, output_srt: str, max_line_width: int = None, max_line_count: int = None) -> str:
     """
     Generate SRT captions using OpenAI Whisper (local, free).
     Install: pip install openai-whisper --break-system-packages
@@ -219,6 +219,14 @@ def generate_captions(audio_path: str, output_srt: str) -> str:
         "--output_dir", str(Path(output_srt).parent),
         "--language", "en"
     ]
+    
+    if max_line_width or max_line_count:
+        cmd.extend(["--word_timestamps", "True"])
+        if max_line_width:
+            cmd.extend(["--max_line_width", str(max_line_width)])
+        if max_line_count:
+            cmd.extend(["--max_line_count", str(max_line_count)])
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  Whisper warning: {result.stderr[:200]}")
@@ -686,7 +694,10 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
     # 3. Generate captions
     srt_path = str(TEMP_DIR / f"{slug}.srt")
     try:
-        generate_captions(narration_path, srt_path)
+        if video_format == "shorts":
+            generate_captions(narration_path, srt_path, max_line_width=25, max_line_count=2)
+        else:
+            generate_captions(narration_path, srt_path)
     except Exception as e:
         print(f"  Captions skipped: {e}")
         srt_path = None

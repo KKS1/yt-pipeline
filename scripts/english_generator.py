@@ -448,3 +448,42 @@ JSON SCHEMA:
     part3_data = call_groq_json(prompt_3)
 
     return combine_english_parts(part1_data, part2_data, part3_data, topic)
+
+def generate_english_shorts_script(topic=None):
+    if not topic:
+        topic = generate_dynamic_topic(is_challenge=False)
+
+    print(f"\nSelected Shorts topic: {topic}")
+    prompt = f"""
+You are writing a short, snappy English learning podcast script for a YouTube Short on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+TOPIC: {topic}
+
+CRITICAL RULES:
+- Output ONLY valid JSON
+- The `dialogue` array MUST contain around 8-12 turns in total (45-60 seconds of speaking).
+- Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
+- Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
+- Do NOT use mid-episode sign-offs or long pauses.
+- The final turn should include a quick call to action (e.g., "Subscribe for more daily English tips!").
+
+STYLE:
+- Fast-paced, punchy, conversational, and highly engaging.
+- Perfect for vertical YouTube Shorts.
+
+JSON SCHEMA:
+{{
+  "title": "string (engaging YouTube Short title)",
+  "description": "string (short video description with #Shorts)",
+  "tags": ["string"],
+  "video_format": "shorts",
+  "dialogue": [
+    {{
+      "speaker": "Emma or Liam",
+      "text": "string (the spoken text)"
+    }}
+  ]
+}}
+"""
+    script_data = call_groq_json(prompt)
+    script_data.setdefault("video_format", "shorts")
+    return script_data

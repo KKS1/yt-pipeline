@@ -873,6 +873,92 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
+def run_english_shorts(topic=None, upload=True):
+    from english_assembler import cleanup_english_temp, generate_podcast_audio
+    from english_generator import generate_english_shorts_script
+    from ffmpeg_assembler import assemble_shorts_video, generate_captions
+    
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Shorts Generator")
+    print("=" * 50)
+    
+    try:
+        cleanup_english_temp()
+        
+        print("\nGenerating Shorts script with Groq...\n")
+        script = generate_english_shorts_script(topic)
+        
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_shorts.json"
+        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        
+        print(f"\nGenerated:\n  Title: {script.get('title')}")
+        
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+        
+    title = script["title"]
+    out_slug = slug(title)
+
+    visuals_dir = ASSETS_DIR / "english_shorts_visuals"
+    if not visuals_dir.exists():
+        visuals_dir.mkdir(parents=True)
+        print(f"\nCreated directory: {visuals_dir}")
+        print("Falling back to english_visuals since shorts visuals are not yet provided.")
+        visual_files, bg_music_str = _english_video_assets("english_visuals")
+    else:
+        visual_files = sorted(visuals_dir.glob("*.mp4"))
+        if not visual_files:
+            print(f"\nNo video files in {visuals_dir}, falling back to english_visuals.")
+            visual_files, bg_music_str = _english_video_assets("english_visuals")
+        else:
+            bg_music = ASSETS_DIR / "background_music.mp3"
+            bg_music_str = str(bg_music) if bg_music.exists() else None
+
+    selected_visual = random.choice(visual_files)
+    
+    # Audio & Subtitles
+    cleanup_english_temp()
+    audio_path = generate_podcast_audio(script)
+
+    srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+    try:
+        generate_captions(audio_path, srt_path, max_line_width=25, max_line_count=2)
+    except Exception as e:
+        print(f"  Captions skipped: {e}")
+        srt_path = None
+
+    print(f"\n  Visual loop  : {selected_visual.name}")
+
+    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    assemble_shorts_video(
+        narration_audio=audio_path,
+        stock_clips=[str(selected_visual)],
+        background_music=bg_music_str,
+        captions_srt=srt_path,
+        output_path=out_path,
+        title=title
+    )
+
+    cleanup_english_temp()
+
+    if upload:
+        print("\nUploading video...\n")
+        _upload_video(
+            out_path,
+            title,
+            script.get("description", ""),
+            script.get("tags", []),
+            channel="english",
+        )
+    else:
+        print(f"\nVideo assembled without upload: {out_path}")
+    
+    print("\nDone!\n")
+
 # ─────────────────────────────────────────────
 # TRENDING PIPELINE (free automated path)
 # ─────────────────────────────────────────────
@@ -984,7 +1070,10 @@ def _build_trending_video(package: dict) -> dict:
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
 
     try:
-        generate_captions(audio_path, srt_path)
+        if package.get("video_format") == "shorts":
+            generate_captions(audio_path, srt_path, max_line_width=25, max_line_count=2)
+        else:
+            generate_captions(audio_path, srt_path)
     except Exception as e:
         print(f"  Captions skipped: {e}")
         srt_path = None
@@ -1178,7 +1267,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1225,13 +1314,15 @@ def main():
         print("  3. trending — narrated topics (free with local TTS or ElevenLabs)")
         print("  4. english  — english vibes hub podcast (free with dual local TTS)")
         print("  5. english-challenge — 7-day English weekly challenge playlist")
-        choice = prompt_input("Enter 1, 2, 3, 4, or 5", "1")
+        print("  6. english-shorts — English shorts using Emma and Liam")
+        choice = prompt_input("Enter 1, 2, 3, 4, 5, or 6", "1")
         args.channel = {
             "1": "lofi",
             "2": "family",
             "3": "trending",
             "4": "english",
             "5": "english-challenge",
+            "6": "english-shorts",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -1247,6 +1338,8 @@ def main():
             start_date=args.start_date,
             publish_hour=args.publish_hour,
         )
+    elif args.channel == "english-shorts":
+        run_english_shorts(topic=args.topic, upload=not args.no_upload)
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload)
