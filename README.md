@@ -91,6 +91,11 @@ yt-pipeline/
 ├── assets/                    # Your media files go here (gitignored)
 │   ├── background_music.mp3
 │   ├── lofi_loop.mp4
+│   ├── bumpers/               # Optional channel intro/outro MP4s
+│   │   ├── english/
+│   │   ├── family/
+│   │   ├── lofi/
+│   │   └── trending/
 │   ├── lofi/                  # MP3 tracks from Suno/Udio
 │   └── client_secrets.json    # Google OAuth (gitignored)
 ├── output/                    # Assembled videos (gitignored)
@@ -102,6 +107,11 @@ yt-pipeline/
 ├── requirements.txt
 └── README.md
 ```
+
+Optional channel bumpers can be added as `assets/bumpers/<channel>/intro.mp4` and
+`assets/bumpers/<channel>/outro.mp4`. Missing bumper files are skipped. English
+podcasts and weekly challenge videos use `assets/bumpers/english/`; English
+Shorts intentionally skip bumpers because they are short-form clips.
 
 ## Monetization timeline
 

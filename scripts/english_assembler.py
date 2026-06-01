@@ -7,7 +7,17 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ffmpeg_assembler import get_audio_duration, TEMP_DIR, OUTPUT_DIR, ASSETS_DIR, FFMPEG, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS
+from ffmpeg_assembler import (
+    append_channel_bumpers,
+    get_audio_duration,
+    TEMP_DIR,
+    OUTPUT_DIR,
+    ASSETS_DIR,
+    FFMPEG,
+    VIDEO_WIDTH,
+    VIDEO_HEIGHT,
+    VIDEO_FPS,
+)
 from kokoro_tts import synthesize
 
 ENGLISH_VOICES = {
@@ -66,7 +76,8 @@ def assemble_english_video(
     output_path: str,
     captions_srt: str = None,
     background_music: str = None,
-    title: str = ""
+    title: str = "",
+    channel: str = None,
 ) -> str:
     """
     Assemble the final English learning video:
@@ -154,6 +165,8 @@ def assemble_english_video(
             output_path, "-loglevel", "error"
         ]
         subprocess.run(cmd, capture_output=True, check=True)
+
+    append_channel_bumpers(output_path, channel=channel)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ English video assembled: {output_path} ({size_mb:.1f} MB)")

@@ -148,6 +148,7 @@ def assemble_lofi():
                 duration_hours=duration,
                 title=title,
                 tracklist=metadata.get("tracklist", []),
+                channel="lofi",
             )
 
             jobs[job_id] = {

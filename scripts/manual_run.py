@@ -584,6 +584,7 @@ def run_lofi():
         output_path    = out_path,
         duration_hours = duration_hours,
         title          = title,
+        channel        = "lofi",
     )
 
     _upload_video(out_path, title, description, tags, channel="lofi")
@@ -703,7 +704,8 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
         output_path=out_path,
         captions_srt=srt_path,
         background_music=bg_music_str,
-        title=script["title"]
+        title=script["title"],
+        channel="english",
     )
 
     cleanup_english_temp()
@@ -1086,6 +1088,7 @@ def _build_trending_video(package: dict) -> dict:
         captions_srt=srt_path,
         output_path=out_path,
         title=title,
+        channel="trending",
     )
     cleanup_temp()
 

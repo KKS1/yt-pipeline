@@ -19,6 +19,7 @@ import json
 import math
 import requests
 from pathlib import Path
+from typing import Optional
 
 
 # ─────────────────────────────────────────────
@@ -39,6 +40,7 @@ for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR.parent, TEMP_DIR]:
     d.mkdir(exist_ok=True)
 
 FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
+FFPROBE = os.environ.get("FFPROBE_CMD", "ffprobe")
 
 # Video settings
 VIDEO_WIDTH = 1920
@@ -48,6 +50,9 @@ SHORTS_HEIGHT = 1920
 VIDEO_FPS = 30
 BG_MUSIC_VOLUME = 0.08   # Keep background music subtle under narration
 NARRATION_VOLUME = 1.0
+BUMPER_CHANNEL_ALIASES = {
+    "english-challenge": "english",
+}
 
 
 def run_ffmpeg(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -57,6 +62,167 @@ def run_ffmpeg(cmd: list[str]) -> subprocess.CompletedProcess:
         stderr = result.stderr.strip()
         raise RuntimeError(f"FFmpeg command failed with exit code {result.returncode}:\n{stderr}")
     return result
+
+
+def _run_ffprobe(path: str, *args: str) -> dict:
+    cmd = [
+        FFPROBE, "-v", "error",
+        "-print_format", "json",
+        *args,
+        path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        raise RuntimeError(f"FFprobe command failed with exit code {result.returncode}:\n{stderr}")
+    return json.loads(result.stdout or "{}")
+
+
+def _video_stream_info(path: str) -> dict:
+    data = _run_ffprobe(path, "-show_streams", "-select_streams", "v:0")
+    streams = data.get("streams") or []
+    if not streams:
+        raise RuntimeError(f"No video stream found in {path}")
+    stream = streams[0]
+    return {
+        "width": int(stream.get("width") or VIDEO_WIDTH),
+        "height": int(stream.get("height") or VIDEO_HEIGHT),
+    }
+
+
+def _has_audio_stream(path: str) -> bool:
+    data = _run_ffprobe(path, "-show_streams", "-select_streams", "a:0")
+    return bool(data.get("streams"))
+
+
+def bumper_channel_key(channel: Optional[str]) -> Optional[str]:
+    """Return the asset-folder key for a channel, or None when bumpers are disabled."""
+    if not channel:
+        return None
+    return BUMPER_CHANNEL_ALIASES.get(channel, channel)
+
+
+def resolve_channel_bumper_paths(channel: Optional[str]) -> list[tuple[str, Path]]:
+    """Find optional intro/outro bumper MP4s for a channel."""
+    channel_key = bumper_channel_key(channel)
+    if not channel_key:
+        return []
+
+    bumper_dir = ASSETS_DIR / "bumpers" / channel_key
+    bumpers = []
+    for label in ("intro", "outro"):
+        path = bumper_dir / f"{label}.mp4"
+        if path.exists():
+            bumpers.append((label, path))
+    return bumpers
+
+
+def _normalize_bumper_video(source: Path, output_path: Path, width: int, height: int) -> None:
+    vf = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black,"
+        f"fps={VIDEO_FPS},setsar=1"
+    )
+    if _has_audio_stream(str(source)):
+        cmd = [
+            FFMPEG, "-y",
+            "-i", str(source),
+            "-vf", vf,
+            "-map", "0:v:0", "-map", "0:a:0",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+    else:
+        duration = get_audio_duration(str(source))
+        cmd = [
+            FFMPEG, "-y",
+            "-i", str(source),
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-vf", vf,
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-t", str(duration),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+            "-shortest", "-movflags", "+faststart",
+            str(output_path),
+        ]
+    run_ffmpeg(cmd)
+
+
+def _remux_for_stream_concat(source: Path, output_path: Path) -> None:
+    cmd = [
+        FFMPEG, "-y",
+        "-i", str(source),
+        "-map", "0:v:0", "-map", "0:a:0",
+        "-c", "copy",
+        "-bsf:v", "h264_mp4toannexb",
+        "-f", "mpegts",
+        str(output_path),
+    ]
+    run_ffmpeg(cmd)
+
+
+def append_channel_bumpers(output_path: str, channel: Optional[str] = None) -> str:
+    """
+    Add optional channel intro/outro MP4 bumpers to a completed video.
+
+    Bumpers live at assets/bumpers/<channel>/intro.mp4 and outro.mp4.
+    Missing files are skipped; if neither exists, this is a no-op.
+    """
+    bumpers = resolve_channel_bumper_paths(channel)
+    if not bumpers:
+        return output_path
+
+    final_path = Path(output_path)
+    if not final_path.exists():
+        raise FileNotFoundError(f"Cannot add bumpers; output video does not exist: {output_path}")
+
+    info = _video_stream_info(str(final_path))
+    width, height = info["width"], info["height"]
+    channel_key = bumper_channel_key(channel) or "unknown"
+    print(f"  Adding {channel_key} bumpers ({width}x{height})...")
+
+    temp_prefix = TEMP_DIR / f"{final_path.stem}_bumper"
+    normalized_parts = []
+
+    for label, bumper_path in bumpers:
+        normalized = temp_prefix.with_name(f"{temp_prefix.name}_{label}.mp4")
+        _normalize_bumper_video(bumper_path, normalized, width, height)
+        normalized_parts.append((label, normalized))
+
+    ordered_parts = []
+    intro = next((path for label, path in normalized_parts if label == "intro"), None)
+    outro = next((path for label, path in normalized_parts if label == "outro"), None)
+    if intro:
+        ordered_parts.append(intro)
+    ordered_parts.append(final_path)
+    if outro:
+        ordered_parts.append(outro)
+
+    ts_parts = []
+    for index, part in enumerate(ordered_parts):
+        ts_path = temp_prefix.with_name(f"{temp_prefix.name}_{index:02d}.ts")
+        _remux_for_stream_concat(part, ts_path)
+        ts_parts.append(ts_path)
+
+    concat_url = "concat:" + "|".join(str(path) for path in ts_parts)
+    temp_output = final_path.with_name(f"{final_path.stem}_with_bumpers{final_path.suffix}")
+    cmd = [
+        FFMPEG, "-y",
+        "-i", concat_url,
+        "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        "-movflags", "+faststart",
+        str(temp_output),
+    ]
+    run_ffmpeg(cmd)
+    temp_output.replace(final_path)
+    print(f"  ✓ Bumpers added: {final_path}")
+    return str(final_path)
 
 
 # ─────────────────────────────────────────────
@@ -251,6 +417,7 @@ def assemble_narrated_video(
     captions_srt: str,
     output_path: str,
     title: str = "",
+    channel: str = None,
 ) -> str:
     """
     Full FFmpeg assembly pipeline for a narrated video.
@@ -376,6 +543,8 @@ def assemble_narrated_video(
         ]
         run_ffmpeg(cmd)
 
+    append_channel_bumpers(output_path, channel=channel)
+
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Video assembled: {output_path} ({size_mb:.1f} MB)")
     return output_path
@@ -388,6 +557,7 @@ def assemble_shorts_video(
     captions_srt: str,
     output_path: str,
     title: str = "",
+    channel: str = None,
 ) -> str:
     """
     Assemble a vertical 9:16 narrated video for YouTube Shorts.
@@ -494,6 +664,8 @@ def assemble_shorts_video(
         ]
         run_ffmpeg(cmd)
 
+    append_channel_bumpers(output_path, channel=channel)
+
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Short assembled: {output_path} ({size_mb:.1f} MB)")
     return output_path
@@ -510,6 +682,7 @@ def assemble_lofi_video(
     duration_hours: int = 3,
     title: str = "",
     tracklist: list[dict] = None,
+    channel: str = None,
 ) -> str:
     """
     Assemble a multi-hour lofi video.
@@ -577,6 +750,8 @@ def assemble_lofi_video(
     if result.returncode != 0:
         print(f"  Warning: {result.stderr[:200]}")
         raise RuntimeError("Lofi assembly failed")
+
+    append_channel_bumpers(output_path, channel=channel)
 
     size_gb = Path(output_path).stat().st_size / 1024 / 1024 / 1024
     print(f"  ✓ Lofi video assembled: {output_path} ({size_gb:.2f} GB)")
@@ -712,6 +887,7 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
             captions_srt=srt_path,
             output_path=output_video,
             title=title,
+            channel=channel_type,
         )
     else:
         assemble_narrated_video(
@@ -721,6 +897,7 @@ def run_full_pipeline(script_data: dict, channel_type: str, bg_music_path: str):
             captions_srt=srt_path,
             output_path=output_video,
             title=title,
+            channel=channel_type,
         )
 
     # 5. Cleanup

@@ -805,6 +805,7 @@ def build_outro(script: dict, synth) -> tuple[str, str]:
 def assemble_family_video(script: dict, output_path: str) -> str:
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
+    from ffmpeg_assembler import append_channel_bumpers
     from kokoro_tts import synthesize
 
     print(f"\n{'='*50}")
@@ -881,6 +882,8 @@ def assemble_family_video(script: dict, output_path: str) -> str:
         Path(bg_out).replace(output_path)
     else:
         print("  No background music found, skipping...")
+
+    append_channel_bumpers(output_path, channel="family")
 
     mb = Path(output_path).stat().st_size/1024/1024
     print(f"\n✓  Done: {output_path} ({mb:.1f} MB)")
