@@ -89,7 +89,7 @@ def generate_dynamic_topic(is_challenge: bool = False) -> str:
     type_label = "7-day weekly challenge" if is_challenge else "podcast episode"
     prompt = f"""
     Generate a single, highly engaging topic for an English learning {type_label}.
-    The topic should be practical, focused on real-world usage, and appealing to intermediate learners.
+    The topic should be focused on real-world everyday usage, and appealing to beginner & intermediate learners.
     Return ONLY a JSON object with a 'topic' key.
     Example: {{"topic": "Mastering Sarcasm and Irony in English"}}
     """
