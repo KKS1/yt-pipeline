@@ -166,6 +166,66 @@ def _remux_for_stream_concat(source: Path, output_path: Path) -> None:
     run_ffmpeg(cmd)
 
 
+def _concat_video_parts_stream(parts: list[Path], output_path: Path, temp_prefix: Path) -> None:
+    ts_parts = []
+    for index, part in enumerate(parts):
+        ts_path = temp_prefix.with_name(f"{temp_prefix.name}_{index:02d}.ts")
+        _remux_for_stream_concat(part, ts_path)
+        ts_parts.append(ts_path)
+
+    concat_url = "concat:" + "|".join(str(path) for path in ts_parts)
+    cmd = [
+        FFMPEG, "-y",
+        "-i", concat_url,
+        "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    run_ffmpeg(cmd)
+
+
+def _crossfade_video_pair(
+    first: Path,
+    second: Path,
+    output_path: Path,
+    fade_duration: float = 0.5,
+) -> None:
+    first_duration = get_audio_duration(str(first))
+    second_duration = get_audio_duration(str(second))
+    transition_duration = min(fade_duration, first_duration, second_duration)
+
+    if transition_duration <= 0:
+        _concat_video_parts_stream(
+            [first, second],
+            output_path,
+            output_path.with_name(f"{output_path.stem}_concat"),
+        )
+        return
+
+    offset = max(first_duration - transition_duration, 0)
+    filter_complex = (
+        f"[0:v]fps={VIDEO_FPS},setsar=1,settb=AVTB[v0];"
+        f"[1:v]fps={VIDEO_FPS},setsar=1,settb=AVTB[v1];"
+        f"[v0][v1]xfade=transition=fade:duration={transition_duration}:"
+        f"offset={offset},format=yuv420p[v];"
+        f"[0:a][1:a]acrossfade=d={transition_duration}[a]"
+    )
+    cmd = [
+        FFMPEG, "-y",
+        "-i", str(first),
+        "-i", str(second),
+        "-filter_complex", filter_complex,
+        "-map", "[v]", "-map", "[a]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    run_ffmpeg(cmd)
+
+
 def append_channel_bumpers(output_path: str, channel: Optional[str] = None) -> str:
     """
     Add optional channel intro/outro MP4 bumpers to a completed video.
@@ -203,23 +263,17 @@ def append_channel_bumpers(output_path: str, channel: Optional[str] = None) -> s
     if outro:
         ordered_parts.append(outro)
 
-    ts_parts = []
-    for index, part in enumerate(ordered_parts):
-        ts_path = temp_prefix.with_name(f"{temp_prefix.name}_{index:02d}.ts")
-        _remux_for_stream_concat(part, ts_path)
-        ts_parts.append(ts_path)
-
-    concat_url = "concat:" + "|".join(str(path) for path in ts_parts)
     temp_output = final_path.with_name(f"{final_path.stem}_with_bumpers{final_path.suffix}")
-    cmd = [
-        FFMPEG, "-y",
-        "-i", concat_url,
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        "-movflags", "+faststart",
-        str(temp_output),
-    ]
-    run_ffmpeg(cmd)
+    current = ordered_parts[0]
+    if len(ordered_parts) == 1:
+        temp_output = current
+    else:
+        for index, next_part in enumerate(ordered_parts[1:], start=1):
+            pair_output = temp_prefix.with_name(f"{temp_prefix.name}_xfade_{index:02d}.mp4")
+            _crossfade_video_pair(current, next_part, pair_output)
+            current = pair_output
+        temp_output = current
+
     temp_output.replace(final_path)
     print(f"  ✓ Bumpers added: {final_path}")
     return str(final_path)

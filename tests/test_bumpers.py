@@ -73,7 +73,7 @@ class BumperSupportTests(unittest.TestCase):
         self.assertIn("-ac", flat)
         self.assertIn("2", flat)
 
-    def test_append_channel_bumpers_replaces_output_after_successful_concat(self):
+    def test_append_channel_bumpers_replaces_output_after_successful_crossfade(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             assets = root / "assets"
@@ -89,23 +89,29 @@ class BumperSupportTests(unittest.TestCase):
             def normalize(_source, normalized, _width, _height):
                 normalized.write_bytes(b"normalized")
 
-            def remux(_source, ts_path):
-                ts_path.write_bytes(b"ts")
+            commands = []
 
             def run(cmd):
+                commands.append(cmd)
                 Path(cmd[-1]).write_bytes(b"with bumpers")
 
             with patch.object(ffmpeg_assembler, "ASSETS_DIR", assets):
                 with patch.object(ffmpeg_assembler, "TEMP_DIR", temp):
                     with patch.object(ffmpeg_assembler, "_video_stream_info", return_value={"width": 1920, "height": 1080}):
                         with patch.object(ffmpeg_assembler, "_normalize_bumper_video", side_effect=normalize):
-                            with patch.object(ffmpeg_assembler, "_remux_for_stream_concat", side_effect=remux):
+                            with patch.object(ffmpeg_assembler, "get_audio_duration", return_value=2.0):
                                 with patch.object(ffmpeg_assembler, "run_ffmpeg", side_effect=run):
                                     result = ffmpeg_assembler.append_channel_bumpers(str(output), "trending")
                                     output_bytes = output.read_bytes()
 
         self.assertEqual(result, str(output))
         self.assertEqual(output_bytes, b"with bumpers")
+        flat = [part for cmd in commands for part in cmd]
+        filter_args = [part for part in flat if isinstance(part, str) and "xfade=" in part]
+        self.assertTrue(any("xfade=transition=fade:duration=0.5" in part for part in filter_args))
+        self.assertTrue(any("acrossfade=d=0.5" in part for part in filter_args))
+        self.assertIn(str(temp / "video_bumper_intro.mp4"), flat)
+        self.assertIn(str(output), flat)
 
     def test_english_shorts_does_not_request_bumpers(self):
         script = {
