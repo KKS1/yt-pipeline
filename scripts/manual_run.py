@@ -572,6 +572,9 @@ def run_lofi():
         tags        = [t.strip() for t in tags_raw.split(",")]
 
     duration_hours = int(prompt_input("Duration in hours", "3"))
+    
+    # Update title to reflect actual duration
+    title = title.replace("3 Hours", f"{duration_hours} Hour{'s' if duration_hours != 1 else ''}")
 
     # ── Assemble ──────────────────────────────────────
     out_slug = slug(title)
@@ -773,6 +776,7 @@ def run_english(upload=True):
             script.get("description", ""),
             script.get("tags", []),
             channel="english",
+            thumbnail_text=script.get("thumbnail_text", title),
         )
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -857,6 +861,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 script.get("tags", package.get("tags", [])),
                 channel="english",
                 schedule_time=schedule_time,
+                thumbnail_text=script.get("thumbnail_text", title),
             )
             if playlist_id and result and result.get("youtube_id"):
                 try:
@@ -949,6 +954,7 @@ def run_english_shorts(topic=None, upload=True):
 
     if upload:
         print("\nUploading video...\n")
+        # English shorts already have captions overlaid; YouTube Studio auto-generates unique thumbnails
         _upload_video(
             out_path,
             title,
@@ -1126,6 +1132,7 @@ def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
             result["description"],
             result["tags"],
             channel="trending",
+            thumbnail_text=result.get("thumbnail_text", result["title"]),
         )
     else:
         print(f"\nDone. Upload skipped. Video ready at: {result['video_path']}")
@@ -1190,7 +1197,7 @@ def run_trending_pair(topic=None, region="CA", upload=True):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel, schedule_time=None):
+def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -1200,6 +1207,26 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
         print("Run the server first and visit: http://localhost:5001/setup-auth/" + channel)
         print(f"Then re-run and choose to upload.")
         return
+
+    thumbnail_path = None
+    if thumbnail_text is None:
+        thumbnail_text = title
+
+    # Auto-generate thumbnails only for the `english` channel. Other
+    # channels either use handcrafted thumbnails or rely on YouTube's auto
+    # selection / upstream workflow.
+    if channel == "english":
+        try:
+            from ffmpeg_assembler import create_thumbnail_from_video
+            thumbnail_path = create_thumbnail_from_video(
+                video_path=str(video_path),
+                title_text=thumbnail_text,
+                output_path=str(Path(video_path).with_suffix(".jpg")),
+                style="english",
+            )
+        except Exception as e:
+            print(f"  Thumbnail generation skipped: {e}")
+            thumbnail_path = None
 
     print("\nUploading to YouTube...")
     try:
@@ -1211,6 +1238,7 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
             tags=tags,
             channel=channel,
             schedule_time=schedule_time,
+            thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
         )
     except Exception as e:
         print(f"\nUpload failed. You can retry after fixing the issue.")
@@ -1233,6 +1261,7 @@ def _cleanup_uploaded_video_files(video_path):
         video,
         video.with_suffix(".srt"),
         video.with_name(f"{video.stem}_voice.m4a"),
+        video.with_suffix(".jpg"),
     ]:
         try:
             if path.is_file():

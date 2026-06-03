@@ -73,6 +73,30 @@ class BumperSupportTests(unittest.TestCase):
         self.assertIn("-ac", flat)
         self.assertIn("2", flat)
 
+    def test_get_media_duration_uses_ffprobe_format(self):
+        with patch.object(ffmpeg_assembler, "_run_ffprobe", return_value={"format": {"duration": "12.34"}}):
+            self.assertEqual(ffmpeg_assembler.get_media_duration("sample.mp4"), 12.34)
+
+    def test_create_thumbnail_from_video_uses_frame_and_drawtext(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            thumbnail = Path(tmp) / "thumb.jpg"
+            commands = []
+
+            with patch.object(ffmpeg_assembler, "get_media_duration", return_value=24.0):
+                with patch.object(ffmpeg_assembler, "run_ffmpeg", side_effect=lambda cmd: commands.append(cmd)):
+                    result = ffmpeg_assembler.create_thumbnail_from_video(
+                        video_path="video.mp4",
+                        title_text="Unique Topic",
+                        output_path=str(thumbnail),
+                        style="lofi",
+                    )
+
+        self.assertEqual(result, str(thumbnail))
+        flat = [part for cmd in commands for part in cmd]
+        self.assertIn("video.mp4", flat)
+        self.assertTrue(any("-ss" in part for part in flat))
+        self.assertTrue(any("drawtext=text='Unique Topic'" in part for part in flat))
+
     def test_append_channel_bumpers_replaces_output_after_successful_crossfade(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

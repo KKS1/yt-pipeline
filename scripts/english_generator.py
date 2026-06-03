@@ -89,7 +89,7 @@ def generate_dynamic_topic(is_challenge: bool = False) -> str:
     type_label = "7-day weekly challenge" if is_challenge else "podcast episode"
     prompt = f"""
     Generate a single, highly engaging topic for an English learning {type_label}.
-    The topic should be focused on real-world practical everyday usage, and appealing to english learners at beginner to intermediate levels.
+    The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     Return ONLY a JSON object with a 'topic' key.
     Example: {{"topic": "Mastering Sarcasm and Irony in English"}}
     """
@@ -203,7 +203,7 @@ CRITICAL RULES:
 - Output ONLY valid JSON.
 - Day 1 through Day 6 must each teach one focused skill and give listeners one clear daily practice task.
 - Day 7 must be a recap episode that reviews the entire week, asks challenge questions, and gives listeners a solid foundation to continue.
-- Keep the plan practical for English learners at beginner to intermediate levels.
+- Keep the plan practical for English learners at intermediate levels.
 
 JSON SCHEMA:
 {{
@@ -281,7 +281,7 @@ CRITICAL RULES:
 - The `dialogue` array MUST contain around {turn_count} turns.
 - Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
 - The script should feel complete as one daily video, but connected to the weekly playlist.
-- Keep explanations clear for beginner to intermediate English learners.
+- Keep explanations clear for intermediate English learners.
 - Ask listeners to answer out loud when useful.
 {outro_rule}
 

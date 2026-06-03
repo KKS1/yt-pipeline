@@ -54,6 +54,29 @@ BUMPER_CHANNEL_ALIASES = {
     "english-challenge": "english",
 }
 
+THUMBNAIL_STYLES = {
+    "trending": {
+        "font_color": "white",
+        "box_color": "0x000000@0.6",
+        "font_size": 72,
+    },
+    "family": {
+        "font_color": "yellow",
+        "box_color": "0x1a1a2e@0.7",
+        "font_size": 68,
+    },
+    "lofi": {
+        "font_color": "0xE8D5B7",
+        "box_color": "0x1a1025@0.75",
+        "font_size": 56,
+    },
+    "english": {
+        "font_color": "white",
+        "box_color": "0x000000@0.55",
+        "font_size": 76,
+    },
+}
+
 
 def run_ffmpeg(cmd: list[str]) -> subprocess.CompletedProcess:
     """Run ffmpeg and surface stderr when a command fails."""
@@ -93,6 +116,26 @@ def _video_stream_info(path: str) -> dict:
 def _has_audio_stream(path: str) -> bool:
     data = _run_ffprobe(path, "-show_streams", "-select_streams", "a:0")
     return bool(data.get("streams"))
+
+
+def _ffmpeg_escape_drawtext(text: str) -> str:
+    # Escape characters used in ffmpeg drawtext filters. Keep newlines
+    # handling to callers so we can deliberately insert \n for multi-line
+    # headlines when desired.
+    escaped = text.replace("\\", "\\\\")
+    escaped = escaped.replace("'", "\\'")
+    escaped = escaped.replace(":", "\\:")
+    escaped = escaped.replace("%", "\\%")
+    return escaped.strip()
+
+
+def get_media_duration(media_path: str) -> float:
+    """Get a media duration using ffprobe for video or audio files."""
+    data = _run_ffprobe(media_path, "-show_format")
+    duration = data.get("format", {}).get("duration")
+    if duration:
+        return float(duration)
+    return 0.0
 
 
 def bumper_channel_key(channel: Optional[str]) -> Optional[str]:
@@ -835,25 +878,7 @@ def create_thumbnail(
     For best results use a 1280x720 background image.
     """
 
-    styles = {
-        "trending": {
-            "font_color": "white",
-            "box_color": "0x000000@0.6",
-            "font_size": 72,
-        },
-        "family": {
-            "font_color": "yellow",
-            "box_color": "0x1a1a2e@0.7",
-            "font_size": 68,
-        },
-        "lofi": {
-            "font_color": "0xE8D5B7",
-            "box_color": "0x1a1025@0.75",
-            "font_size": 56,
-        },
-    }
-
-    s = styles.get(style, styles["trending"])
+    s = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
     wrapped_title = title_text[:50]  # Truncate if too long
 
     cmd = [
@@ -873,6 +898,80 @@ def create_thumbnail(
     ]
     subprocess.run(cmd, capture_output=True, check=True)
     print(f"  ✓ Thumbnail: {output_path}")
+    return output_path
+
+
+def create_thumbnail_from_video(
+    video_path: str,
+    title_text: str,
+    output_path: str,
+    style: str = "trending",
+    timestamp_seconds: Optional[float] = None,
+) -> str:
+    """
+    Generate a thumbnail by extracting a frame from the video and overlaying text.
+    """
+    text = str(title_text or Path(video_path).stem).strip()
+    if not text:
+        text = Path(video_path).stem
+    text = text.strip()
+
+    duration = get_media_duration(video_path)
+    if duration <= 0:
+        timestamp_seconds = 1.0
+    elif timestamp_seconds is None:
+        timestamp_seconds = min(10.0, max(1.0, duration * 0.1))
+    else:
+        timestamp_seconds = max(0.1, min(duration - 0.1, float(timestamp_seconds)))
+
+    s = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
+
+    # Special handling for English thumbnails: craft a punchy two-line
+    # headline (caption-inspired) so the thumbnail reads well on mobile.
+    if style == "english":
+        words = text.split()
+        if len(words) <= 6:
+            first = " ".join(words[:len(words)//2 or 1])
+            second = " ".join(words[len(words)//2:])
+        else:
+            first = " ".join(words[:max(2, len(words)//2)])
+            second = " ".join(words[len(first.split()):len(first.split())+4])
+        if second:
+            multi = f"{first}\\n{second}"
+        else:
+            multi = first
+        safe_text = _ffmpeg_escape_drawtext(multi)
+
+        vf = (
+            f"scale=1280:720:force_original_aspect_ratio=decrease,"
+            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
+            f"drawtext=font='DejaVu Sans Bold':text='{safe_text}':"
+            f"fontcolor={s['font_color']}:fontsize={s['font_size']}:"
+            f"box=1:boxcolor={s['box_color']}:boxborderw=18:"
+            f"x=(w-text_w)/2:y=h-220:shadowcolor=black:shadowx=3:shadowy=3"
+        )
+
+    else:
+        safe_text = _ffmpeg_escape_drawtext(text.replace("\n", " "))
+        vf = (
+            f"scale=1280:720:force_original_aspect_ratio=decrease,"
+            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
+            f"drawbox=x=0:y=ih-220:w=iw:h=220:color={s['box_color']}:t=fill,"
+            f"drawtext=text='{safe_text}':fontcolor={s['font_color']}:"
+            f"fontsize={s['font_size']}:font='DejaVu Sans Bold':"
+            f"x=(w-text_w)/2:y=h-160:shadowcolor=black:shadowx=3:shadowy=3"
+        )
+
+    cmd = [
+        FFMPEG, "-y",
+        "-ss", f"{timestamp_seconds:.3f}",
+        "-i", video_path,
+        "-frames:v", "1",
+        "-vf", vf,
+        output_path,
+    ]
+
+    run_ffmpeg(cmd)
     return output_path
 
 

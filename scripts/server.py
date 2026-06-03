@@ -140,6 +140,7 @@ def assemble_lofi():
             slug     = title[:40].replace(" ", "_").lower()
             slug     = "".join(c for c in slug if c.isalnum() or c == "_")
             out_path = str(OUTPUT_DIR / f"{slug}.mp4")
+            thumbnail_path = str(OUTPUT_DIR / f"{slug}.jpg")
 
             assemble_lofi_video(
                 music_tracks=[str(f) for f in music_files],
@@ -151,12 +152,25 @@ def assemble_lofi():
                 channel="lofi",
             )
 
+            try:
+                from ffmpeg_assembler import create_thumbnail_from_video
+                create_thumbnail_from_video(
+                    video_path=out_path,
+                    title_text=title,
+                    output_path=thumbnail_path,
+                    style="lofi",
+                )
+            except Exception as e:
+                print(f"  Thumbnail generation skipped: {e}")
+                thumbnail_path = None
+
             jobs[job_id] = {
                 "status": "done",
                 "video_path": out_path,
                 "title": title,
                 "description": metadata.get("description", ""),
                 "tags": metadata.get("tags", []),
+                "thumbnail_path": thumbnail_path,
             }
 
         except Exception as e:
