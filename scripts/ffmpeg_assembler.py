@@ -915,31 +915,30 @@ def create_thumbnail_from_video(
     if duration <= 0:
         timestamp_seconds = 1.0
     elif timestamp_seconds is None:
-        # better frame sampling (avoids boring intro frames)
         timestamp_seconds = min(8.0, max(1.5, duration * 0.25))
     else:
         timestamp_seconds = max(0.1, min(duration - 0.5, float(timestamp_seconds)))
 
     style_cfg = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
 
-    def base_filter(extra_text: str, y_offset: int) -> str:
+    def base_filter(text_source: str, y_offset: int) -> str:
         return (
             "scale=1280:720:force_original_aspect_ratio=decrease,"
             "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
-            f"drawtext=text='{extra_text}':"
+            f"drawtext=font='DejaVu Sans Bold':"
+            f"textfile='{text_source}':"
             f"fontcolor={style_cfg['font_color']}:"
             f"fontsize={style_cfg['font_size']}:"
-            "font='DejaVu Sans Bold':"
             f"x=(w-text_w)/2:y={y_offset}:"
-            "box=1:boxcolor={style_cfg['box_color']}:boxborderw=20:"
-            "shadowcolor=black:shadowx=3:shadowy=3"
+            f"box=1:boxcolor={style_cfg['box_color']}:boxborderw=20:"
+            f"shadowcolor=black:shadowx=3:shadowy=3"
         )
 
     # ─────────────────────────────
-    # English style (better mobile layout)
+    # English style (clean 2-line layout)
     # ─────────────────────────────
     if style == "english":
-        words = text.split()[:6]  # hard cap
+        words = text.split()[:6]
 
         if len(words) <= 2:
             lines = [" ".join(words)]
@@ -947,26 +946,31 @@ def create_thumbnail_from_video(
             mid = len(words) // 2
             lines = [" ".join(words[:mid]), " ".join(words[mid:])]
 
-        label = "\\n".join(lines)
-        safe_text = _ffmpeg_escape_drawtext(label)
+        # Write safe text file (FFmpeg-safe multiline handling)
+        txt_path = Path(output_path).with_suffix(".txt")
+        txt_path.write_text("\n".join(lines), encoding="utf-8")
 
-        vf = base_filter(safe_text, y_offset=500)
+        vf = base_filter(str(txt_path), y_offset=500)
 
     # ─────────────────────────────
     # Default style
     # ─────────────────────────────
     else:
         safe_text = _ffmpeg_escape_drawtext(text[:60])
+
+        txt_path = Path(output_path).with_suffix(".txt")
+        txt_path.write_text(safe_text, encoding="utf-8")
+
         vf = (
             "scale=1280:720:force_original_aspect_ratio=decrease,"
             "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
             f"drawbox=x=0:y=ih-220:w=iw:h=220:color={style_cfg['box_color']}:t=fill,"
-            f"drawtext=text='{safe_text}':"
+            f"drawtext=font='DejaVu Sans Bold':"
+            f"textfile='{txt_path}':"
             f"fontcolor={style_cfg['font_color']}:"
             f"fontsize={style_cfg['font_size']}:"
-            "font='DejaVu Sans Bold':"
-            "x=(w-text_w)/2:y=h-160:"
-            "shadowcolor=black:shadowx=3:shadowy=3"
+            f"x=(w-text_w)/2:y=h-160:"
+            f"shadowcolor=black:shadowx=3:shadowy=3"
         )
 
     cmd = [
@@ -979,6 +983,13 @@ def create_thumbnail_from_video(
     ]
 
     run_ffmpeg(cmd)
+
+    # cleanup optional temp text file
+    try:
+        txt_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
     return output_path
 
 # ─────────────────────────────────────────────
