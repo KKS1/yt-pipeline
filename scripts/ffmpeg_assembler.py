@@ -910,68 +910,72 @@ def create_thumbnail_from_video(
 ) -> str:
 
     text = (title_text or Path(video_path).stem).strip()
+    style_cfg = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
 
     duration = get_media_duration(video_path)
     if duration <= 0:
         timestamp_seconds = 1.0
     elif timestamp_seconds is None:
-        timestamp_seconds = min(8.0, max(1.5, duration * 0.25))
+        timestamp_seconds = min(8.0, max(1.5, duration * 0.2))
     else:
         timestamp_seconds = max(0.1, min(duration - 0.5, float(timestamp_seconds)))
 
-    style_cfg = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
-
-    def base_filter(text_source: str, y_offset: int) -> str:
-        return (
-            "scale=1280:720:force_original_aspect_ratio=decrease,"
-            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
-            f"drawtext=font='DejaVu Sans Bold':"
-            f"textfile='{text_source}':"
-            f"fontcolor={style_cfg['font_color']}:"
-            f"fontsize={style_cfg['font_size']}:"
-            f"x=(w-text_w)/2:y={y_offset}:"
-            f"box=1:boxcolor={style_cfg['box_color']}:boxborderw=20:"
-            f"shadowcolor=black:shadowx=3:shadowy=3"
-        )
-
     # ─────────────────────────────
-    # English style (clean 2-line layout)
+    # CTR TEXT OPTIMIZATION (IMPORTANT)
     # ─────────────────────────────
-    if style == "english":
-        words = text.split()[:6]
+    def make_hook(text: str) -> str:
+        text = text.upper()
+
+        replacements = {
+            "MASTER": "MASTER",
+            "LEARN": "LEARN",
+            "ENGLISH": "ENGLISH",
+            "IDIOMS": "IDIOMS",
+            "LOOK": "LOOK",
+        }
+
+        for k, v in replacements.items():
+            text = text.replace(k, v)
+
+        words = text.split()[:5]
 
         if len(words) <= 2:
-            lines = [" ".join(words)]
-        else:
-            mid = len(words) // 2
-            lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+            return " ".join(words)
+        return " ".join(words[:2]) + "\\n" + " ".join(words[2:])
 
-        # Write safe text file (FFmpeg-safe multiline handling)
-        txt_path = Path(output_path).with_suffix(".txt")
-        txt_path.write_text("\n".join(lines), encoding="utf-8")
-
-        vf = base_filter(str(txt_path), y_offset=500)
-
-    # ─────────────────────────────
-    # Default style
-    # ─────────────────────────────
+    if style == "english":
+        safe_text = make_hook(text)
     else:
-        safe_text = _ffmpeg_escape_drawtext(text[:60])
+        safe_text = text[:40]
 
-        txt_path = Path(output_path).with_suffix(".txt")
-        txt_path.write_text(safe_text, encoding="utf-8")
+    txt_path = Path(output_path).with_suffix(".txt")
+    txt_path.write_text(safe_text.replace("\\n", "\n"), encoding="utf-8")
 
-        vf = (
-            "scale=1280:720:force_original_aspect_ratio=decrease,"
-            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
-            f"drawbox=x=0:y=ih-220:w=iw:h=220:color={style_cfg['box_color']}:t=fill,"
-            f"drawtext=font='DejaVu Sans Bold':"
-            f"textfile='{txt_path}':"
-            f"fontcolor={style_cfg['font_color']}:"
-            f"fontsize={style_cfg['font_size']}:"
-            f"x=(w-text_w)/2:y=h-160:"
-            f"shadowcolor=black:shadowx=3:shadowy=3"
-        )
+    # ─────────────────────────────
+    # VISUAL UPGRADE FILTER STACK
+    # ─────────────────────────────
+    vf = (
+        f"scale=1280:720:force_original_aspect_ratio=increase,"
+        f"crop=1280:720,"
+
+        # 🔥 slight zoom-in (premium look)
+        f"zoompan=z='min(zoom+0.0015,1.1)':d=1:x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2),"
+
+        # 🎨 color pop (very important for CTR)
+        f"eq=brightness=0.08:saturation=1.25:contrast=1.15,"
+
+        # 🌑 vignette focus
+        f"vignette=PI/4,"
+
+        # 🧠 text overlay (stable)
+        f"drawtext=font='DejaVu Sans Bold':"
+        f"textfile='{txt_path}':"
+        f"fontcolor=white:"
+        f"fontsize={style_cfg['font_size']}:"
+        f"x=(w-text_w)/2:y=h-220:"
+        f"box=1:boxcolor=black@0.55:boxborderw=25:"
+        f"shadowcolor=black:shadowx=4:shadowy=4"
+    )
 
     cmd = [
         FFMPEG, "-y",
@@ -984,7 +988,6 @@ def create_thumbnail_from_video(
 
     run_ffmpeg(cmd)
 
-    # cleanup optional temp text file
     try:
         txt_path.unlink(missing_ok=True)
     except Exception:
