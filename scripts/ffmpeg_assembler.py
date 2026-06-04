@@ -13,6 +13,7 @@ Requirements:
   ffmpeg must be installed: sudo apt install ffmpeg
 """
 
+import base64
 import os
 import subprocess
 import json
@@ -41,6 +42,12 @@ for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR.parent, TEMP_DIR]:
 
 FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
 FFPROBE = os.environ.get("FFPROBE_CMD", "ffprobe")
+NANO_BANANA_PRO_API_KEY = os.environ.get("NANO_BANANA_PRO_API_KEY", "")
+NANO_BANANA_PRO_API_URL = os.environ.get(
+    "NANO_BANANA_PRO_API_URL",
+    "https://api.nanobanana.pro/v1/generate"
+)
+NANO_BANANA_PRO_TIMEOUT = int(os.environ.get("NANO_BANANA_PRO_TIMEOUT", "90"))
 
 # Video settings
 VIDEO_WIDTH = 1920
@@ -899,6 +906,77 @@ def create_thumbnail(
     subprocess.run(cmd, capture_output=True, check=True)
     print(f"  ✓ Thumbnail: {output_path}")
     return output_path
+
+
+def generate_thumbnail_image_with_nano_banana(prompt: str, output_path: str, width: int = 1280, height: int = 720) -> str:
+    """Generate a thumbnail background image using Nano Banana Pro."""
+    if not NANO_BANANA_PRO_API_KEY:
+        raise RuntimeError("Missing NANO_BANANA_PRO_API_KEY for Nano Banana Pro thumbnail generation.")
+
+    payload = {
+        "prompt": prompt,
+        "width": width,
+        "height": height,
+        "format": "jpeg",
+        "quality": "high",
+    }
+    headers = {
+        "Authorization": f"Bearer {NANO_BANANA_PRO_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    response = requests.post(
+        NANO_BANANA_PRO_API_URL,
+        json=payload,
+        headers=headers,
+        timeout=NANO_BANANA_PRO_TIMEOUT,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    if "image_base64" in data:
+        image_bytes = base64.b64decode(data["image_base64"])
+        Path(output_path).write_bytes(image_bytes)
+    elif "image_url" in data:
+        image_url = data["image_url"]
+        image_resp = requests.get(image_url, timeout=NANO_BANANA_PRO_TIMEOUT)
+        image_resp.raise_for_status()
+        Path(output_path).write_bytes(image_resp.content)
+    else:
+        raise RuntimeError("Nano Banana Pro response did not contain image_base64 or image_url.")
+
+    print(f"  ✓ Nano Banana Pro background generated: {output_path}")
+    return output_path
+
+
+def create_thumbnail_with_nano_banana(
+    thumbnail_text: str,
+    thumbnail_concept: str,
+    output_path: str,
+    style: str = "english",
+) -> str:
+    """Generate a stunning English thumbnail using Nano Banana Pro plus overlay text."""
+    background_path = Path(output_path).with_suffix(".banana.jpg")
+    prompt = (
+        f"Create a vibrant, mobile-friendly English learning YouTube thumbnail background with a "
+        f"strong visual mood. Use this concept: {thumbnail_concept or thumbnail_text}. "
+        f"Leave space near the bottom for bold white overlay text: '{thumbnail_text}'."
+    )
+    generate_thumbnail_image_with_nano_banana(str(prompt), str(background_path))
+
+    try:
+        return create_thumbnail(
+            background_image=str(background_path),
+            title_text=thumbnail_text,
+            output_path=output_path,
+            style=style,
+        )
+    finally:
+        try:
+            if background_path.exists():
+                background_path.unlink()
+        except OSError:
+            pass
 
 
 def create_thumbnail_from_video(

@@ -8,6 +8,7 @@ The only paid step (marked clearly) is optional until you're ready to automate.
 ## Before you begin
 
 You need:
+
 - A computer with internet access (Mac, Windows, or Linux)
 - A Google account (for YouTube)
 - Git installed (git-scm.com)
@@ -27,21 +28,25 @@ cd yt-pipeline
 ### Step 1 — Install FFmpeg
 
 Mac:
+
 ```bash
 brew install ffmpeg
 ```
 
 Windows (run as Administrator):
+
 ```bash
 choco install ffmpeg
 ```
 
 Linux:
+
 ```bash
 sudo apt install ffmpeg
 ```
 
 Verify:
+
 ```bash
 ffmpeg -version
 ```
@@ -57,12 +62,14 @@ pip install -r requirements.txt
 This installs everything including Kokoro TTS (free local voiceover) and Whisper (free captions).
 
 You will also need `espeak-ng` installed on your system for Kokoro to work:
+
 - Mac: `brew install espeak-ng`
 - Linux: `sudo apt install espeak-ng`
 - Windows: Download from the official espeak-ng repository.
 
 **Download Kokoro Model Files:**
 Run these commands in your `yt-pipeline` root directory to download the required voice models (~80MB):
+
 ```bash
 curl -L -o kokoro-v0_19.onnx https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx
 curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin
@@ -88,7 +95,7 @@ whisper --help
 2. Click your profile icon → "Create a channel"
 3. Create three channels with these names (or your own branding):
    - **Lofi Study Hub** (or similar)
-   - **Family Fun Zone** (or similar)  
+   - **Family Fun Zone** (or similar)
    - **Daily Insights Hub** (for trending insight content)
 4. For each channel: add a basic description, pick a category
 5. Do NOT set audience to "made for kids" on the family channel — set it to "Yes, set this channel as made for kids" ONLY on the lofi kids nursery channel if you create one later
@@ -101,6 +108,7 @@ whisper --help
 2. Click "Get Started" — sign up free
 3. Copy your API key
 4. Add to your `.env` file:
+
 ```
 PEXELS_API_KEY=your_key_here
 ```
@@ -135,7 +143,7 @@ This lets the pipeline upload videos automatically to your channels.
 2. Free tier gives 50 credits per day (each song = 5 credits = 10 songs/day)
 3. Generate lofi tracks using this prompt:
    ```
-   lofi hip hop, jazzy piano, mellow beats, study music, no lyrics, 
+   lofi hip hop, jazzy piano, mellow beats, study music, no lyrics,
    peaceful atmosphere, soft drums, chill vibes
    ```
 4. Download each track as MP3
@@ -153,9 +161,36 @@ This lets the pipeline upload videos automatically to your channels.
 4. Save it as `assets/lofi_loop.mp4`
 
 Also grab background music for narrated videos:
+
 1. Go to pixabay.com/music
 2. Search "ambient background" or "cinematic background"
 3. Download an MP3 → save as `assets/background_music.mp3`
+
+---
+
+### Optional Step 9 — Set up Nano Banana Pro for better thumbnails
+
+Nano Banana Pro can generate a stunning custom thumbnail background for English videos and English weekly challenge videos. This is optional, but it gives a cleaner, more clickable mobile thumbnail than a frame-based overlay.
+
+1. Sign up for Nano Banana Pro and get a free API key.
+2. Add it to your `.env` file:
+
+```bash
+NANO_BANANA_PRO_API_KEY=your_key_here
+```
+
+3. Optionally override the default Nano Banana Pro endpoint if needed:
+
+```bash
+NANO_BANANA_PRO_API_URL=https://api.nanobanana.pro/v1/generate
+```
+
+4. The English flow will now:
+   - generate a custom thumbnail background using Nano Banana Pro
+   - overlay short mobile-friendly thumbnail text
+   - fall back automatically to a frame-based thumbnail if the API call fails
+
+If you do not set `NANO_BANANA_PRO_API_KEY`, the pipeline still works and uses the current frame-based English thumbnail logic instead.
 
 ---
 
@@ -166,12 +201,14 @@ This is the one-time step that lets the pipeline upload to each channel.
 ### Step 9 — Run OAuth for each channel
 
 Start the pipeline server locally:
+
 ```bash
 cd scripts
 python server.py
 ```
 
 In a separate terminal, forward the auth port (needed for Google's OAuth redirect):
+
 ```bash
 # Leave the server running, open a new terminal
 # The server is already running on localhost:5001
@@ -232,9 +269,10 @@ kill %1
 ### Step 14 — Write your first lofi video metadata
 
 Go to claude.ai (this chat) and ask:
+
 ```
-Write YouTube metadata for a 3-hour lofi study music video set in a 
-rainy Tokyo café. Include: title (under 70 chars), 200-word description 
+Write YouTube metadata for a 3-hour lofi study music video set in a
+rainy Tokyo café. Include: title (under 70 chars), 200-word description
 with study music keywords, and 10 tags.
 ```
 
@@ -247,12 +285,14 @@ python scripts/manual_run.py --channel lofi
 ```
 
 The script will ask you for:
+
 - Title (paste from Claude)
-- Description (paste from Claude)  
+- Description (paste from Claude)
 - Tags (paste from Claude)
 - Duration (enter 3 for 3 hours)
 
 It will then:
+
 1. Check your `assets/lofi/` folder for MP3 tracks
 2. Check for `assets/lofi_loop.mp4`
 3. Assemble the full 3-hour video with FFmpeg
@@ -270,10 +310,11 @@ You can leave it running in the background.
 ### Step 16 — Generate a script in Claude.ai
 
 Go to claude.ai and ask:
+
 ```
-Write a family-friendly YouTube script for a "This or That?" video 
-about animals. Include 15 questions, build from easy to hard, add a 
-fun fact after every 3rd question. Tone: excited game show host, 
+Write a family-friendly YouTube script for a "This or That?" video
+about animals. Include 15 questions, build from easy to hard, add a
+fun fact after every 3rd question. Tone: excited game show host,
 fun for kids AND adults. Also write a YouTube title and description.
 ```
 
@@ -336,8 +377,8 @@ For bigger search-friendly topics, you can also run the original 5-7 minute
 landscape explainer format.
 
 **Good topic example:** If "Montreal Canadiens" is trending on Google (playoff run,
-big trade, coaching news), a video like *"Why Everyone is Talking About the Canadiens
-Right Now"* will catch search traffic without needing deep sports knowledge. Keep it
+big trade, coaching news), a video like _"Why Everyone is Talking About the Canadiens
+Right Now"_ will catch search traffic without needing deep sports knowledge. Keep it
 broad enough for casual viewers, not just fans.
 
 ### Step 21 — Find a trending topic
@@ -393,13 +434,13 @@ in the morning and aim to publish by early afternoon the same day.
 
 ## When to add paid services (optional, when ready)
 
-| Service | Cost | What it unlocks |
-|---------|------|-----------------|
-| Anthropic API | $5 credit | Auto-scripts for all channels, no more manual pasting |
-| ElevenLabs Starter | $5/mo | Much better voice quality on narrated videos |
-| Hetzner VPS | $4.50/mo | 24/7 automation, no laptop needed |
+| Service            | Cost      | What it unlocks                                       |
+| ------------------ | --------- | ----------------------------------------------------- |
+| Anthropic API      | $5 credit | Auto-scripts for all channels, no more manual pasting |
+| ElevenLabs Starter | $5/mo     | Much better voice quality on narrated videos          |
+| Hetzner VPS        | $4.50/mo  | 24/7 automation, no laptop needed                     |
 
-None of these are needed to start. Add them when your first affiliate 
+None of these are needed to start. Add them when your first affiliate
 commission or AdSense payment covers the cost.
 
 ---
@@ -409,23 +450,27 @@ commission or AdSense payment covers the cost.
 In every video description, add links like these (sign up for each free):
 
 **Amazon Associates** (amazon.ca for Canada):
+
 ```
 🎧 Headphones I recommend for studying: [your affiliate link]
 ```
 
 **Skillshare** (pays $7-10 per trial signup):
+
 ```
 📚 Learn anything with 1 month free on Skillshare: [your affiliate link]
 ```
 
 **NordVPN** (pays $30-40 per signup):
+
 ```
 🔒 Stay safe online with NordVPN: [your affiliate link]
 ```
 
 Sign up at:
+
 - affiliate-program.amazon.com
-- skillshare.com/affiliates  
+- skillshare.com/affiliates
 - nordvpn.com/affiliate
 
 All free to join. No minimum traffic required.
@@ -440,5 +485,5 @@ Month 2-3: Lofi channel likely hits AdSense watch hours threshold (4k hrs).
 Month 3-5: Family/trending channels hit 1k subscribers + 4k hours.
 Month 6+: Multiple revenue streams running simultaneously.
 
-The lofi channel is your fastest path — a single 3-hour video earns 
+The lofi channel is your fastest path — a single 3-hour video earns
 watch time every day for years. Post your first one today.

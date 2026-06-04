@@ -777,6 +777,7 @@ def run_english(upload=True):
             script.get("tags", []),
             channel="english",
             thumbnail_text=script.get("thumbnail_text", title),
+            thumbnail_concept=script.get("thumbnail_concept", None),
         )
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -862,6 +863,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 channel="english",
                 schedule_time=schedule_time,
                 thumbnail_text=script.get("thumbnail_text", title),
+                thumbnail_concept=script.get("thumbnail_concept", None),
             )
             if playlist_id and result and result.get("youtube_id"):
                 try:
@@ -1197,7 +1199,7 @@ def run_trending_pair(topic=None, region="CA", upload=True):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None):
+def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -1214,15 +1216,30 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
 
     # Auto-generate thumbnails only for the English channels.
     # English weekly challenge videos also upload under the english channel.
-    if channel in ("english", "english-challenge"):
+    if channel in ("english", "english-challenge", "lofi"):
         try:
-            from ffmpeg_assembler import create_thumbnail_from_video
-            thumbnail_path = create_thumbnail_from_video(
-                video_path=str(video_path),
-                title_text=thumbnail_text,
-                output_path=str(Path(video_path).with_suffix(".jpg")),
-                style="english",
+            from ffmpeg_assembler import (
+                create_thumbnail_with_nano_banana,
+                create_thumbnail_from_video,
             )
+            thumbnail_path = None
+            if os.getenv("NANO_BANANA_PRO_API_KEY"):
+                try:
+                    thumbnail_path = create_thumbnail_with_nano_banana(
+                        thumbnail_text=thumbnail_text,
+                        thumbnail_concept=thumbnail_concept or thumbnail_text,
+                        output_path=str(Path(video_path).with_suffix(".jpg")),
+                    )
+                except Exception as banana_error:
+                    print(f"  Nano Banana Pro thumbnail generation failed: {banana_error}")
+                    thumbnail_path = None
+            if thumbnail_path is None:
+                thumbnail_path = create_thumbnail_from_video(
+                    video_path=str(video_path),
+                    title_text=thumbnail_text,
+                    output_path=str(Path(video_path).with_suffix(".jpg")),
+                    style="english",
+                )
         except Exception as e:
             print(f"  Thumbnail generation skipped: {e}")
             thumbnail_path = None

@@ -4,12 +4,12 @@ A fully autonomous YouTube content pipeline for multiple channels, running on ~$
 
 ## Channels
 
-| Channel | Content | CPM | Effort/week |
-|---------|---------|-----|-------------|
-| **Daily Insights Hub** | Finance, health, AI, lifestyle, true crime, useful facts | $8–40 | ~10 min |
-| **Family-Friendly** | This or that, fun facts, riddles, trivia | $4–12 | ~5 min |
-| **EnglishVibesHub** | English learning podcasts and 7-day weekly challenge playlists | $4–15 | ~10 min |
-| **Lofi Study Music** | 3-hour focus/study sessions | $1–4 | ~5 min |
+| Channel                | Content                                                        | CPM   | Effort/week |
+| ---------------------- | -------------------------------------------------------------- | ----- | ----------- |
+| **Daily Insights Hub** | Finance, health, AI, lifestyle, true crime, useful facts       | $8–40 | ~10 min     |
+| **Family-Friendly**    | This or that, fun facts, riddles, trivia                       | $4–12 | ~5 min      |
+| **EnglishVibesHub**    | English learning podcasts and 7-day weekly challenge playlists | $4–15 | ~10 min     |
+| **Lofi Study Music**   | 3-hour focus/study sessions                                    | $1–4  | ~5 min      |
 
 ## How it works
 
@@ -38,13 +38,13 @@ A fully autonomous YouTube content pipeline for multiple channels, running on ~$
 
 ## Monthly cost
 
-| Service | Cost |
-|---------|------|
-| Hetzner CX22 VPS | $4.50 |
-| Claude API | $10–15 |
-| ElevenLabs Starter | $5.00 |
-| Everything else | Free |
-| **Total** | **~$20–25/mo** |
+| Service            | Cost           |
+| ------------------ | -------------- |
+| Hetzner CX22 VPS   | $4.50          |
+| Claude API         | $10–15         |
+| ElevenLabs Starter | $5.00          |
+| Everything else    | Free           |
+| **Total**          | **~$20–25/mo** |
 
 ## Quick start
 
@@ -62,6 +62,8 @@ python scripts/server.py
 ```
 
 Then import `n8n/workflow.json` into your n8n instance and activate.
+
+Optional: add `NANO_BANANA_PRO_API_KEY` to `.env` to enable Nano Banana Pro thumbnail generation for the English channel. When available, the pipeline generates a fresh, custom thumbnail background from the script concept and overlays mobile-friendly title text instead of relying on a video frame.
 
 ### English weekly challenge playlist
 
@@ -115,13 +117,13 @@ Shorts intentionally skip bumpers because they are short-form clips.
 
 ## Monetization timeline
 
-| Month | Milestone |
-|-------|-----------|
-| Day 1 | Affiliate links live in every description |
-| Month 2–3 | First brand sponsor outreach at 500 subs |
-| Month 3–5 | YouTube AdSense on Channel 1 (1k subs + 4k hrs) |
-| Month 4–6 | AdSense on Channels 2 & 3 |
-| Month 6–12 | $500–2,000/month combined |
+| Month      | Milestone                                       |
+| ---------- | ----------------------------------------------- |
+| Day 1      | Affiliate links live in every description       |
+| Month 2–3  | First brand sponsor outreach at 500 subs        |
+| Month 3–5  | YouTube AdSense on Channel 1 (1k subs + 4k hrs) |
+| Month 4–6  | AdSense on Channels 2 & 3                       |
+| Month 6–12 | $500–2,000/month combined                       |
 
 ## License
 

@@ -1,18 +1,21 @@
 # YouTube Autonomous Pipeline — Setup Guide
 
 ## What this does
+
 Fully autonomous YouTube content pipeline for 3 channels:
-- **Channel 1** — Trending narrated (any topic, highest CPM)  
-- **Channel 2** — Family-friendly (this or that, fun facts, full ad monetization)  
+
+- **Channel 1** — Trending narrated (any topic, highest CPM)
+- **Channel 2** — Family-friendly (this or that, fun facts, full ad monetization)
 - **Channel 3A** — Lofi study music (multi-hour, passive watch time)
 
-Daily runs at 6AM: pulls trends → scores topics → generates scripts → 
+Daily runs at 6AM: pulls trends → scores topics → generates scripts →
 creates voiceover → fetches stock video → assembles → uploads to YouTube.  
 Your time: **~20 minutes/week** reviewing the digest email.
 
 ---
 
 ## Project Structure
+
 ```
 yt-pipeline/
 ├── prompts/
@@ -72,6 +75,7 @@ export ELEVENLABS_VOICE_ID="21m00Tcm4TlvDq8ikWAM"  # Rachel (or your custom voic
 export PEXELS_API_KEY="..."                      # From pexels.com/api (free)
 export YOUTUBE_API_KEY="..."                     # From Google Cloud Console
 export YT_CHANNEL_ID="UCxxxxxx"                 # Your channel ID
+export NANO_BANANA_PRO_API_KEY="..."              # Optional: free Nano Banana Pro thumbnail generation for English
 export AIRTABLE_API_KEY="..."                    # Optional: for logging
 export AIRTABLE_BASE_ID="appXXXXXX"             # Optional: for logging
 export ALERT_EMAIL="you@email.com"
@@ -81,6 +85,7 @@ source ~/.bashrc
 ```
 
 **Getting API keys:**
+
 - **Anthropic**: console.anthropic.com → API Keys
 - **ElevenLabs**: elevenlabs.io → Profile → API Key (free tier: 10k chars/mo)
 - **Pexels**: pexels.com/api → completely free, generous limits
@@ -123,18 +128,24 @@ http://localhost:5001/setup-auth/lofi
 ## Step 5 — Add your media assets (10 min)
 
 ### Background music (narrated channels)
+
 Download 1-2 royalty-free tracks:
+
 - [Pixabay Music](https://pixabay.com/music/) → search "ambient background"
 - Save as `assets/background_music.mp3`
 
 ### Lofi loop visual
+
 Download a free lofi animation MP4:
+
 - [Pixabay Videos](https://pixabay.com/videos/) → search "lofi anime"
 - Save as `assets/lofi_loop.mp4`
 
 ### Lofi music tracks (for Channel 3A)
+
 Generate 10-15 tracks at [Suno.ai](https://suno.ai) (free tier):
-- Prompt: *"lofi hip hop, jazzy, mellow, study music, no lyrics, chill beats"*
+
+- Prompt: _"lofi hip hop, jazzy, mellow, study music, no lyrics, chill beats"_
 - Download as MP3 → save to `assets/lofi/track_01.mp3`, etc.
 
 ---
@@ -188,6 +199,7 @@ ssh -L 5678:localhost:5678 root@YOUR_VPS_IP
 ```
 
 **n8n auto-start on reboot:**
+
 ```bash
 cat > /etc/systemd/system/n8n.service << EOF
 [Unit]
@@ -242,13 +254,14 @@ curl http://localhost:5001/job/job_0001
 ## Weekly routine (your ~20 min/week)
 
 Every Monday morning you'll receive a digest email. It contains:
+
 - Top 3 videos from the past week (views, watch time, revenue)
 - What's queued for this week (5-7 trending Shorts + 2 lofi)
 - Any errors that need attention
 
 Your only job: skim the email, check the YouTube Studio queue if anything looks off, done.
 
-The pipeline handles everything else: 6AM daily trend fetch, scoring, scripting, 
+The pipeline handles everything else: 6AM daily trend fetch, scoring, scripting,
 voice generation, video assembly, and upload scheduling.
 Daily trending defaults to vertical Shorts. Use the manual runner's
 `--video-format explainer` option when a topic deserves the original 5-7 minute
@@ -258,29 +271,29 @@ search-focused landscape treatment.
 
 ## Monetization timeline
 
-| Milestone | When | Action |
-|-----------|------|--------|
-| Affiliate links live | Day 1 | Add Amazon/NordVPN/Skillshare links to every description |
-| First brand outreach | 200 subs | Email 5 relevant brands using your niche data |
-| YouTube Partner (Ch1) | Month 3-4 | 1k subs + 4k watch hours |
-| YouTube Partner (Lofi) | Month 2-3 | Watch time accrues fast with 3hr videos |
-| $100/month | Month 3-5 | Combined affiliates + early AdSense |
-| $500/month | Month 6-9 | AdSense on 2-3 channels + sponsors |
+| Milestone              | When      | Action                                                   |
+| ---------------------- | --------- | -------------------------------------------------------- |
+| Affiliate links live   | Day 1     | Add Amazon/NordVPN/Skillshare links to every description |
+| First brand outreach   | 200 subs  | Email 5 relevant brands using your niche data            |
+| YouTube Partner (Ch1)  | Month 3-4 | 1k subs + 4k watch hours                                 |
+| YouTube Partner (Lofi) | Month 2-3 | Watch time accrues fast with 3hr videos                  |
+| $100/month             | Month 3-5 | Combined affiliates + early AdSense                      |
+| $500/month             | Month 6-9 | AdSense on 2-3 channels + sponsors                       |
 
 ---
 
 ## Monthly costs
 
-| Service | Cost |
-|---------|------|
-| Hetzner CX22 VPS | $4.50 |
-| Claude API (~150 scripts) | $10-15 |
-| ElevenLabs Starter | $5.00 |
-| Pexels stock video | Free |
-| Suno AI music | Free tier |
-| FFmpeg, Whisper, n8n | Free |
-| YouTube/TikTok APIs | Free |
-| **Total** | **~$20-25/mo** |
+| Service                   | Cost           |
+| ------------------------- | -------------- |
+| Hetzner CX22 VPS          | $4.50          |
+| Claude API (~150 scripts) | $10-15         |
+| ElevenLabs Starter        | $5.00          |
+| Pexels stock video        | Free           |
+| Suno AI music             | Free tier      |
+| FFmpeg, Whisper, n8n      | Free           |
+| YouTube/TikTok APIs       | Free           |
+| **Total**                 | **~$20-25/mo** |
 
 ---
 
