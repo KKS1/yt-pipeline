@@ -63,7 +63,7 @@ python scripts/server.py
 
 Then import `n8n/workflow.json` into your n8n instance and activate.
 
-Optional: add `NANO_BANANA_PRO_API_KEY` to `.env` to enable Nano Banana Pro thumbnail generation for the English channel. When available, the pipeline generates a fresh, custom thumbnail background from the script concept and overlays mobile-friendly title text instead of relying on a video frame.
+Optional: configure image generation to improve thumbnails. Prefer setting `GEMINI_API_KEY` (and `GEMINI_IMAGE_MODEL=gemini-2.5-flash`) to generate thumbnail backgrounds via Gemini; the pipeline will fall back to `NANO_BANANA_PRO_API_KEY` if provided. Generated backgrounds are overlaid with mobile-friendly title text for English videos.
 
 ### English weekly challenge playlist
 

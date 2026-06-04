@@ -48,6 +48,13 @@ NANO_BANANA_PRO_API_URL = os.environ.get(
     "https://api.nanobanana.pro/v1/generate"
 )
 NANO_BANANA_PRO_TIMEOUT = int(os.environ.get("NANO_BANANA_PRO_TIMEOUT", "90"))
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash")
+GEMINI_IMAGE_API_URL = os.environ.get(
+    "GEMINI_IMAGE_API_URL",
+    "https://generative.googleapis.com/v1/images:generate"
+)
+GEMINI_IMAGE_TIMEOUT = int(os.environ.get("GEMINI_IMAGE_TIMEOUT", "90"))
 
 # Video settings
 VIDEO_WIDTH = 1920
@@ -910,7 +917,11 @@ def create_thumbnail(
 
 def generate_thumbnail_image_with_nano_banana(prompt: str, output_path: str, width: int = 1280, height: int = 720) -> str:
     """Generate a thumbnail background image using Nano Banana Pro."""
+    # Prefer Nano Banana Pro when API key is available. Otherwise fall
+    # back to Gemini image generation when a `GEMINI_API_KEY` is present.
     if not NANO_BANANA_PRO_API_KEY:
+        if GEMINI_API_KEY:
+            return generate_thumbnail_image_with_gemini(prompt, output_path, width=width, height=height)
         raise RuntimeError("Missing NANO_BANANA_PRO_API_KEY for Nano Banana Pro thumbnail generation.")
 
     payload = {
@@ -947,6 +958,62 @@ def generate_thumbnail_image_with_nano_banana(prompt: str, output_path: str, wid
 
     print(f"  ✓ Nano Banana Pro background generated: {output_path}")
     return output_path
+
+
+def generate_thumbnail_image_with_gemini(prompt: str, output_path: str, width: int = 1280, height: int = 720) -> str:
+    """Generate a thumbnail background image using Gemini image generation.
+
+    This is a best-effort generic implementation that POSTs to the
+    `GEMINI_IMAGE_API_URL` and supports responses containing base64
+    encoded image data or an image URL. Adjust the endpoint or payload
+    as needed for your Google Cloud/Generative API setup.
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError("Missing GEMINI_API_KEY for Gemini image generation.")
+
+    headers = {
+        "Authorization": f"Bearer {GEMINI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": GEMINI_IMAGE_MODEL,
+        "prompt": prompt,
+        "image_format": "jpeg",
+        "size": {"width": width, "height": height},
+    }
+
+    resp = requests.post(GEMINI_IMAGE_API_URL, json=payload, headers=headers, timeout=GEMINI_IMAGE_TIMEOUT)
+    resp.raise_for_status()
+    data = resp.json()
+
+    # Handle several possible response shapes
+    if isinstance(data, dict):
+        # common patterns: top-level base64, images[0].b64_json, images[0].url
+        if "image_base64" in data:
+            image_bytes = base64.b64decode(data["image_base64"])
+            Path(output_path).write_bytes(image_bytes)
+            print(f"  ✓ Gemini background generated (base64): {output_path}")
+            return output_path
+
+        imgs = data.get("images") or data.get("outputs") or []
+        if imgs and isinstance(imgs, list):
+            first = imgs[0]
+            if isinstance(first, dict):
+                if "b64_json" in first:
+                    image_bytes = base64.b64decode(first["b64_json"])
+                    Path(output_path).write_bytes(image_bytes)
+                    print(f"  ✓ Gemini background generated (b64_json): {output_path}")
+                    return output_path
+                if "url" in first:
+                    image_url = first["url"]
+                    image_resp = requests.get(image_url, timeout=GEMINI_IMAGE_TIMEOUT)
+                    image_resp.raise_for_status()
+                    Path(output_path).write_bytes(image_resp.content)
+                    print(f"  ✓ Gemini background generated (url): {output_path}")
+                    return output_path
+
+    # If we get here, we couldn't find a supported image field
+    raise RuntimeError("Gemini image response did not contain a supported image payload.")
 
 
 def create_thumbnail_with_nano_banana(
