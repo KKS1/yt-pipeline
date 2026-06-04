@@ -13,7 +13,6 @@ Requirements:
   ffmpeg must be installed: sudo apt install ffmpeg
 """
 
-import base64
 import os
 import subprocess
 import json
@@ -42,19 +41,6 @@ for d in [OUTPUT_DIR, ASSETS_DIR, TEMP_DIR.parent, TEMP_DIR]:
 
 FFMPEG = os.environ.get("FFMPEG_CMD", "ffmpeg")
 FFPROBE = os.environ.get("FFPROBE_CMD", "ffprobe")
-NANO_BANANA_PRO_API_KEY = os.environ.get("NANO_BANANA_PRO_API_KEY", "")
-NANO_BANANA_PRO_API_URL = os.environ.get(
-    "NANO_BANANA_PRO_API_URL",
-    "https://api.nanobanana.pro/v1/generate"
-)
-NANO_BANANA_PRO_TIMEOUT = int(os.environ.get("NANO_BANANA_PRO_TIMEOUT", "90"))
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash")
-GEMINI_IMAGE_API_URL = os.environ.get(
-    "GEMINI_IMAGE_API_URL",
-    "https://generative.googleapis.com/v1/images:generate"
-)
-GEMINI_IMAGE_TIMEOUT = int(os.environ.get("GEMINI_IMAGE_TIMEOUT", "90"))
 
 # Video settings
 VIDEO_WIDTH = 1920
@@ -915,137 +901,6 @@ def create_thumbnail(
     return output_path
 
 
-def generate_thumbnail_image_with_nano_banana(prompt: str, output_path: str, width: int = 1280, height: int = 720) -> str:
-    """Generate a thumbnail background image using Nano Banana Pro."""
-    # Prefer Nano Banana Pro when API key is available. Otherwise fall
-    # back to Gemini image generation when a `GEMINI_API_KEY` is present.
-    if not NANO_BANANA_PRO_API_KEY:
-        if GEMINI_API_KEY:
-            return generate_thumbnail_image_with_gemini(prompt, output_path, width=width, height=height)
-        raise RuntimeError("Missing NANO_BANANA_PRO_API_KEY for Nano Banana Pro thumbnail generation.")
-
-    payload = {
-        "prompt": prompt,
-        "width": width,
-        "height": height,
-        "format": "jpeg",
-        "quality": "high",
-    }
-    headers = {
-        "Authorization": f"Bearer {NANO_BANANA_PRO_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    response = requests.post(
-        NANO_BANANA_PRO_API_URL,
-        json=payload,
-        headers=headers,
-        timeout=NANO_BANANA_PRO_TIMEOUT,
-    )
-    response.raise_for_status()
-    data = response.json()
-
-    if "image_base64" in data:
-        image_bytes = base64.b64decode(data["image_base64"])
-        Path(output_path).write_bytes(image_bytes)
-    elif "image_url" in data:
-        image_url = data["image_url"]
-        image_resp = requests.get(image_url, timeout=NANO_BANANA_PRO_TIMEOUT)
-        image_resp.raise_for_status()
-        Path(output_path).write_bytes(image_resp.content)
-    else:
-        raise RuntimeError("Nano Banana Pro response did not contain image_base64 or image_url.")
-
-    print(f"  ✓ Nano Banana Pro background generated: {output_path}")
-    return output_path
-
-
-def generate_thumbnail_image_with_gemini(prompt: str, output_path: str, width: int = 1280, height: int = 720) -> str:
-    """Generate a thumbnail background image using Gemini image generation.
-
-    This is a best-effort generic implementation that POSTs to the
-    `GEMINI_IMAGE_API_URL` and supports responses containing base64
-    encoded image data or an image URL. Adjust the endpoint or payload
-    as needed for your Google Cloud/Generative API setup.
-    """
-    if not GEMINI_API_KEY:
-        raise RuntimeError("Missing GEMINI_API_KEY for Gemini image generation.")
-
-    headers = {
-        "Authorization": f"Bearer {GEMINI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": GEMINI_IMAGE_MODEL,
-        "prompt": prompt,
-        "image_format": "jpeg",
-        "size": {"width": width, "height": height},
-    }
-
-    resp = requests.post(GEMINI_IMAGE_API_URL, json=payload, headers=headers, timeout=GEMINI_IMAGE_TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
-
-    # Handle several possible response shapes
-    if isinstance(data, dict):
-        # common patterns: top-level base64, images[0].b64_json, images[0].url
-        if "image_base64" in data:
-            image_bytes = base64.b64decode(data["image_base64"])
-            Path(output_path).write_bytes(image_bytes)
-            print(f"  ✓ Gemini background generated (base64): {output_path}")
-            return output_path
-
-        imgs = data.get("images") or data.get("outputs") or []
-        if imgs and isinstance(imgs, list):
-            first = imgs[0]
-            if isinstance(first, dict):
-                if "b64_json" in first:
-                    image_bytes = base64.b64decode(first["b64_json"])
-                    Path(output_path).write_bytes(image_bytes)
-                    print(f"  ✓ Gemini background generated (b64_json): {output_path}")
-                    return output_path
-                if "url" in first:
-                    image_url = first["url"]
-                    image_resp = requests.get(image_url, timeout=GEMINI_IMAGE_TIMEOUT)
-                    image_resp.raise_for_status()
-                    Path(output_path).write_bytes(image_resp.content)
-                    print(f"  ✓ Gemini background generated (url): {output_path}")
-                    return output_path
-
-    # If we get here, we couldn't find a supported image field
-    raise RuntimeError("Gemini image response did not contain a supported image payload.")
-
-
-def create_thumbnail_with_nano_banana(
-    thumbnail_text: str,
-    thumbnail_concept: str,
-    output_path: str,
-    style: str = "english",
-) -> str:
-    """Generate a stunning English thumbnail using Nano Banana Pro plus overlay text."""
-    background_path = Path(output_path).with_suffix(".banana.jpg")
-    prompt = (
-        f"Create a vibrant, mobile-friendly English learning YouTube thumbnail background with a "
-        f"strong visual mood. Use this concept: {thumbnail_concept or thumbnail_text}. "
-        f"Leave space near the bottom for bold white overlay text: '{thumbnail_text}'."
-    )
-    generate_thumbnail_image_with_nano_banana(str(prompt), str(background_path))
-
-    try:
-        return create_thumbnail(
-            background_image=str(background_path),
-            title_text=thumbnail_text,
-            output_path=output_path,
-            style=style,
-        )
-    finally:
-        try:
-            if background_path.exists():
-                background_path.unlink()
-        except OSError:
-            pass
-
-
 def create_thumbnail_from_video(
     video_path: str,
     title_text: str,
@@ -1053,68 +908,70 @@ def create_thumbnail_from_video(
     style: str = "trending",
     timestamp_seconds: Optional[float] = None,
 ) -> str:
-    """
-    Generate a thumbnail by extracting a frame from the video and overlaying text.
-    """
-    text = str(title_text or Path(video_path).stem).strip()
-    if not text:
-        text = Path(video_path).stem
-    text = text.strip()
+
+    text = (title_text or Path(video_path).stem).strip()
 
     duration = get_media_duration(video_path)
     if duration <= 0:
         timestamp_seconds = 1.0
     elif timestamp_seconds is None:
-        timestamp_seconds = min(10.0, max(1.0, duration * 0.1))
+        # better frame sampling (avoids boring intro frames)
+        timestamp_seconds = min(8.0, max(1.5, duration * 0.25))
     else:
-        timestamp_seconds = max(0.1, min(duration - 0.1, float(timestamp_seconds)))
+        timestamp_seconds = max(0.1, min(duration - 0.5, float(timestamp_seconds)))
 
-    s = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
+    style_cfg = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
 
-    # Special handling for English thumbnails: craft a punchy two-line
-    # headline (caption-inspired) so the thumbnail reads well on mobile.
-    if style == "english":
-        words = text.split()
-        if len(words) > 5:
-            words = words[:5]
-        if len(words) <= 2:
-            first = " ".join(words)
-            second = ""
-        elif len(words) == 3:
-            first, second = " ".join(words[:2]), words[2]
-        else:
-            split_at = (len(words) + 1) // 2
-            first = " ".join(words[:split_at])
-            second = " ".join(words[split_at:])
-        if second:
-            multi = f"{first}\\n{second}"
-        else:
-            multi = first
-        safe_text = _ffmpeg_escape_drawtext(multi)
-
-        vf = (
-            f"scale=1280:720:force_original_aspect_ratio=decrease,"
-            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
-            f"drawtext=font='DejaVu Sans Bold':text='{safe_text}':"
-            f"fontcolor={s['font_color']}:fontsize={s['font_size']}:"
-            f"box=1:boxcolor={s['box_color']}:boxborderw=18:"
-            f"x=(w-text_w)/2:y=h-220:shadowcolor=black:shadowx=3:shadowy=3"
+    def base_filter(extra_text: str, y_offset: int) -> str:
+        return (
+            "scale=1280:720:force_original_aspect_ratio=decrease,"
+            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
+            f"drawtext=text='{extra_text}':"
+            f"fontcolor={style_cfg['font_color']}:"
+            f"fontsize={style_cfg['font_size']}:"
+            "font='DejaVu Sans Bold':"
+            f"x=(w-text_w)/2:y={y_offset}:"
+            "box=1:boxcolor={style_cfg['box_color']}:boxborderw=20:"
+            "shadowcolor=black:shadowx=3:shadowy=3"
         )
 
+    # ─────────────────────────────
+    # English style (better mobile layout)
+    # ─────────────────────────────
+    if style == "english":
+        words = text.split()[:6]  # hard cap
+
+        if len(words) <= 2:
+            lines = [" ".join(words)]
+        else:
+            mid = len(words) // 2
+            lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+
+        label = "\\n".join(lines)
+        safe_text = _ffmpeg_escape_drawtext(label)
+
+        vf = base_filter(safe_text, y_offset=500)
+
+    # ─────────────────────────────
+    # Default style
+    # ─────────────────────────────
     else:
-        safe_text = _ffmpeg_escape_drawtext(text.replace("\n", " "))
+        safe_text = _ffmpeg_escape_drawtext(text[:60])
         vf = (
-            f"scale=1280:720:force_original_aspect_ratio=decrease,"
-            f"pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
-            f"drawbox=x=0:y=ih-220:w=iw:h=220:color={s['box_color']}:t=fill,"
-            f"drawtext=text='{safe_text}':fontcolor={s['font_color']}:"
-            f"fontsize={s['font_size']}:font='DejaVu Sans Bold':"
-            f"x=(w-text_w)/2:y=h-160:shadowcolor=black:shadowx=3:shadowy=3"
+            "scale=1280:720:force_original_aspect_ratio=decrease,"
+            "pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,"
+            f"drawbox=x=0:y=ih-220:w=iw:h=220:color={style_cfg['box_color']}:t=fill,"
+            f"drawtext=text='{safe_text}':"
+            f"fontcolor={style_cfg['font_color']}:"
+            f"fontsize={style_cfg['font_size']}:"
+            "font='DejaVu Sans Bold':"
+            "x=(w-text_w)/2:y=h-160:"
+            "shadowcolor=black:shadowx=3:shadowy=3"
         )
 
     cmd = [
         FFMPEG, "-y",
-        "-ss", f"{timestamp_seconds:.3f}",
+        "-ss", str(timestamp_seconds),
         "-i", video_path,
         "-frames:v", "1",
         "-vf", vf,
@@ -1123,7 +980,6 @@ def create_thumbnail_from_video(
 
     run_ffmpeg(cmd)
     return output_path
-
 
 # ─────────────────────────────────────────────
 # 8. CLEANUP TEMP FILES

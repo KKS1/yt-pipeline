@@ -90,7 +90,7 @@ class ManualRunUploadTests(unittest.TestCase):
                     self.assertEqual(upload.call_args.kwargs["channel"], "english")
                     self.assertEqual(upload.call_args.kwargs["schedule_time"], "2026-06-03T15:00:00Z")
 
-    def test_upload_video_uses_nano_banana_pro_for_english_thumbnails(self):
+    def test_upload_video_generates_frame_thumbnail_for_english(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             assets = tmp_path / "assets"
@@ -100,27 +100,24 @@ class ManualRunUploadTests(unittest.TestCase):
             video.write_bytes(b"fake video")
 
             with patch.object(manual_run, "ASSETS_DIR", assets):
-                with patch.dict(os.environ, {"NANO_BANANA_PRO_API_KEY": "test-key"}):
-                    with patch("youtube_uploader.youtube_upload") as upload:
-                        with patch("ffmpeg_assembler.create_thumbnail_with_nano_banana") as banana_thumb:
-                            with patch("ffmpeg_assembler.create_thumbnail_from_video") as fallback_thumb:
-                                upload.return_value = {"youtube_id": "abc123"}
-                                banana_thumb.return_value = str(video.with_suffix('.jpg'))
+                with patch("youtube_uploader.youtube_upload") as upload:
+                    with patch("ffmpeg_assembler.create_thumbnail_from_video") as thumb:
+                        upload.return_value = {"youtube_id": "abc123"}
+                        thumb.return_value = str(video.with_suffix('.jpg'))
 
-                                with redirect_stdout(StringIO()):
-                                    manual_run._upload_video(
-                                        str(video),
-                                        "Title",
-                                        "Description",
-                                        ["tag"],
-                                        "english",
-                                        thumbnail_text="Speak Confidently",
-                                        thumbnail_concept="Bright cafe study scene with bold text",
-                                    )
+                        with redirect_stdout(StringIO()):
+                            manual_run._upload_video(
+                                str(video),
+                                "Title",
+                                "Description",
+                                ["tag"],
+                                "english",
+                                thumbnail_text="Speak Confidently",
+                                thumbnail_concept="Bright cafe study scene with bold text",
+                            )
 
-                                banana_thumb.assert_called_once()
-                                fallback_thumb.assert_not_called()
-                                upload.assert_called_once()
+                        thumb.assert_called_once()
+                        upload.assert_called_once()
 
     def test_english_challenge_creates_playlist_and_adds_uploaded_videos(self):
         package = {
