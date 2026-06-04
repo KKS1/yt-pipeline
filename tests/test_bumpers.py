@@ -2,7 +2,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts import ffmpeg_assembler
 from scripts import manual_run
@@ -76,6 +76,16 @@ class BumperSupportTests(unittest.TestCase):
     def test_get_media_duration_uses_ffprobe_format(self):
         with patch.object(ffmpeg_assembler, "_run_ffprobe", return_value={"format": {"duration": "12.34"}}):
             self.assertEqual(ffmpeg_assembler.get_media_duration("sample.mp4"), 12.34)
+
+    def test_generate_captions_raises_when_whisper_fails(self):
+        fake_result = Mock(returncode=1, stderr="error: model not found")
+        with patch.object(ffmpeg_assembler.subprocess, "run", return_value=fake_result):
+            with tempfile.TemporaryDirectory() as tmp:
+                output_srt = Path(tmp) / "video.srt"
+                with self.assertRaises(RuntimeError) as cm:
+                    ffmpeg_assembler.generate_captions(str(Path(tmp) / "audio.mp3"), str(output_srt))
+
+        self.assertIn("Whisper caption generation failed", str(cm.exception))
 
     def test_create_thumbnail_from_video_uses_frame_and_drawtext(self):
         with tempfile.TemporaryDirectory() as tmp:

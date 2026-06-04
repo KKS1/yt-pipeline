@@ -492,12 +492,18 @@ def generate_captions(audio_path: str, output_srt: str, max_line_width: int = No
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"  Whisper warning: {result.stderr[:200]}")
+        raise RuntimeError(
+            f"Whisper caption generation failed with exit code {result.returncode}:\n"
+            f"{result.stderr.strip()}"
+        )
 
     # Whisper names the SRT after the input file but places it in output_dir
     generated_srt = Path(output_srt).parent / Path(audio_path).with_suffix(".srt").name
     if generated_srt.exists() and str(generated_srt) != output_srt:
         generated_srt.rename(output_srt)
+
+    if not Path(output_srt).exists():
+        raise RuntimeError(f"Whisper caption generation completed but no SRT was found at {output_srt}")
 
     print(f"  Captions saved: {output_srt}")
     return output_srt
