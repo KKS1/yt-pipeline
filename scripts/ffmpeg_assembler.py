@@ -930,12 +930,17 @@ def create_thumbnail_from_video(
     # headline (caption-inspired) so the thumbnail reads well on mobile.
     if style == "english":
         words = text.split()
-        if len(words) <= 6:
-            first = " ".join(words[:len(words)//2 or 1])
-            second = " ".join(words[len(words)//2:])
+        if len(words) > 5:
+            words = words[:5]
+        if len(words) <= 2:
+            first = " ".join(words)
+            second = ""
+        elif len(words) == 3:
+            first, second = " ".join(words[:2]), words[2]
         else:
-            first = " ".join(words[:max(2, len(words)//2)])
-            second = " ".join(words[len(first.split()):len(first.split())+4])
+            split_at = (len(words) + 1) // 2
+            first = " ".join(words[:split_at])
+            second = " ".join(words[split_at:])
         if second:
             multi = f"{first}\\n{second}"
         else:

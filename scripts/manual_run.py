@@ -1212,10 +1212,9 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
     if thumbnail_text is None:
         thumbnail_text = title
 
-    # Auto-generate thumbnails only for the `english` channel. Other
-    # channels either use handcrafted thumbnails or rely on YouTube's auto
-    # selection / upstream workflow.
-    if channel == "english":
+    # Auto-generate thumbnails only for the English channels.
+    # English weekly challenge videos also upload under the english channel.
+    if channel in ("english", "english-challenge"):
         try:
             from ffmpeg_assembler import create_thumbnail_from_video
             thumbnail_path = create_thumbnail_from_video(

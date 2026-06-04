@@ -101,6 +101,38 @@ def generate_dynamic_topic(is_challenge: bool = False) -> str:
         return random.choice(WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else ENGLISH_TOPIC_POOL)
 
 
+def generate_thumbnail_text(topic: str, is_challenge: bool = False) -> dict:
+    """Use Groq to create a short mobile-friendly thumbnail headline."""
+    type_label = "weekly challenge episode" if is_challenge else "English conversation episode"
+    prompt = f"""
+    You are writing a mobile-friendly YouTube thumbnail overlay for an {type_label} about "{topic}".
+    Return ONLY a JSON object with these keys:
+    - thumbnail_text: 3-5 bold, eye-catching words for a mobile thumbnail overlay.
+    - thumbnail_concept: one short sentence describing the visual vibe.
+
+    Rules:
+    - Keep thumbnail_text short enough to fit on mobile.
+    - Do not use more than 5 words.
+    - Avoid punctuation except a single ampersand if needed.
+    - Use strong action or emotion words.
+
+    Example:
+    {{"thumbnail_text": "Speak Confidently Today", "thumbnail_concept": "Bold white text over a blurred cafe background"}}
+    """
+    try:
+        res = call_groq_json(prompt)
+        return {
+            "thumbnail_text": str(res.get("thumbnail_text", "")).strip(),
+            "thumbnail_concept": str(res.get("thumbnail_concept", "")).strip(),
+        }
+    except Exception as e:
+        print(f"  Error generating thumbnail text: {e}. Falling back to title.")
+        return {
+            "thumbnail_text": topic,
+            "thumbnail_concept": "Bold mobile-friendly overlay text.",
+        }
+
+
 def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_intro: bool = False, is_outro: bool = False) -> list:
     """Drop sign-off / CTA lines; Part 3 may keep them only in the last N turns."""
     if not dialogue:
@@ -310,6 +342,11 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+
+    thumbnail = generate_thumbnail_text(f"{day.get('title')} | {series_title}", is_challenge=True)
+    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
+    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+
     return _clean_challenge_dialogue(script, day_number)
 
 
@@ -447,7 +484,11 @@ JSON SCHEMA:
 """
     part3_data = call_groq_json(prompt_3)
 
-    return combine_english_parts(part1_data, part2_data, part3_data, topic)
+    script = combine_english_parts(part1_data, part2_data, part3_data, topic)
+    thumbnail = generate_thumbnail_text(topic, is_challenge=False)
+    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
+    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+    return script
 
 def generate_english_shorts_script(topic=None):
     if not topic:
