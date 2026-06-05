@@ -11,6 +11,35 @@ from groq_client import groq_chat_json, groq_part_cooldown
 # Free tier TPM is 12k; three 7k-cap calls in a row exceed it. Lower cap + pause between parts.
 ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
 
+PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
+
+def get_published_topics() -> dict:
+    if PUBLISHED_TOPICS_FILE.exists():
+        try:
+            with open(PUBLISHED_TOPICS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+                # Handle old list format by migrating it to "podcast"
+                return {"podcast": data, "shorts": [], "challenge": []}
+        except Exception as e:
+            print(f"Error loading published topics: {e}")
+    return {"podcast": [], "shorts": [], "challenge": []}
+
+def save_published_topic(topic: str, topic_type: str = "podcast"):
+    topics_data = get_published_topics()
+    if topic_type not in topics_data:
+        topics_data[topic_type] = []
+        
+    if topic not in topics_data[topic_type]:
+        topics_data[topic_type].append(topic)
+        try:
+            with open(PUBLISHED_TOPICS_FILE, "w", encoding="utf-8") as f:
+                json.dump(topics_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving published topic: {e}")
+
+
 ENGLISH_TOPIC_POOL = [
     "Ordering Food at a Restaurant",
     "Discussing Hobbies and Interests",
@@ -84,12 +113,25 @@ def is_cta_line(text: str) -> bool:
     return any(p.search(text) for p in _CTA_PATTERNS)
 
 
-def generate_dynamic_topic(is_challenge: bool = False) -> str:
+def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
     """Ask Groq to generate a fresh, trending English learning topic."""
     type_label = "7-day weekly challenge" if is_challenge else "podcast episode"
+    topics_data = get_published_topics()
+    published_topics = topics_data.get(topic_type, [])
+    
+    # Send up to 50 most recent topics to avoid massive token usage
+    recent_topics = published_topics[-50:] if published_topics else []
+    avoid_instruction = ""
+    if recent_topics:
+        avoid_instruction = f"""
+    CRITICAL: Avoid repeating or closely matching any of these previously published topics/titles:
+    {json.dumps(recent_topics, indent=2)}
+    """
+
     prompt = f"""
     Generate a single, highly engaging topic for an English learning {type_label}.
     The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
+    {avoid_instruction}
     Return ONLY a JSON object with a 'topic' key.
     Example: {{"topic": "Mastering Sarcasm and Irony in English"}}
     """
@@ -224,7 +266,7 @@ def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
 
 def generate_weekly_challenge_plan(topic=None) -> dict:
     if not topic:
-        topic = generate_dynamic_topic(is_challenge=True)
+        topic = generate_dynamic_topic(is_challenge=True, topic_type="challenge")
 
     print(f"\nSelected weekly challenge topic: {topic} for @EnglishVibesHub-s6w")
     prompt = f"""
@@ -361,18 +403,21 @@ def generate_weekly_challenge_scripts(topic=None) -> dict:
         if day_number < 7:
             groq_part_cooldown(f"Day {day_number + 1}")
 
-    return {
+    return_data = {
         "series_title": plan.get("series_title", "EnglishVibesHub Weekly Challenge"),
         "description": plan.get("description", ""),
         "tags": plan.get("tags", []),
         "days": plan["days"],
         "scripts": scripts,
     }
+    
+    save_published_topic(return_data["series_title"], topic_type="challenge")
+    return return_data
 
 
 def generate_english_script(topic=None):
     if not topic:
-        topic = generate_dynamic_topic(is_challenge=False)
+        topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
 
     print(f"\nSelected topic: {topic}")
 
@@ -488,11 +533,14 @@ JSON SCHEMA:
     thumbnail = generate_thumbnail_text(topic, is_challenge=False)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+    
+    save_published_topic(script.get("title", topic), topic_type="podcast")
+    
     return script
 
 def generate_english_shorts_script(topic=None):
     if not topic:
-        topic = generate_dynamic_topic(is_challenge=False)
+        topic = generate_dynamic_topic(is_challenge=False, topic_type="shorts")
 
     print(f"\nSelected Shorts topic: {topic}")
     prompt = f"""
@@ -527,4 +575,7 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
+    
+    save_published_topic(script_data.get("title", topic), topic_type="shorts")
+    
     return script_data
