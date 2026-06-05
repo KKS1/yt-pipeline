@@ -53,7 +53,7 @@ apt update && apt install -y ffmpeg python3-pip python3-venv git curl nodejs npm
 
 # Python packages
 pip install anthropic flask requests google-auth google-auth-oauthlib \
-            google-api-python-client openai-whisper --break-system-packages
+            google-api-python-client faster-whisper --break-system-packages
 
 # n8n (workflow automation)
 npm install -g n8n
@@ -309,7 +309,7 @@ OAuth tokens expire every hour but auto-refresh. If persistent: re-run `/setup-a
 Trending Shorts should assemble quickly because they are under 2 minutes. Long lofi videos can still take 20-40 minutes on a typical machine.
 
 **Whisper captions failing:**  
-Run `pip install openai-whisper --break-system-packages` and ensure ffmpeg is installed.
+Run `pip install faster-whisper --break-system-packages` and ensure ffmpeg is installed.
 
 **ElevenLabs quota hit:**  
 Free tier is 10k chars/month. Starter ($5) gives 30k chars — enough for ~20 videos/month.  

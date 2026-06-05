@@ -469,41 +469,79 @@ def fetch_stock_videos(
 # 4. GENERATE CAPTIONS (Whisper via subprocess)
 # ─────────────────────────────────────────────
 
+def format_timestamp(seconds: float) -> str:
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds - int(seconds)) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
 def generate_captions(audio_path: str, output_srt: str, max_line_width: int = None, max_line_count: int = None) -> str:
     """
-    Generate SRT captions using OpenAI Whisper (local, free).
-    Install: pip install openai-whisper --break-system-packages
+    Generate SRT captions using faster-whisper (local, much faster than openai-whisper).
     """
-    print(f"  Generating captions with Whisper...")
-    cmd = [
-        "whisper", audio_path,
-        "--model", "base",
-        "--output_format", "srt",
-        "--output_dir", str(Path(output_srt).parent),
-        "--language", "en"
-    ]
+    print(f"  Generating captions with faster-whisper...")
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        raise RuntimeError("faster-whisper not installed. Run: pip install faster-whisper --break-system-packages")
+
+    model = WhisperModel("base", device="cpu", compute_type="int8")
     
-    if max_line_width or max_line_count:
-        cmd.extend(["--word_timestamps", "True"])
-        if max_line_width:
-            cmd.extend(["--max_line_width", str(max_line_width)])
-        if max_line_count:
-            cmd.extend(["--max_line_count", str(max_line_count)])
+    # We need word-level timestamps if we're enforcing width/count limits
+    needs_word_timestamps = bool(max_line_width or max_line_count)
+    segments, info = model.transcribe(audio_path, language="en", word_timestamps=needs_word_timestamps)
+    
+    srt_entries = []
+    
+    if needs_word_timestamps:
+        max_chars = max_line_width or 40
+        max_lines = max_line_count or 2  # This logic focuses on characters per line roughly
+        
+        for segment in segments:
+            current_chunk = []
+            chunk_char_count = 0
+            chunk_start = None
+            
+            for word in segment.words:
+                word_text = word.word.strip()
+                if not chunk_start:
+                    chunk_start = word.start
+                    
+                if chunk_char_count + len(word_text) + 1 > max_chars:
+                    srt_entries.append({
+                        "start": chunk_start,
+                        "end": word.start,
+                        "text": " ".join([w.word.strip() for w in current_chunk])
+                    })
+                    current_chunk = [word]
+                    chunk_char_count = len(word_text)
+                    chunk_start = word.start
+                else:
+                    current_chunk.append(word)
+                    chunk_char_count += len(word_text) + 1
+                    
+            if current_chunk:
+                srt_entries.append({
+                    "start": chunk_start,
+                    "end": segment.end,
+                    "text": " ".join([w.word.strip() for w in current_chunk])
+                })
+    else:
+        for segment in segments:
+            srt_entries.append({
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text.strip()
+            })
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Whisper caption generation failed with exit code {result.returncode}:\n"
-            f"{result.stderr.strip()}"
-        )
-
-    # Whisper names the SRT after the input file but places it in output_dir
-    generated_srt = Path(output_srt).parent / Path(audio_path).with_suffix(".srt").name
-    if generated_srt.exists() and str(generated_srt) != output_srt:
-        generated_srt.rename(output_srt)
-
-    if not Path(output_srt).exists():
-        raise RuntimeError(f"Whisper caption generation completed but no SRT was found at {output_srt}")
+    Path(output_srt).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_srt, "w", encoding="utf-8") as f:
+        for i, entry in enumerate(srt_entries, start=1):
+            f.write(f"{i}\n")
+            f.write(f"{format_timestamp(entry['start'])} --> {format_timestamp(entry['end'])}\n")
+            f.write(f"{entry['text']}\n\n")
 
     print(f"  Captions saved: {output_srt}")
     return output_srt

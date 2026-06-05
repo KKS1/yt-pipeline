@@ -77,12 +77,12 @@ curl -L -o voices.bin https://github.com/thewh1teagle/kokoro-onnx/releases/downl
 
 ---
 
-### Step 3 — Install Whisper
+### Step 3 — Install faster-whisper
 
-Already included in requirements.txt above. Verify it works:
+Already included in requirements.txt above. Verify it imports correctly:
 
 ```bash
-whisper --help
+python -c "import faster_whisper; print('faster-whisper installed!')"
 ```
 
 ---
@@ -237,13 +237,13 @@ After completing all three, stop the server (Ctrl+C).
 ffmpeg -f lavfi -i "sine=frequency=440:duration=60" assets/test_audio.mp3
 ```
 
-### Step 11 — Test Whisper captions
+### Step 11 — Test faster-whisper captions
 
 ```bash
-whisper assets/test_audio.mp3 --model base --output_format srt --output_dir output/
+python -c "from faster_whisper import WhisperModel; model = WhisperModel('base', device='cpu', compute_type='int8'); print('Model loaded successfully!')"
 ```
 
-Should create `output/test_audio.srt`. If it works, captions are good.
+If it prints success, your local captioning setup is ready to go.
 
 ### Step 12 — Test Kokoro TTS (free voiceover)
 

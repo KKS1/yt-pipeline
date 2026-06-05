@@ -9,7 +9,7 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.125.0
 
 # Captions (runs locally, free)
-openai-whisper>=20231117
+faster-whisper>=1.0.0
 
 # Free local TTS — no API key needed
 TTS>=0.22.0
