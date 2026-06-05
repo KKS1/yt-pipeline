@@ -365,9 +365,9 @@ def generate_lofi_metadata_local() -> dict:
     setting_name, setting_desc = random.choice(settings)
 
     return {
-        "title": f"Lofi Study Music — {setting_name} | 3 Hours of Chill Beats",
+        "title": f"Lofi Study Music — {setting_name} | 1 Hour of Chill Beats",
         "description": (
-            f"3 hours of lofi hip hop beats to study and relax to. "
+            f"1 hour of lofi hip hop beats to study and relax to. "
             f"Imagine yourself in a {setting_desc}. "
             "Perfect for studying, homework, focus sessions, and deep work.\n\n"
             "🎵 Lofi beats | Chill music | Study music | Focus music\n\n"
@@ -571,10 +571,10 @@ def run_lofi():
         tags_raw    = prompt_input("Tags (comma-separated)", ", ".join(tags))
         tags        = [t.strip() for t in tags_raw.split(",")]
 
-    duration_hours = int(prompt_input("Duration in hours", "3"))
+    duration_hours = int(prompt_input("Duration in hours", "1"))
     
     # Update title to reflect actual duration
-    title = title.replace("3 Hours", f"{duration_hours} Hour{'s' if duration_hours != 1 else ''}")
+    title = title.replace("1 Hour", f"{duration_hours} Hour{'s' if duration_hours != 1 else ''}")
 
     # ── Assemble ──────────────────────────────────────
     out_slug = slug(title)
