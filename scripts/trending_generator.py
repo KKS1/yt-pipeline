@@ -157,6 +157,8 @@ Write a clear 45-90 second YouTube Short for general viewers.
 Tone: clear, engaging, intelligent, current, and conversational.
 
 Rules:
+- Generate 3 strong title options and choose the one most likely to maximize CTR for YouTube.
+- Titles should be under 70 characters, front-load the main topic or keyword, and use curiosity or benefit language.
 - Start with a strong hook in the first 3 seconds.
 - Use this pacing: hook, what happened, why it matters, what to watch next.
 - Keep the spoken script to 120-230 words.
@@ -170,7 +172,8 @@ Rules:
 Return ONLY valid JSON:
 {{
   "title": "YouTube Shorts title under 70 characters",
-  "description": "80-120 word YouTube description with relevant keywords and #Shorts",
+  "title_options": ["strong title option 1", "strong title option 2", "strong title option 3"],
+  "description": "80-120 word YouTube description with relevant keywords, a strong first-line hook, and #Shorts",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
   "thumbnail_text": "3-5 bold words",
   "stock_keyword": "2-4 word Pexels search phrase",
@@ -196,6 +199,8 @@ Write a clear, calm 5-7 minute explainer that can show up in search the same day
 Tone: clear, engaging, intelligent, informed, accessible, and conversational.
 
 Rules:
+- Generate 3 strong title options and choose the one most likely to maximize CTR for YouTube.
+- Titles should be under 70 characters, front-load the main topic or keyword, and use curiosity or benefit language.
 - Start with a strong hook in the first 15 seconds.
 - Use this structure: hook, brief context, 4-5 main points, what happens next, concise CTA.
 - Keep the spoken script to 700-980 words.
@@ -209,7 +214,8 @@ Rules:
 Return ONLY valid JSON:
 {{
   "title": "YouTube title under 70 characters",
-  "description": "150-word YouTube description with relevant keywords",
+  "title_options": ["strong title option 1", "strong title option 2", "strong title option 3"],
+  "description": "150-word YouTube description with relevant keywords, a strong first-line hook, and one CTA",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
   "thumbnail_text": "3-5 bold words",
   "stock_keyword": "2-4 word Pexels search phrase",

@@ -203,12 +203,23 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
 
 
 def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
+    title = part1_data.get("title")
+    if not title:
+        title_options = part1_data.get("title_options") or []
+        title = title_options[0] if title_options else f"English Conversation: {topic}"
+
+    description = part1_data.get("description")
+    if not description:
+        description = f"Learn English with this detailed conversation about {topic}."
+
+    tags = part1_data.get("tags")
+    if not tags:
+        tags = ["English", "Conversation", "Learning", "Phrasal Verbs"]
+
     final_script = {
-        "title": part1_data.get("title", f"English Conversation: {topic}"),
-        "description": part1_data.get(
-            "description", f"Learn English with this detailed conversation about {topic}."
-        ),
-        "tags": part1_data.get("tags", ["English", "Conversation", "Learning", "Phrasal Verbs"]),
+        "title": title,
+        "description": description,
+        "tags": tags,
         "dialogue": [],
     }
 
@@ -367,8 +378,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (include Day {day_number} and a clear learning promise)",
-  "description": "string (mention this is part of a 7-day English weekly challenge playlist)",
+  "title": "string (include Day {day_number}, a clear learning promise, and a high-CTR hook)",
+  "title_options": ["string"],
+  "description": "string (YouTube description with a strong first-line hook and relevant English learning keywords)",
   "tags": ["string"],
   "day": {day_number},
   "series_title": "string",
@@ -384,6 +396,11 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+
+    if not script.get("title"):
+        title_options = script.get("title_options") or []
+        if title_options:
+            script["title"] = title_options[0]
 
     thumbnail = generate_thumbnail_text(f"{day.get('title')} | {series_title}", is_challenge=True)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
@@ -442,9 +459,10 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (engaging YouTube title for the episode)",
-  "description": "string (video description)",
-  "tags": ["string"],
+  "title": "string (engaging YouTube title under 70 characters with curiosity or benefit language)",
+  "title_options": ["string"],
+  "description": "string (video description with a strong first-line hook and relevant English learning keywords)",
+  "tags": ["string (include English learning, conversation, and topic-specific variants)"],
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
@@ -561,9 +579,10 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (engaging YouTube Short title)",
-  "description": "string (short video description with #Shorts)",
-  "tags": ["string"],
+  "title": "string (engaging YouTube Short title under 70 characters)",
+  "title_options": ["string"],
+  "description": "string (short video description with a strong first-line hook, #Shorts, and relevant English learning keywords)",
+  "tags": ["string (include English learning, conversation, and topic-specific variants)"],
   "video_format": "shorts",
   "dialogue": [
     {{
@@ -575,6 +594,11 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
+
+    if not script_data.get("title"):
+        title_options = script_data.get("title_options") or []
+        if title_options:
+            script_data["title"] = title_options[0]
     
     save_published_topic(script_data.get("title", topic), topic_type="shorts")
     
