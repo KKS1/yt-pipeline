@@ -21,10 +21,21 @@ def get_published_topics() -> dict:
                 if isinstance(data, dict):
                     return data
                 # Handle old list format by migrating it to "podcast"
-                return {"podcast": data, "shorts": [], "challenge": []}
+                return {"podcast": data, "shorts": [], "challenge": [], "slow": []}
         except Exception as e:
             print(f"Error loading published topics: {e}")
-    return {"podcast": [], "shorts": [], "challenge": []}
+    return {"podcast": [], "shorts": [], "challenge": [], "slow": []}
+
+def is_already_published(topic: str, topic_type: str) -> bool:
+    """Check if a topic or title already exists in the published history for a specific type."""
+    topics_data = get_published_topics()
+    published = topics_data.get(topic_type, [])
+    topic_lower = topic.lower().strip()
+    for entry in published:
+        entry_lower = str(entry).lower().strip()
+        if topic_lower in entry_lower or entry_lower in topic_lower:
+            return True
+    return False
 
 def save_published_topic(topic: str, topic_type: str = "podcast"):
     topics_data = get_published_topics()
@@ -278,11 +289,21 @@ def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
 def generate_weekly_challenge_plan(topic=None) -> dict:
     if not topic:
         topic = generate_dynamic_topic(is_challenge=True, topic_type="challenge")
+    else:
+        # Check if manual topic is already published
+        if is_already_published(topic, "challenge"):
+            print(f"\n  [WARNING] Manual challenge topic '{topic}' was found in 'challenge' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("challenge", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating content or structure from these recent challenges:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected weekly challenge topic: {topic} for @EnglishVibesHub-s6w")
     prompt = f"""
 Create a 7-day weekly challenge playlist plan for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 WEEKLY THEME: {topic}
+{avoid_instruction}
 
 CRITICAL RULES:
 - Output ONLY valid JSON.
@@ -327,6 +348,11 @@ def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
         if int(d.get("day", 0)) < day_number
     ]
 
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("challenge", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating content or phrasal verbs/idioms from these recent challenge episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+
     if day_number == 7:
         structure = f"""
 STRUCTURE & CONTENT:
@@ -358,6 +384,7 @@ You are writing a standalone video script for a 7-day English learning challenge
 SERIES: {series_title}
 DAY: {day_number}
 TITLE: {day.get('title')}
+{avoid_instruction}
 FOCUS: {day.get('focus')}
 PRACTICE TASK: {day.get('practice_task')}
 
@@ -435,6 +462,15 @@ def generate_weekly_challenge_scripts(topic=None) -> dict:
 def generate_english_script(topic=None):
     if not topic:
         topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
+    else:
+        # Check if manual topic is already published
+        if is_already_published(topic, "podcast"):
+            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'podcast' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("podcast", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating examples, idioms, or stories used in these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected topic: {topic}")
 
@@ -442,6 +478,7 @@ def generate_english_script(topic=None):
     prompt_1 = f"""
 You are writing PART 1 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
+{avoid_instruction}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
@@ -480,6 +517,7 @@ JSON SCHEMA:
     prompt_2 = f"""
 You are writing PART 2 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
+{avoid_instruction}
 
 The previous turn ended with {last_turn['speaker']} saying: "{last_turn['text']}"
 Pick up the conversation naturally from here.
@@ -517,6 +555,7 @@ JSON SCHEMA:
     prompt_3 = f"""
 You are writing PART 3 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
+{avoid_instruction}
 
 The previous turn ended with {last_turn_2['speaker']} saying: "{last_turn_2['text']}"
 Pick up the conversation naturally from here.
@@ -629,19 +668,25 @@ def generate_english_slow_script(topic=None):
     published_slow = topics_data.get("slow", [])
 
     if not topic:
-        remaining = [i for i in SLOW_IDIOM_POOL if i not in published_slow]
+        # Filter idioms by checking if they appear in any previously published titles
+        remaining = [
+            i for i in SLOW_IDIOM_POOL 
+            if not any(i.lower() in p.lower() for p in published_slow)
+        ]
         if not remaining:
             remaining = SLOW_IDIOM_POOL  # cycle back when all done
         topic = random.choice(remaining)
+    elif is_already_published(topic, "slow"):
+        print(f"\n  [WARNING] Manual idiom '{topic}' was found in 'slow' history.")
 
     print(f"\nSelected slow idiom: {topic}")
 
-    recent = published_slow[-20:] if published_slow else []
+    recent = published_slow[-50:] if published_slow else []
     avoid_instruction = ""
     if recent:
         avoid_instruction = (
-            f"\nDo NOT use any of these already-published idioms as the main focus:\n"
-            + "\n".join(f"  - {i}" for i in recent)
+            f"\nDo NOT use any of these already-published idioms or titles as the main focus or repeat their examples:\n"
+            + json.dumps(recent, indent=2)
         )
 
     prompt = f"""
@@ -743,11 +788,21 @@ def generate_english_shorts_script(topic=None):
 
     if not topic:
         topic = generate_dynamic_topic(is_challenge=False, topic_type="shorts")
+    else:
+        # Check if manual topic is already published
+        if is_already_published(topic, "shorts"):
+            print(f"\n  [WARNING] Manual shorts topic '{topic}' was found in 'shorts' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("shorts", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating concepts or phrasing from these recent shorts:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected Shorts topic: {topic}")
     prompt = f"""
 You are writing a short, snappy English learning podcast script for a YouTube Short on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
+{avoid_instruction}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
