@@ -988,7 +988,7 @@ def _patch_video_description(channel: str, video_id: str, new_description: str) 
         print(f"  Warning: could not patch description for {video_id}: {e}")
 
 
-def run_english_slow(topic=None, upload=True, schedule_time=None):
+def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_hours=24):
     """Dual-render slow English pipeline:
 
     1. Generate one idiom-focused script (8-12 turns)
@@ -1029,8 +1029,8 @@ def run_english_slow(topic=None, upload=True, schedule_time=None):
         sys.exit(1)
 
     idiom        = script.get("idiom", topic or "English Idiom")
-    normal_title = script.get("title", f"{idiom} | English Idioms")
-    slow_title   = f"{idiom} 🐢 SLOW English | Idioms for Beginners"
+    normal_title = script.get("title_normal", f"{idiom} — What Does It Mean? | English Idioms")
+    slow_title   = script.get("title_slow", f"{idiom} 🐢 SLOW English | Idioms for Beginners")
 
     # Template descriptions (URLs injected after upload)
     desc_normal_template = script.get("description_normal", script.get("description", ""))
@@ -1126,6 +1126,15 @@ def run_english_slow(topic=None, upload=True, schedule_time=None):
     print("\n" + "-" * 40)
     print("Uploading SLOW video...")
     print("-" * 40)
+    
+    # Calculate staggered schedule for the slow video
+    if schedule_time:
+        base_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
+    else:
+        base_dt = datetime.now(ZoneInfo("UTC"))
+    
+    slow_schedule = (base_dt + timedelta(hours=slow_offset_hours)).isoformat().replace("+00:00", "Z")
+
     desc_slow_final = desc_slow_template.format(
         normal_url=normal_url or "[see Normal version on EnglishVibesHub]"
     )
@@ -1135,7 +1144,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None):
         desc_slow_final,
         tags + ["slow english", "slow english learning", "english for beginners"],
         channel="english",
-        schedule_time=schedule_time,
+        schedule_time=slow_schedule,
         thumbnail_text=f"🐢 {script.get('thumbnail_text', idiom)}",
         thumbnail_concept=script.get("thumbnail_concept", None),
     )
@@ -1511,6 +1520,7 @@ def main():
     parser.add_argument("--description", help="Description to use with --upload-existing")
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
+    parser.add_argument("--slow-offset-hours", type=int, default=24, help="Hours to stagger the slow version (default 24)")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1569,7 +1579,12 @@ def main():
     elif args.channel == "english-shorts":
         run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
     elif args.channel == "english-slow":
-        run_english_slow(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
+        run_english_slow(
+            topic=args.topic, 
+            upload=not args.no_upload, 
+            schedule_time=args.schedule_time,
+            slow_offset_hours=args.slow_offset_hours
+        )
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)
