@@ -556,7 +556,280 @@ JSON SCHEMA:
     
     return script
 
+
+# ─────────────────────────────────────────────
+# SLOW ENGLISH PIPELINE — idiom-focused
+# ─────────────────────────────────────────────
+
+SLOW_IDIOM_POOL = [
+    "Break a leg",
+    "Hit the nail on the head",
+    "Bite the bullet",
+    "Spill the beans",
+    "Under the weather",
+    "Cost an arm and a leg",
+    "Beat around the bush",
+    "Burning the midnight oil",
+    "Let the cat out of the bag",
+    "Once in a blue moon",
+    "Piece of cake",
+    "Hit the sack",
+    "Kick the bucket",
+    "The ball is in your court",
+    "Better late than never",
+    "Don't judge a book by its cover",
+    "Bite off more than you can chew",
+    "Barking up the wrong tree",
+    "Caught between a rock and a hard place",
+    "Hit the road",
+    "Get out of hand",
+    "Pull someone's leg",
+    "On the fence",
+    "Under the table",
+    "Go back to the drawing board",
+    "Cut corners",
+    "Jump on the bandwagon",
+    "Miss the boat",
+    "Bite the hand that feeds you",
+    "Add fuel to the fire",
+    "Back to square one",
+    "Blow off steam",
+    "Burn bridges",
+    "Catch someone red-handed",
+    "Cold turkey",
+    "Cut to the chase",
+    "Devil's advocate",
+    "Don't cry over spilled milk",
+    "Drop the ball",
+    "Every cloud has a silver lining",
+    "Face the music",
+    "Get cold feet",
+    "Give someone the benefit of the doubt",
+    "Go the extra mile",
+    "Hit the books",
+    "In hot water",
+    "It takes two to tango",
+    "Kill two birds with one stone",
+    "Let sleeping dogs lie",
+    "On thin ice",
+]
+
+
+def generate_english_slow_script(topic=None):
+    """Generate a short idiom-focused script for the slow English pipeline.
+
+    Returns a dict with keys:
+        title_normal, title_slow,
+        description_normal (template with {slow_url}),
+        description_slow   (template with {normal_url}),
+        tags, dialogue, idiom, thumbnail_text, thumbnail_concept
+    The dialogue contains 10-12 turns (≈60-90 s at 0.95x; ≈75-112 s at 0.80x).
+    """
+    topics_data = get_published_topics()
+    published_slow = topics_data.get("slow", [])
+
+    if not topic:
+        remaining = [i for i in SLOW_IDIOM_POOL if i not in published_slow]
+        if not remaining:
+            remaining = SLOW_IDIOM_POOL  # cycle back when all done
+        topic = random.choice(remaining)
+
+    print(f"\nSelected slow idiom: {topic}")
+
+    recent = published_slow[-20:] if published_slow else []
+    avoid_instruction = ""
+    if recent:
+        avoid_instruction = (
+            f"\nDo NOT use any of these already-published idioms as the main focus:\n"
+            + "\n".join(f"  - {i}" for i in recent)
+        )
+
+    prompt = f"""
+You are writing a short English learning podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+
+IDIOM / TOPIC: {topic}
+{avoid_instruction}
+
+CRITICAL RULES:
+- Output ONLY valid JSON.
+- The `dialogue` array MUST contain exactly 10-12 turns total.
+- Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
+- Teach the idiom '{topic}' thoroughly: its meaning, origin (if interesting), and 2-3 real-life usage examples.
+- Each turn should be 2-3 sentences. No single-sentence turns.
+- The FINAL turn should gently invite viewers to try using the idiom in the comments.
+- Do NOT add like/subscribe CTAs mid-episode; only a brief mention is allowed in the last turn.
+
+STYLE:
+- Warm, encouraging, crystal-clear pacing.
+- Perfect for ESL learners and absolute beginners.
+- Define every word that might be unfamiliar.
+
+TWO TITLES REQUIRED — they must feel like DIFFERENT videos:
+- title_normal: discovery-friendly, no "slow" branding.
+  Example for "Break a leg": 'Break a Leg — What Does It Really Mean? | English Idioms'
+  Example for "Cut corners":  'Cut Corners — The Idiom Explained | EnglishVibesHub'
+- title_slow: beginner-targeted, slow-learning branding with the 🐢 emoji.
+  Example for "Break a leg": 'Break a Leg 🐢 SLOW English | Idioms for Beginners'
+  Example for "Cut corners":  'Cut Corners 🐢 SLOW English | Idioms for Beginners'
+
+TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
+- description_normal: 80-100 words. Focus on idiom mastery and conversational English.
+  Tone: confident learner. Hashtags: #EnglishIdioms #LearnEnglish #EnglishVibesHub
+- description_slow: 80-100 words. Emphasise the slow-learner benefit (0.8x speed, big captions).
+  Tone: supportive for beginners. Hashtags: #SlowEnglish #EnglishIdioms #LearnEnglish #EnglishVibesHub #EnglishForBeginners
+
+JSON SCHEMA:
+{{
+  "title_normal": "string (under 70 chars, NO slow/beginner branding)",
+  "title_slow":   "string (under 70 chars, HAS 🐢 and slow/beginner branding)",
+  "description_normal": "string (80-100 words, discovery-focused, ends with relevant hashtags)",
+  "description_slow":   "string (80-100 words, beginner slow-learner focused, ends with relevant hashtags)",
+  "tags": ["string"],
+  "idiom": "{topic}",
+  "dialogue": [
+    {{
+      "speaker": "Emma or Liam",
+      "text": "string (the spoken text)"
+    }}
+  ]
+}}
+"""
+    script_data = call_groq_json(prompt)
+    script_data.setdefault("idiom", topic)
+    script_data.setdefault("video_format", "slow")
+
+    # ── Fallback titles ────────────────────────────────────────────
+    if not script_data.get("title_normal"):
+        script_data["title_normal"] = f"{topic} — What Does It Mean? | English Idioms"
+    if not script_data.get("title_slow"):
+        script_data["title_slow"] = f"{topic} 🐢 SLOW English | Idioms for Beginners"
+
+    # ── Thumbnail (based on normal title — the "main" video) ──────
+    thumbnail = generate_thumbnail_text(f"{topic} — English Idiom", is_challenge=False)
+    script_data["thumbnail_text"] = thumbnail.get("thumbnail_text") or topic
+    script_data["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+
+    # ── Companion description templates (URLs injected by the pipeline) ──
+    idiom = script_data.get("idiom", topic)
+    base_normal = script_data.get("description_normal", "")
+    base_slow   = script_data.get("description_slow", "")
+
+    # Fallback if Groq returned only one description key
+    if not base_normal and not base_slow:
+        fallback = script_data.get("description", "")
+        base_normal = fallback
+        base_slow   = fallback
+    elif not base_normal:
+        base_normal = script_data.get("description", base_slow)
+    elif not base_slow:
+        base_slow = script_data.get("description", base_normal)
+
+    script_data["description_normal"] = (
+        base_normal.rstrip()
+        + "\n\n🐢 Didn't catch that? Watch the Slow English version here:\n{slow_url}"
+    )
+    script_data["description_slow"] = (
+        f"🐢 SLOW English Learning Mode — \"{idiom}\" explained at 0.8x speed "
+        f"with large on-screen captions!\n\n"
+        + base_slow.rstrip()
+        + "\n\n⚡ Ready for the real speed? Watch here:\n{normal_url}"
+    )
+
+    save_published_topic(script_data.get("title_normal", topic), topic_type="slow")
+
+    return script_data
+
+
+
+    if not topic:
+        # Prefer idioms not yet published
+        remaining = [i for i in SLOW_IDIOM_POOL if i not in published_slow]
+        if not remaining:
+            remaining = SLOW_IDIOM_POOL  # all done — cycle back
+        topic = random.choice(remaining)
+
+    print(f"\nSelected slow idiom: {topic}")
+
+    # Build a short avoid-list so Groq doesn't repeat recently covered idioms
+    recent = published_slow[-20:] if published_slow else []
+    avoid_instruction = ""
+    if recent:
+        avoid_instruction = (
+            f"\nDo NOT use any of these already-published idioms as the main focus:\n"
+            + "\n".join(f"  - {i}" for i in recent)
+        )
+
+    prompt = f"""
+You are writing a short English learning podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+
+IDIOM / TOPIC: {topic}
+{avoid_instruction}
+
+CRITICAL RULES:
+- Output ONLY valid JSON.
+- The `dialogue` array MUST contain exactly 10-12 turns total.
+- Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
+- Teach the idiom '{topic}' thoroughly: its meaning, origin (if interesting), and 2-3 real-life usage examples.
+- Speak slowly and clearly — this script is recorded at 0.8x speed for beginner learners.
+- Each turn should be 2-3 sentences. No single-sentence turns.
+- The FINAL turn should gently invite viewers to try using the idiom in the comments.
+- Do NOT add like/subscribe CTAs mid-episode; only a brief mention is allowed in the last turn.
+
+STYLE:
+- Warm, encouraging, crystal-clear pacing.
+- Perfect for ESL learners and absolute beginners.
+- Define every word that might be unfamiliar.
+
+JSON SCHEMA:
+{{
+  "title": "string (YouTube title, under 70 chars, e.g. 'Break a Leg 🐢 Slow English | Idioms for Beginners')",
+  "title_options": ["string"],
+  "description": "string (YouTube description: 80-120 words, mention slow learning, mention the idiom, include relevant hashtags like #SlowEnglish #EnglishIdioms #LearnEnglish #EnglishVibesHub)",
+  "tags": ["string"],
+  "idiom": "{topic}",
+  "dialogue": [
+    {{
+      "speaker": "Emma or Liam",
+      "text": "string (the spoken text)"
+    }}
+  ]
+}}
+"""
+    script_data = call_groq_json(prompt)
+    script_data.setdefault("idiom", topic)
+    script_data.setdefault("video_format", "slow")
+
+    if not script_data.get("title"):
+        title_options = script_data.get("title_options") or []
+        script_data["title"] = title_options[0] if title_options else f"{topic} 🐢 Slow English | Idioms for Beginners"
+
+    thumbnail = generate_thumbnail_text(f"{topic} — Slow English Idioms", is_challenge=False)
+    script_data["thumbnail_text"] = thumbnail.get("thumbnail_text") or script_data.get("title", "")
+    script_data["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+
+    # Build companion description templates (URLs filled in later by the pipeline)
+    idiom = script_data.get("idiom", topic)
+    base_desc = script_data.get("description", "")
+
+    script_data["description_normal"] = (
+        base_desc.rstrip()
+        + "\n\n🐢 Didn't catch that? Watch the Slow English version here:\n{slow_url}"
+    )
+    script_data["description_slow"] = (
+        f"🐢 SLOW English Learning Mode — \"{idiom}\" explained at 0.8x speed "
+        f"with large on-screen captions!\n\n"
+        f"Perfect for beginners, ESL learners, or anyone who wants to really absorb every word.\n\n"
+        + base_desc.rstrip()
+        + "\n\n⚡ Ready for the real speed? Watch here:\n{normal_url}"
+    )
+
+    save_published_topic(script_data.get("title", topic), topic_type="slow")
+
+    return script_data
+
+
 def generate_english_shorts_script(topic=None):
+
     if not topic:
         topic = generate_dynamic_topic(is_challenge=False, topic_type="shorts")
 

@@ -973,6 +973,194 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
     print("\nDone!\n")
 
 # ─────────────────────────────────────────────
+# SLOW ENGLISH PIPELINE — dual render + cross-pollination
+# ─────────────────────────────────────────────
+
+def _patch_video_description(channel: str, video_id: str, new_description: str) -> None:
+    """Update a live YouTube video description after upload.
+    Silently skips if no credentials are available (e.g. --no-upload mode)."""
+    if not video_id:
+        return
+    try:
+        from youtube_uploader import update_video_description
+        update_video_description(video_id, new_description, channel=channel)
+    except Exception as e:
+        print(f"  Warning: could not patch description for {video_id}: {e}")
+
+
+def run_english_slow(topic=None, upload=True, schedule_time=None):
+    """Dual-render slow English pipeline:
+
+    1. Generate one idiom-focused script (8-12 turns)
+    2. Render Normal video  (0.95x TTS, standard captions)
+    3. Render Slow   video  (0.80x TTS, large captions + 🐢 badge)
+    4. Upload Normal → get normal_yt_id
+    5. Upload Slow with Normal's URL in description → get slow_yt_id
+    6. Patch Normal's description to add the Slow URL (cross-pollination)
+    """
+    from english_assembler import (
+        cleanup_english_temp,
+        generate_podcast_audio,
+        assemble_english_video,
+        generate_slow_podcast_audio,
+        assemble_slow_english_video,
+    )
+    from english_generator import generate_english_slow_script
+    from ffmpeg_assembler import generate_captions
+
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Slow English Dual Render")
+    print("=" * 50)
+
+    # ── 1. Generate script ────────────────────────────────
+    try:
+        cleanup_english_temp()
+        print("\nGenerating slow idiom script with Groq...\n")
+        script = generate_english_slow_script(topic)
+
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_slow.json"
+        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\nGenerated:\n  Idiom: {script.get('idiom')}\n  Title: {script.get('title')}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+    idiom        = script.get("idiom", topic or "English Idiom")
+    normal_title = script.get("title", f"{idiom} | English Idioms")
+    slow_title   = f"{idiom} 🐢 SLOW English | Idioms for Beginners"
+
+    # Template descriptions (URLs injected after upload)
+    desc_normal_template = script.get("description_normal", script.get("description", ""))
+    desc_slow_template   = script.get("description_slow",   script.get("description", ""))
+    tags                 = script.get("tags", [])
+
+    visual_files, bg_music_str = _english_video_assets("english_visuals")
+    selected_visual = random.choice(visual_files)
+
+    normal_slug = slug(normal_title) + "_normal"
+    slow_slug   = slug(slow_title)   + "_slow"
+
+    # ── 2. Render Normal video ────────────────────────────
+    print("\n" + "-" * 40)
+    print("Rendering NORMAL video (0.95x speed)...")
+    print("-" * 40)
+    cleanup_english_temp()
+    normal_audio = generate_podcast_audio(script)
+
+    normal_srt = str(OUTPUT_DIR / f"{normal_slug}.srt")
+    try:
+        generate_captions(normal_audio, normal_srt)
+    except Exception as e:
+        print(f"  Captions skipped: {e}")
+        normal_srt = None
+
+    normal_path = str(OUTPUT_DIR / f"{normal_slug}.mp4")
+    assemble_english_video(
+        podcast_audio=normal_audio,
+        loop_visual=str(selected_visual),
+        output_path=normal_path,
+        captions_srt=normal_srt,
+        background_music=bg_music_str,
+        title=normal_title,
+        channel="english",
+    )
+
+    # ── 3. Render Slow video ──────────────────────────────
+    print("\n" + "-" * 40)
+    print("Rendering SLOW video (0.80x speed)...")
+    print("-" * 40)
+    cleanup_english_temp()
+    slow_audio = generate_slow_podcast_audio(script)
+
+    slow_srt = str(OUTPUT_DIR / f"{slow_slug}.srt")
+    try:
+        generate_captions(slow_audio, slow_srt)
+    except Exception as e:
+        print(f"  Captions skipped: {e}")
+        slow_srt = None
+
+    slow_path = str(OUTPUT_DIR / f"{slow_slug}.mp4")
+    assemble_slow_english_video(
+        podcast_audio=slow_audio,
+        loop_visual=str(selected_visual),
+        output_path=slow_path,
+        captions_srt=slow_srt,
+        background_music=bg_music_str,
+        title=slow_title,
+        channel="english",
+    )
+
+    cleanup_english_temp()
+
+    if not upload:
+        print(f"\nBoth videos assembled (upload skipped):")
+        print(f"  Normal : {normal_path}")
+        print(f"  Slow   : {slow_path}")
+        print("\nDone!\n")
+        return
+
+    # ── 4. Upload Normal (placeholder slow link in description) ──
+    print("\n" + "-" * 40)
+    print("Uploading NORMAL video...")
+    print("-" * 40)
+    desc_normal_placeholder = desc_normal_template.format(
+        slow_url="[Slow version uploading — link coming soon!]"
+    )
+    normal_result = _upload_video(
+        normal_path,
+        normal_title,
+        desc_normal_placeholder,
+        tags,
+        channel="english",
+        schedule_time=schedule_time,
+        thumbnail_text=script.get("thumbnail_text", normal_title),
+        thumbnail_concept=script.get("thumbnail_concept", None),
+    )
+    normal_yt_id = (normal_result or {}).get("youtube_id", "")
+    normal_url   = f"https://youtu.be/{normal_yt_id}" if normal_yt_id else ""
+
+    # ── 5. Upload Slow (Normal URL already known in description) ──
+    print("\n" + "-" * 40)
+    print("Uploading SLOW video...")
+    print("-" * 40)
+    desc_slow_final = desc_slow_template.format(
+        normal_url=normal_url or "[see Normal version on EnglishVibesHub]"
+    )
+    slow_result = _upload_video(
+        slow_path,
+        slow_title,
+        desc_slow_final,
+        tags + ["slow english", "slow english learning", "english for beginners"],
+        channel="english",
+        schedule_time=schedule_time,
+        thumbnail_text=f"🐢 {script.get('thumbnail_text', idiom)}",
+        thumbnail_concept=script.get("thumbnail_concept", None),
+    )
+    slow_yt_id = (slow_result or {}).get("youtube_id", "")
+    slow_url   = f"https://youtu.be/{slow_yt_id}" if slow_yt_id else ""
+
+    # ── 6. Cross-pollinate: patch Normal description with Slow URL ──
+    if normal_yt_id and slow_yt_id:
+        print("\nCross-pollinating Normal video description with Slow URL...")
+        desc_normal_final = desc_normal_template.format(slow_url=slow_url)
+        _patch_video_description("english", normal_yt_id, desc_normal_final)
+    elif normal_yt_id:
+        print("  Skipping cross-pollination patch (no slow_yt_id available)")
+
+    print("\n" + "=" * 50)
+    print("Slow English Dual Render — DONE!")
+    if normal_url:
+        print(f"  Normal : {normal_url}")
+    if slow_url:
+        print(f"  Slow   : {slow_url}")
+    print("=" * 50)
+    print()
+
+
+# ─────────────────────────────────────────────
 # TRENDING PIPELINE (free automated path)
 # ─────────────────────────────────────────────
 
@@ -1305,7 +1493,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1347,13 +1535,14 @@ def main():
 
     if not args.channel:
         print("\nWhich channel are you producing for?")
-        print("  1. lofi     — study music (fully free)")
-        print("  2. family   — family-friendly quiz/facts (free with local TTS)")
-        print("  3. trending — narrated topics (free with local TTS or ElevenLabs)")
-        print("  4. english  — english vibes hub podcast (free with dual local TTS)")
+        print("  1. lofi              — study music (fully free)")
+        print("  2. family            — family-friendly quiz/facts (free with local TTS)")
+        print("  3. trending          — narrated topics (free with local TTS or ElevenLabs)")
+        print("  4. english           — english vibes hub podcast (free with dual local TTS)")
         print("  5. english-challenge — 7-day English weekly challenge playlist")
-        print("  6. english-shorts — English shorts using Emma and Liam")
-        choice = prompt_input("Enter 1, 2, 3, 4, 5, or 6", "1")
+        print("  6. english-shorts    — English shorts using Emma and Liam")
+        print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
+        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, or 7", "1")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -1361,6 +1550,7 @@ def main():
             "4": "english",
             "5": "english-challenge",
             "6": "english-shorts",
+            "7": "english-slow",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -1378,6 +1568,8 @@ def main():
         )
     elif args.channel == "english-shorts":
         run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
+    elif args.channel == "english-slow":
+        run_english_slow(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)

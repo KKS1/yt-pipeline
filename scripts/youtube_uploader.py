@@ -264,3 +264,45 @@ def youtube_upload(
         "url": f"https://youtu.be/{video_id}",
         "status": "scheduled" if schedule_time else "public",
     }
+
+
+def update_video_description(video_id: str, new_description: str, channel: str = "english") -> dict:
+    """Patch the description of an already-uploaded YouTube video.
+
+    Fetches the current snippet to preserve title, tags, and categoryId,
+    then calls videos().update() with only the description changed.
+
+    Returns the updated API response dict, or an empty dict on failure.
+    """
+    try:
+        youtube = _youtube_service(channel)
+
+        # Fetch current snippet so we don't accidentally wipe title / tags
+        list_response = youtube.videos().list(
+            part="snippet",
+            id=video_id,
+        ).execute()
+
+        items = list_response.get("items", [])
+        if not items:
+            print(f"  update_video_description: video {video_id} not found")
+            return {}
+
+        snippet = items[0]["snippet"]
+        snippet["description"] = new_description[:5000]
+
+        update_response = youtube.videos().update(
+            part="snippet",
+            body={
+                "id": video_id,
+                "snippet": snippet,
+            },
+        ).execute()
+
+        print(f"  ✓ Description updated for https://youtu.be/{video_id}")
+        return update_response
+
+    except Exception as e:
+        print(f"  update_video_description failed for {video_id}: {e}")
+        return {}
+
