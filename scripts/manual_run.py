@@ -736,7 +736,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(upload=True):
+def run_english(upload=True, schedule_time=None):
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
@@ -884,7 +884,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_shorts(topic=None, upload=True):
+def run_english_shorts(topic=None, upload=True, schedule_time=None):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
@@ -1109,7 +1109,7 @@ def _build_trending_video(package: dict, schedule_time=None) -> dict:
         "description": package["description"],
         "tags": package["tags"],
         "format": package.get("video_format", "shorts"),
-        schedule_time=schedule_time,
+        schedule_time: schedule_time,
     }
 
 
@@ -1144,7 +1144,7 @@ def run_trending(topic=None, region="CA", upload=True, video_format="shorts", sc
         print(f"\nDone. Upload skipped. Video ready at: {result['video_path']}")
 
 
-def run_trending_pair(topic=None, region="CA", upload=True):
+def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
     print("\n" + "="*50)
     print("TRENDING CHANNEL — Short + Explainer batch")
     print("="*50)
