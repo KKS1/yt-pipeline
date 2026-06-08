@@ -520,7 +520,7 @@ Return ONLY JSON.
 # LOFI PIPELINE (fully free)
 # ─────────────────────────────────────────────
 
-def run_lofi():
+def run_lofi(schedule_time=None):
     import random
 
     print("\n" + "="*50)
@@ -590,13 +590,13 @@ def run_lofi():
         channel        = "lofi",
     )
 
-    _upload_video(out_path, title, description, tags, channel="lofi")
+    _upload_video(out_path, title, description, tags, channel="lofi", schedule_time=schedule_time)
 
 # ─────────────────────────────────────────────
 # FAMILY PIPELINE (free with local TTS)
 # ─────────────────────────────────────────────
 
-def run_family():
+def run_family(schedule_time=None):
 
     from family_assembler import (
         assemble_family_video,
@@ -657,6 +657,7 @@ def run_family():
         script.get("description", ""),
         script.get("tags", []),
         channel="family",
+        schedule_time=schedule_time,
     )
 
     print("\nDone!\n")
@@ -776,6 +777,7 @@ def run_english(upload=True):
             script.get("description", ""),
             script.get("tags", []),
             channel="english",
+            schedule_time=schedule_time,
             thumbnail_text=script.get("thumbnail_text", title),
             thumbnail_concept=script.get("thumbnail_concept", None),
         )
@@ -963,6 +965,7 @@ def run_english_shorts(topic=None, upload=True):
             script.get("description", ""),
             script.get("tags", []),
             channel="english",
+            schedule_time=schedule_time,
         )
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -1040,7 +1043,7 @@ def _ensure_background_music(duration_seconds: float) -> str:
     return str(silent_path)
 
 
-def _build_trending_video(package: dict) -> dict:
+def _build_trending_video(package: dict, schedule_time=None) -> dict:
     """Generate voiceover, assemble video, and return upload metadata."""
     title = package["title"]
     script = package["script"]
@@ -1106,10 +1109,11 @@ def _build_trending_video(package: dict) -> dict:
         "description": package["description"],
         "tags": package["tags"],
         "format": package.get("video_format", "shorts"),
+        schedule_time=schedule_time,
     }
 
 
-def run_trending(topic=None, region="CA", upload=True, video_format="shorts"):
+def run_trending(topic=None, region="CA", upload=True, video_format="shorts", schedule_time=None):
     print("\n" + "="*50)
     print("TRENDING NARRATED CHANNEL — free automated pipeline")
     print("="*50)
@@ -1177,7 +1181,7 @@ def run_trending_pair(topic=None, region="CA", upload=True):
     for video_format in ["shorts", "explainer"]:
         print(f"\nGenerating {video_format} from shared topic...")
         package = generate_trending_package(topic_data=topic_data, video_format=video_format)
-        result = _build_trending_video(package)
+        result = _build_trending_video(package, schedule_time=schedule_time)
         results.append(result)
 
         if upload:
@@ -1187,6 +1191,7 @@ def run_trending_pair(topic=None, region="CA", upload=True):
                 result["description"],
                 result["tags"],
                 channel="trending",
+                schedule_time=schedule_time,
             )
 
     if not upload:
@@ -1359,11 +1364,11 @@ def main():
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
-        run_lofi()
+        run_lofi(schedule_time=args.schedule_time)
     elif args.channel == "family":
-        run_family()
+        run_family(schedule_time=args.schedule_time)
     elif args.channel == "english":
-        run_english(upload=not args.no_upload)
+        run_english(upload=not args.no_upload, schedule_time=args.schedule_time)
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
@@ -1372,16 +1377,17 @@ def main():
             publish_hour=args.publish_hour,
         )
     elif args.channel == "english-shorts":
-        run_english_shorts(topic=args.topic, upload=not args.no_upload)
+        run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
     elif args.channel == "trending":
         if args.video_format == "both":
-            run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload)
+            run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)
         else:
             run_trending(
                 topic=args.topic,
                 region=args.region,
                 upload=not args.no_upload,
                 video_format=args.video_format,
+                schedule_time=args.schedule_time,
             )
 
 
