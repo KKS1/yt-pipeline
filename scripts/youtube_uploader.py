@@ -57,6 +57,7 @@ def _is_retriable_upload_error(exc: Exception) -> bool:
 
 def _youtube_service(channel: str):
     from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
 
     creds_file = ASSETS_DIR / f"yt_credentials_{channel}.json"
@@ -76,6 +77,13 @@ def _youtube_service(channel: str):
         client_id=creds_data["client_id"],
         client_secret=creds_data["client_secret"],
     )
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        # Save the refreshed token back to the credentials file
+        creds_data["token"] = creds.token
+        with open(creds_file, "w") as f:
+            json.dump(creds_data, f, indent=2)
 
     return build("youtube", "v3", credentials=creds)
 
