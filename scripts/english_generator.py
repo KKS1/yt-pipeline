@@ -352,7 +352,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     focus = day_script.get("focus", "English conversation")
 
     prompt = f"""
-    Write a high-retention 30-second YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
+    Write a high-retention YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
 
     LESSON FOCUS: {focus}
 
@@ -893,7 +893,7 @@ JSON SCHEMA:
     return script_data
 
 def generate_english_quiz_shorts_script(topic: str = None) -> dict:
-    """Strategy 1: 15-30 second MCQ Quiz Short."""
+    """Strategy 1: Generate a MCQ Quiz Short."""
     topics_data = get_published_topics()
     published_quizzes = topics_data.get("quiz", [])
 
@@ -920,7 +920,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
         )
     
     prompt = f"""
-    Write a high-retention 30-second YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    Write a high-retention YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
     TOPIC: The idiom or expression '{topic}'
     {avoid_instruction}
     
@@ -929,7 +929,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     Use phrases like: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
     Examples: "English Quiz: [Idiom] Meaning | English Practice for Beginners", "Do you know this idiom? [Idiom] Quiz #Shorts".
     
-    STRUCTURE & PACING (Strict 30-second limit):
+    STRUCTURE & PACING:
     1. Emma: "Quick Quiz! What does '{topic}' mean?" (Instant hook)
     2. Liam: "Is it A), B), or C)?" (Present 3 plausible multiple-choice options, only one is correct).
     3. [PAUSE] (This cue is for a 3-second countdown timer animation).

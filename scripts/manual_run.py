@@ -859,7 +859,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         
         quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
         quiz_playlist_description = (
-            f"Quick 30-second quizzes to test your knowledge from the {package.get('series_title')}! "
+            f"Quick quizzes to test your knowledge from the {package.get('series_title')}! "
             f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
             f"#Shorts #EnglishQuiz #EnglishChallenge"
         )
@@ -1003,7 +1003,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
     if upload:
         quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
         quiz_playlist_description = (
-            f"Quick 30-second quizzes to test your knowledge from the {package.get('series_title')}! "
+            f"Quick quizzes to test your knowledge from the {package.get('series_title')}! "
             f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
             f"#Shorts #EnglishQuiz #EnglishChallenge"
         )
@@ -1028,7 +1028,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
         quiz_script = script.get("quiz_script")
         
         if not quiz_script:
-            print(f"\nNo quiz script found for Day {day_number}. Skipping.")
+            print(f"\nNo 'quiz_script' found for Day {day_number} in the provided JSON package. Skipping.")
             continue
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
@@ -1787,7 +1787,7 @@ def main():
         print("  5. english-challenge — 7-day English weekly challenge playlist")
         print("  6. english-shorts    — English shorts using Emma and Liam")
         print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
-        print("  8. english-quiz      — 30-second English Quiz Short (NEW)")
+        print("  8. english-quiz      — English Quiz Short (NEW)")
         print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
         choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, 8, or 9", "1")
         args.channel = {
