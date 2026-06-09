@@ -143,8 +143,11 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     Generate a single, highly engaging topic for an English learning {type_label}.
     The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     {avoid_instruction}
-    Return ONLY a JSON object with a 'topic' key.
-    Example: {{"topic": "Mastering Sarcasm and Irony in English"}}
+
+    CRITICAL: For titles, prioritize searchable keywords like "Practice for Beginners", "Easy English Listening", or "Daily Conversation".
+
+    Return ONLY a JSON object with 'topic' and 'search_keyword' keys.
+    Example: {{"topic": "Mastering Sarcasm and Irony", "search_keyword": "English Conversation Practice"}}
     """
     try:
         res = call_groq_json(prompt)
@@ -230,6 +233,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
     final_script = {
         "title": title,
         "description": description,
+        "pinned_comment": part1_data.get("pinned_comment", ""),
         "tags": tags,
         "dialogue": [],
     }
@@ -486,8 +490,9 @@ CRITICAL RULES:
 
 STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
-2. **Setup**: Begin the deep dive discussion into the topic.
-3. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
+2. **Searchability**: The title MUST include high-intent phrases like "English Listening Practice" or "Improve Your Speaking".
+3. **Setup**: Begin the deep dive discussion into the topic.
+4. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
 - Conversational, friendly, and natural.
@@ -496,9 +501,10 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (engaging YouTube title under 70 characters with curiosity or benefit language)",
+  "title": "string (SEO-focused title: [Keyword] + [Hook]. e.g., 'English Listening Practice: Mastering {topic}')",
   "title_options": ["string"],
-  "description": "string (video description with a strong first-line hook and relevant English learning keywords)",
+  "description": "string (80-120 words. Include a specific question for the comments section)",
+  "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (include English learning, conversation, and topic-specific variants)"],
   "dialogue": [
     {{
@@ -703,19 +709,18 @@ CRITICAL RULES:
 - Each turn should be 2-3 sentences. No single-sentence turns.
 - The FINAL turn should gently invite viewers to try using the idiom in the comments.
 - Do NOT add like/subscribe CTAs mid-episode; only a brief mention is allowed in the last turn.
+- END-OF-VIDEO REVIEW: The last 3 turns MUST be a 'Test Your Understanding' segment. Emma asks a multiple choice question about the idiom, followed by a 3-second pause cue [PAUSE], then Liam reveals the answer.
 
 STYLE:
 - Warm, encouraging, crystal-clear pacing.
 - Perfect for ESL learners and absolute beginners.
 - Define every word that might be unfamiliar.
 
-TWO TITLES REQUIRED — they must feel like DIFFERENT videos:
+SEARCHABLE TITLES REQUIRED:
 - title_normal: discovery-friendly, no "slow" branding.
-  Example for "Break a leg": 'Break a Leg — What Does It Really Mean? | English Idioms'
-  Example for "Cut corners":  'Cut Corners — The Idiom Explained | EnglishVibesHub'
+  Must include: "English Practice for Beginners" or "Learn English Idioms".
 - title_slow: beginner-targeted, slow-learning branding with the 🐢 emoji.
-  Example for "Break a leg": 'Break a Leg 🐢 SLOW English | Idioms for Beginners'
-  Example for "Cut corners":  'Cut Corners 🐢 SLOW English | Idioms for Beginners'
+  Must include: "Slow English Practice" or "Easy English Listening".
 
 TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
 - description_normal: 80-100 words. Focus on idiom mastery and conversational English.
@@ -725,10 +730,11 @@ TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
 
 JSON SCHEMA:
 {{
-  "title_normal": "string (under 70 chars, NO slow/beginner branding)",
-  "title_slow":   "string (under 70 chars, HAS 🐢 and slow/beginner branding)",
-  "description_normal": "string (80-100 words, discovery-focused, ends with relevant hashtags)",
-  "description_slow":   "string (80-100 words, beginner slow-learner focused, ends with relevant hashtags)",
+  "title_normal": "string",
+  "title_slow":   "string",
+  "description_normal": "string",
+  "description_slow":   "string",
+  "pinned_comment": "string (A specific 'How would you use this?' question)",
   "tags": ["string"],
   "idiom": "{topic}",
   "dialogue": [
@@ -841,4 +847,74 @@ JSON SCHEMA:
     
     save_published_topic(script_data.get("title", topic), topic_type="shorts")
     
+    return script_data
+
+def generate_english_quiz_shorts_script(topic=None):
+    """Strategy 1: 15-30 second MCQ Quiz Short."""
+    if not topic:
+        topic = random.choice(SLOW_IDIOM_POOL)
+    
+    prompt = f"""
+    Write a 30-second YouTube Quiz Short for 'EnglishVibesHub'.
+    TOPIC: The idiom '{topic}'
+    
+    STRUCTURE:
+    1. Emma: "Quick Quiz! What does '{topic}' mean?"
+    2. Liam: "Is it A), B), or C)?" (Give 3 plausible options, only one correct)
+    3. [PAUSE] (for the 3-second timer)
+    4. Emma: "The answer is... [Answer]! [Brief 1-sentence explanation]"
+    5. Liam: "Did you get it? Subscribe for daily quizzes!"
+
+    TITLE: Must be searchable, e.g., "English Quiz: Do you know this idiom? #Shorts"
+
+    Return ONLY valid JSON:
+    {{
+      "title": "string",
+      "description": "Quick English Quiz! #Shorts #EnglishQuiz #LearnEnglish",
+      "pinned_comment": "How many did you get right today?",
+      "tags": ["English Quiz", "Shorts", "Idioms"],
+      "correct_answer": "string",
+      "dialogue": [
+        {{ "speaker": "Emma", "text": "..." }},
+        {{ "speaker": "Liam", "text": "..." }}
+      ]
+    }}
+    """
+    script_data = call_groq_json(prompt)
+    script_data["video_format"] = "shorts_quiz"
+    return script_data
+
+def generate_english_quiz_shorts_script(topic=None):
+    """Strategy 1: 15-30 second MCQ Quiz Short."""
+    if not topic:
+        topic = random.choice(SLOW_IDIOM_POOL)
+    
+    prompt = f"""
+    Write a 30-second YouTube Quiz Short for 'EnglishVibesHub'.
+    TOPIC: The idiom '{topic}'
+    
+    STRUCTURE:
+    1. Emma: "Quick Quiz! What does '{topic}' mean?"
+    2. Liam: "Is it A), B), or C)?" (Give 3 plausible options, only one correct)
+    3. [PAUSE] (for the 3-second timer)
+    4. Emma: "The answer is... [Answer]! [Brief 1-sentence explanation]"
+    5. Liam: "Did you get it? Subscribe for daily quizzes!"
+
+    TITLE: Must be searchable, e.g., "English Quiz: Do you know this idiom? #Shorts"
+
+    Return ONLY valid JSON:
+    {{
+      "title": "string",
+      "description": "Quick English Quiz! #Shorts #EnglishQuiz #LearnEnglish",
+      "pinned_comment": "How many did you get right today?",
+      "tags": ["English Quiz", "Shorts", "Idioms"],
+      "correct_answer": "string",
+      "dialogue": [
+        {{ "speaker": "Emma", "text": "..." }},
+        {{ "speaker": "Liam", "text": "..." }}
+      ]
+    }}
+    """
+    script_data = call_groq_json(prompt)
+    script_data["video_format"] = "shorts_quiz"
     return script_data

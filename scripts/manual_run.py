@@ -781,6 +781,7 @@ def run_english(upload=True, schedule_time=None):
             thumbnail_text=script.get("thumbnail_text", title),
             thumbnail_concept=script.get("thumbnail_concept", None),
         )
+        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
     
@@ -971,6 +972,47 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
         print(f"\nVideo assembled without upload: {out_path}")
     
     print("\nDone!\n")
+
+def run_english_quiz_shorts(topic=None, upload=True):
+    """Manual runner for the new Quiz Shorts strategy."""
+    from english_assembler import cleanup_english_temp, generate_podcast_audio
+    from english_generator import generate_english_quiz_shorts_script
+    from ffmpeg_assembler import assemble_shorts_video, generate_captions
+    
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Quiz Shorts (Strategy 1)")
+    print("=" * 50)
+    
+    script = generate_english_quiz_shorts_script(topic)
+    title = script["title"]
+    out_slug = slug(title)
+
+    visual_files, bg_music_str = _english_video_assets("english_shorts_visuals")
+    selected_visual = random.choice(visual_files)
+    
+    audio_path = generate_podcast_audio(script)
+    srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+    generate_captions(audio_path, srt_path, max_line_width=20)
+
+    out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    assemble_shorts_video(
+        narration_audio=audio_path,
+        stock_clips=[str(selected_visual)],
+        background_music=bg_music_str,
+        captions_srt=srt_path,
+        output_path=out_path,
+        title=title
+    )
+
+    if upload:
+        _upload_video(
+            out_path, title, script["description"], script["tags"],
+            channel="english",
+            thumbnail_text="QUIZ TIME!"
+        )
+        print(f"PINNED COMMENT: {script.get('pinned_comment')}")
+
+    cleanup_english_temp()
 
 # ─────────────────────────────────────────────
 # SLOW ENGLISH PIPELINE — dual render + cross-pollination
@@ -1502,7 +1544,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1552,7 +1594,8 @@ def main():
         print("  5. english-challenge — 7-day English weekly challenge playlist")
         print("  6. english-shorts    — English shorts using Emma and Liam")
         print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
-        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, or 7", "1")
+        print("  8. english-quiz      — 30-second English Quiz Short (NEW)")
+        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, or 8", "1")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -1561,6 +1604,7 @@ def main():
             "5": "english-challenge",
             "6": "english-shorts",
             "7": "english-slow",
+            "8": "english-quiz",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -1585,6 +1629,8 @@ def main():
             schedule_time=args.schedule_time,
             slow_offset_hours=args.slow_offset_hours
         )
+    elif args.channel == "english-quiz":
+        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload)
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)
