@@ -75,10 +75,13 @@
     "Small Talk Without Freezing: 7-Day English Conversation Challenge",
     "Navigating Everyday Transactions"
   ],
-  "slow": ["Cut Corners 📚 Slow English"],
+  "slow": [
+    "Cut Corners 📚 Slow English"
+  ],
   "quiz": [
     "English Quiz: Drop the Ball",
     "English Quiz: Kill 2 Birds",
-    "English Quiz: Benefit of Doubt"
+    "English Quiz: Benefit of Doubt",
+    "English Quiz: Bite the Hand"
   ]
 }

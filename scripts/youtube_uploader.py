@@ -131,6 +131,31 @@ def add_video_to_playlist(video_id: str, playlist_id: str, channel: str = "engli
     return response
 
 
+def set_pinned_comment(video_id: str, text: str, channel: str) -> None:
+    """Post a top-level comment on a video.
+    Note: The YouTube Data API v3 does not natively support 'pinning' a comment.
+    This function posts the comment so it is visible as a top-level comment.
+    """
+    try:
+        youtube = _youtube_service(channel)
+        youtube.commentThreads().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "videoId": video_id,
+                    "topLevelComment": {
+                        "snippet": {
+                            "textOriginal": text
+                        }
+                    }
+                }
+            }
+        ).execute()
+        print(f"  Comment posted: {text[:50]}...")
+    except Exception as e:
+        print(f"  Could not post comment to https://youtu.be/{video_id}: {e}")
+
+
 def _save_resumable_session(path: Path, request_obj, video_path: str, channel: str) -> None:
     resumable_uri = getattr(request_obj, "resumable_uri", None)
     if not resumable_uri:
