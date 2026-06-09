@@ -1010,7 +1010,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
 def run_english_quiz_shorts(topic=None, upload=True):
     """Manual runner for the new Quiz Shorts strategy."""
     from english_assembler import cleanup_english_temp, generate_podcast_audio
-    from english_generator import generate_english_quiz_shorts_script
+    from english_generator import generate_english_quiz_shorts_script, save_published_topic
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
     
     print("\n" + "=" * 50)
@@ -1044,6 +1044,7 @@ def run_english_quiz_shorts(topic=None, upload=True):
             channel="english",
             thumbnail_text="QUIZ TIME!"
         )
+        save_published_topic(script.get("title", topic), topic_type="quiz")
         print(f"PINNED COMMENT: {script.get('pinned_comment')}")
 
     cleanup_english_temp()
