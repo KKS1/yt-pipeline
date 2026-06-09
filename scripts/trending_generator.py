@@ -19,6 +19,31 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from groq_client import GROQ_MODEL, groq_chat_json, parse_groq_json
 
+PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "trending_published_topics.json"
+
+def get_published_topics() -> list:
+    if PUBLISHED_TOPICS_FILE.exists():
+        try:
+            with open(PUBLISHED_TOPICS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+        except Exception as e:
+            print(f"Error loading published topics: {e}")
+    return []
+
+def save_published_topic(topic: str):
+    published = get_published_topics()
+    if topic not in published:
+        published.append(topic)
+        # Keep history to a reasonable size
+        if len(published) > 500:
+            published = published[-500:]
+        try:
+            with open(PUBLISHED_TOPICS_FILE, "w", encoding="utf-8") as f:
+                json.dump(published, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving published topic: {e}")
+
 DEFAULT_REGION = "CA"
 DEFAULT_TRENDS_URL = (
     "https://trends.google.com/trending/rss?geo={region}"
@@ -116,12 +141,21 @@ def _groq_chat(prompt: str, max_tokens: int, temperature: float = 0.7) -> dict:
 
 
 def choose_topic_with_groq(topics: list[str], region: str = DEFAULT_REGION) -> dict:
+    published_topics = get_published_topics()
+    recent_topics = published_topics[-50:] if published_topics else []
+    avoid_instruction = ""
+    if recent_topics:
+        avoid_instruction = f"""
+    CRITICAL: Avoid repeating or covering the same ground as these recently published topics:
+    {json.dumps(recent_topics, indent=2)}
+    """
+
     prompt = f"""
 You are a YouTube content strategist for Daily Insights Hub.
 
 {DAILY_INSIGHTS_BRAND}
-
 Pick the SINGLE best topic for a broad English-speaking audience in {region}.
+{avoid_instruction}
 Avoid politics, tragedy, unverified breaking news, and topics that need live updates.
 Prefer topics that can teach viewers something useful or surprising across finance, health,
 AI, true crime, lifestyle, science, culture, and high-interest explainers.
@@ -312,4 +346,6 @@ def generate_trending_package(
             raise RuntimeError(f"No usable Google Trends topics found for region {region}.")
         topic_data = choose_topic_with_groq(topics, region=region)
 
-    return generate_script_with_groq(topic_data, video_format=video_format)
+    package = generate_script_with_groq(topic_data, video_format=video_format)
+    save_published_topic(package.get("chosen_topic", topic_data["chosen_topic"]))
+    return package

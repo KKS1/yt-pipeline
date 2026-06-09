@@ -49,6 +49,28 @@ ASSETS_DIR = Path(__file__).parent.parent / "assets"
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+FAMILY_PUBLISHED_FILE = Path(__file__).resolve().parent / "family_published_topics.json"
+
+def get_family_history() -> list:
+    if FAMILY_PUBLISHED_FILE.exists():
+        try:
+            with open(FAMILY_PUBLISHED_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+        except Exception:
+            return []
+    return []
+
+def save_family_topic(topic: str):
+    history = get_family_history()
+    if topic not in history:
+        history.append(topic)
+        try:
+            with open(FAMILY_PUBLISHED_FILE, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -392,6 +414,15 @@ def generate_this_or_that_script(topic=None):
     if not topic:
         topic = random.choice(FAMILY_TOPIC_POOL)
 
+    history = get_family_history()
+    recent = history[-50:] if history else []
+    avoid_instruction = ""
+    if recent:
+        avoid_instruction = f"""
+    CRITICAL: Avoid repeating or covering the same ground as these recent topics:
+    {json.dumps(recent, indent=2)}
+    """
+
     print(f"\nSelected topic: {topic}")
 
     prompt = f"""
@@ -400,6 +431,7 @@ family-friendly "Would You Rather?" video.
 
 TOPIC:
 {topic}
+{avoid_instruction}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
@@ -648,6 +680,8 @@ def run_family(schedule_time=None):
     assemble_family_video(script, out_path)
 
     cleanup_family_temp()
+
+    save_family_topic(script.get("title", title))
 
     print("\nUploading video...\n")
 
