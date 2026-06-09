@@ -1046,6 +1046,8 @@ def run_english_quiz_shorts(topic=None, upload=True):
         )
         save_published_topic(script.get("title", topic), topic_type="quiz")
         print(f"PINNED COMMENT: {script.get('pinned_comment')}")
+    else:
+        print(f"\nVideo assembled without upload: {out_path}")
 
     cleanup_english_temp()
 
@@ -1227,6 +1229,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
     )
     slow_yt_id = (slow_result or {}).get("youtube_id", "")
     slow_url   = f"https://youtu.be/{slow_yt_id}" if slow_yt_id else ""
+    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
 
     # ── 6. Cross-pollinate: patch Normal description with Slow URL ──
     if normal_yt_id and slow_yt_id:
