@@ -981,12 +981,13 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upload=True):
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upload=True, related_video_ids=None):
     """
     Specialized runner to generate and upload ONLY the quiz shorts 
     from an existing weekly challenge JSON package.
     """
     from english_assembler import cleanup_english_temp, generate_podcast_audio
+    from english_generator import generate_weekly_challenge_quiz_script, save_published_topic
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
     from youtube_uploader import add_video_to_playlist
 
@@ -1030,8 +1031,8 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
         quiz_script = script.get("quiz_script")
         
         if not quiz_script:
-            print(f"\nNo 'quiz_script' found for Day {day_number} in the provided JSON package. Skipping.")
-            continue
+            print(f"\nGenerating missing quiz script for Day {day_number} from challenge content...")
+            quiz_script = generate_weekly_challenge_quiz_script(script)
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
         cleanup_english_temp()
@@ -1056,7 +1057,10 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
                 day_offset=index,
                 publish_hour=publish_hour,
             )
-            print(f"Uploading Day {day_number} Quiz scheduled for {schedule_time}...")
+            
+            rel_id = related_video_ids[index] if related_video_ids and index < len(related_video_ids) else None
+            print(f"Uploading Day {day_number} Quiz scheduled for {schedule_time} (linked to {rel_id})...")
+            
             try:
                 quiz_result = _upload_video(
                     quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
@@ -1064,10 +1068,12 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
                     schedule_time=schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
                         pinned_comment=quiz_script.get("pinned_comment"),
+                        related_video_id=rel_id
                 )
                 quiz_id = (quiz_result or {}).get("youtube_id")
                 if quiz_playlist_id and quiz_id:
                     add_video_to_playlist(video_id=quiz_id, playlist_id=quiz_playlist_id, channel="english")
+                save_published_topic(quiz_script.get("title"), topic_type="quiz")
             except Exception as e:
                 print(f"  Quiz upload failed for Day {day_number}: {e}")
         
@@ -1773,6 +1779,7 @@ def main():
     parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
     parser.add_argument("--slow-offset-hours", type=int, default=24, help="Hours to stagger the slow version (default 24)")
     parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for --channel english-challenge-shorts")
+    parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1844,11 +1851,13 @@ def main():
     elif args.channel == "english-quiz":
         run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload)
     elif args.channel == "english-challenge-shorts":
+        related_ids = [rid.strip() for rid in args.related_ids.split(",")] if args.related_ids else None
         run_english_challenge_shorts_only(
             json_path=args.json_package or "scripts/output/english_weekly_challenge.json",
             start_date=args.start_date or "2026-06-11",
             publish_hour=args.publish_hour,
-            upload=not args.no_upload
+            upload=not args.no_upload,
+            related_video_ids=related_ids
         )
     elif args.channel == "trending":
         if args.video_format == "both":
