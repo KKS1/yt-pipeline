@@ -979,6 +979,99 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upload=True):
+    """
+    Specialized runner to generate and upload ONLY the quiz shorts 
+    from an existing weekly challenge JSON package.
+    """
+    from english_assembler import cleanup_english_temp, generate_podcast_audio
+    from ffmpeg_assembler import assemble_shorts_video, generate_captions
+    from youtube_uploader import add_video_to_playlist
+
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Weekly Challenge Quiz Shorts Only")
+    print("=" * 50)
+
+    path = Path(json_path)
+    if not path.exists():
+        print(f"Error: {json_path} not found.")
+        sys.exit(1)
+
+    package = json.loads(path.read_text(encoding="utf-8"))
+    quiz_playlist_id = None
+
+    if upload:
+        quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
+        quiz_playlist_description = (
+            f"Quick 30-second quizzes to test your knowledge from the {package.get('series_title')}! "
+            f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
+            f"#Shorts #EnglishQuiz #EnglishChallenge"
+        )
+        try:
+            from youtube_uploader import create_playlist
+            print(f"Creating weekly challenge quiz playlist: {quiz_playlist_title}")
+            quiz_playlist = create_playlist(
+                title=quiz_playlist_title,
+                description=quiz_playlist_description,
+                channel="english",
+            )
+            quiz_playlist_id = quiz_playlist["playlist_id"]
+        except Exception as e:
+            print(f"Playlist creation failed: {e}")
+
+    quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
+    bg_music = ASSETS_DIR / "background_music.mp3"
+    bg_music_str = str(bg_music) if bg_music.exists() else None
+
+    for index, script in enumerate(package["scripts"]):
+        day_number = script.get("day", index + 1)
+        quiz_script = script.get("quiz_script")
+        
+        if not quiz_script:
+            print(f"\nNo quiz script found for Day {day_number}. Skipping.")
+            continue
+
+        print(f"\nAssembling Quiz Short for Day {day_number}...")
+        cleanup_english_temp()
+        quiz_audio = generate_podcast_audio(quiz_script)
+        quiz_slug = slug(f"quiz_day_{day_number}_{quiz_script['title']}")
+        quiz_srt = str(OUTPUT_DIR / f"{quiz_slug}.srt")
+        generate_captions(quiz_audio, quiz_srt, max_line_width=20)
+        
+        quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+        assemble_shorts_video(
+            narration_audio=quiz_audio,
+            stock_clips=[str(random.choice(quiz_visual_files))],
+            background_music=bg_music_str,
+            captions_srt=quiz_srt,
+            output_path=quiz_out_path,
+            title=quiz_script["title"]
+        )
+        
+        if upload:
+            schedule_time = _challenge_schedule_time(
+                start_date=start_date,
+                day_offset=index,
+                publish_hour=publish_hour,
+            )
+            print(f"Uploading Day {day_number} Quiz scheduled for {schedule_time}...")
+            try:
+                quiz_result = _upload_video(
+                    quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
+                    channel="english",
+                    schedule_time=schedule_time,
+                    thumbnail_text=f"QUIZ: DAY {day_number}"
+                )
+                quiz_id = (quiz_result or {}).get("youtube_id")
+                if quiz_playlist_id and quiz_id:
+                    add_video_to_playlist(video_id=quiz_id, playlist_id=quiz_playlist_id, channel="english")
+            except Exception as e:
+                print(f"  Quiz upload failed for Day {day_number}: {e}")
+        
+        cleanup_english_temp()
+
+    print("\nQuiz Shorts pipeline done!\n")
+
 def run_english_shorts(topic=None, upload=True, schedule_time=None):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
@@ -1644,6 +1737,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
     parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz", "english-challenge-shorts"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1662,6 +1756,7 @@ def main():
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
     parser.add_argument("--slow-offset-hours", type=int, default=24, help="Hours to stagger the slow version (default 24)")
+    parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for --channel english-challenge-shorts")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1695,6 +1790,8 @@ def main():
         print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
         print("  8. english-quiz      — 30-second English Quiz Short (NEW)")
         choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, or 8", "1")
+        print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
+        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, 8, or 9", "1")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -1704,6 +1801,7 @@ def main():
             "6": "english-shorts",
             "7": "english-slow",
             "8": "english-quiz",
+            "9": "english-challenge-shorts",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -1730,6 +1828,13 @@ def main():
         )
     elif args.channel == "english-quiz":
         run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload)
+    elif args.channel == "english-challenge-shorts":
+        run_english_challenge_shorts_only(
+            json_path=args.json_package or "scripts/output/english_weekly_challenge.json",
+            start_date=args.start_date or "2026-06-11",
+            publish_hour=args.publish_hour,
+            upload=not args.no_upload
+        )
     elif args.channel == "trending":
         if args.video_format == "both":
             run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)
