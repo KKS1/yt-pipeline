@@ -823,7 +823,7 @@ def run_english(upload=True, schedule_time=None):
 
 
 def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=9):
-    from english_generator import generate_weekly_challenge_scripts
+    from english_generator import generate_weekly_challenge_scripts, save_published_topic
 
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Weekly Challenge Playlist")
@@ -845,6 +845,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         sys.exit(1)
 
     playlist_id = None
+    quiz_playlist_id = None
     if upload:
         playlist_title = f"{package.get('series_title', 'English Weekly Challenge')} | 7-Day English Challenge"
         playlist_description = (
@@ -854,6 +855,13 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             f"to help you build confidence in real-world conversations.\n\n"
             f"Join Emma and Liam as they guide you through this journey!\n\n"
             f"#EnglishLearning #EnglishChallenge #EnglishVibesHub"
+        )
+        
+        quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
+        quiz_playlist_description = (
+            f"Quick 30-second quizzes to test your knowledge from the {package.get('series_title')}! "
+            f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
+            f"#Shorts #EnglishQuiz #EnglishChallenge"
         )
         try:
             from youtube_uploader import create_playlist
@@ -865,6 +873,14 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 channel="english",
             )
             playlist_id = playlist["playlist_id"]
+            
+            print(f"Creating weekly challenge quiz playlist: {quiz_playlist_title}")
+            quiz_playlist = create_playlist(
+                title=quiz_playlist_title,
+                description=quiz_playlist_description,
+                channel="english",
+            )
+            quiz_playlist_id = quiz_playlist["playlist_id"]
         except Exception as e:
             print(f"\nPlaylist creation failed. Videos will still upload without a playlist.")
             print(f"Error: {e}")
@@ -873,9 +889,11 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
     visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
     # Pick ONE visual to use for the entire 7-day challenge
     weekly_visual = random.choice(visual_files)
+    quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
 
     for index, script in enumerate(package["scripts"]):
         day_number = script.get("day", index + 1)
+        quiz_script = script.get("quiz_script")
         title = script["title"]
         out_slug = slug(f"day_{day_number}_{title}")
 
@@ -883,7 +901,10 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         print(f"Assembling Day {day_number}: {title}")
         print("-" * 50)
 
+        # 1. Assemble and Upload Long-Form Video
         out_path = _assemble_english_script(script, out_slug, weekly_visual, bg_music_str)
+
+        long_form_id = None
 
         if upload:
             schedule_time = _challenge_schedule_time(
@@ -902,20 +923,59 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 thumbnail_text=script.get("thumbnail_text", title),
                 thumbnail_concept=script.get("thumbnail_concept", None),
             )
-            if playlist_id and result and result.get("youtube_id"):
+            long_form_id = (result or {}).get("youtube_id")
+            
+            if playlist_id and long_form_id:
                 try:
                     from youtube_uploader import add_video_to_playlist
-
-                    add_video_to_playlist(
-                        video_id=result["youtube_id"],
-                        playlist_id=playlist_id,
-                        channel="english",
-                    )
+                    add_video_to_playlist(video_id=long_form_id, playlist_id=playlist_id, channel="english")
                 except Exception as e:
-                    print(f"\nCould not add Day {day_number} to playlist.")
-                    print(f"Error: {e}")
+                    print(f"  Could not add Day {day_number} to playlist: {e}")
         else:
             print(f"\nDay {day_number} assembled without upload: {out_path}")
+
+        # 2. Assemble and Upload Accompanying Quiz Short
+        if quiz_script:
+            print(f"\nAssembling Quiz Short for Day {day_number}...")
+            from english_assembler import generate_podcast_audio, cleanup_english_temp
+            from ffmpeg_assembler import assemble_shorts_video, generate_captions
+            
+            cleanup_english_temp()
+            quiz_audio = generate_podcast_audio(quiz_script)
+            quiz_slug = slug(f"quiz_day_{day_number}_{quiz_script['title']}")
+            quiz_srt = str(OUTPUT_DIR / f"{quiz_slug}.srt")
+            generate_captions(quiz_audio, quiz_srt, max_line_width=20)
+            
+            quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+            assemble_shorts_video(
+                narration_audio=quiz_audio,
+                stock_clips=[str(random.choice(quiz_visual_files))],
+                background_music=bg_music_str,
+                captions_srt=quiz_srt,
+                output_path=quiz_out_path,
+                title=quiz_script["title"]
+            )
+            
+            if upload:
+                # Quiz is published at the same time as the long form or slightly after
+                print(f"Uploading Day {day_number} Quiz Linked to Video {long_form_id}...")
+                try:
+                    quiz_result = _upload_video(
+                        quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
+                        channel="english",
+                        schedule_time=schedule_time,
+                        thumbnail_text=f"QUIZ: DAY {day_number}",
+                        related_video_id=long_form_id
+                    )
+                    quiz_id = (quiz_result or {}).get("youtube_id")
+                    if quiz_playlist_id and quiz_id:
+                        from youtube_uploader import add_video_to_playlist
+                        add_video_to_playlist(video_id=quiz_id, playlist_id=quiz_playlist_id, channel="english")
+                    save_published_topic(quiz_script.get("title"), topic_type="quiz")
+                except Exception as e:
+                    print(f"  Quiz upload failed for Day {day_number}: {e}")
+            
+            cleanup_english_temp()
 
     print("\nWeekly challenge pipeline done!\n")
 
@@ -1481,7 +1541,7 @@ def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None):
+def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None, related_video_id=None):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -1521,6 +1581,7 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
             tags=tags,
             channel=channel,
             schedule_time=schedule_time,
+            related_video_id=related_video_id,
             thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
         )
     except Exception as e:

@@ -345,6 +345,42 @@ REQUIREMENTS:
     return plan
 
 
+def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
+    """Generate a quiz short script based on a specific day's challenge content."""
+    series_title = day_script.get("series_title", "English Challenge")
+    day_num = day_script.get("day", 1)
+    focus = day_script.get("focus", "English conversation")
+
+    prompt = f"""
+    Write a high-retention 30-second YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
+
+    LESSON FOCUS: {focus}
+
+    STRUCTURE:
+    1. Emma: "Day {day_num} Challenge! Let's see if you remember what we just learned." (Hook)
+    2. Liam: Presents a Multiple Choice Question (A, B, or C) testing the lesson focus: {focus}.
+    3. [PAUSE] (3-second timer animation cue)
+    4. Emma: Reveals the correct answer and gives a 1-sentence explanation.
+    5. Liam: "Got it right? Check out the full Day {day_num} lesson to master this focus!" (CTA pointing to the related video)
+
+    JSON SCHEMA:
+    {{
+      "title": "string (e.g., 'English Quiz Day {day_num}: [Topic]')",
+      "description": "string (Include #Shorts #EnglishChallenge #EnglishVibesHub)",
+      "pinned_comment": "string",
+      "tags": ["English Quiz", "Shorts", "English Challenge", "Day {day_num}"],
+      "correct_answer": "string",
+      "dialogue": [
+        {{ "speaker": "Emma", "text": "..." }},
+        {{ "speaker": "Liam", "text": "..." }}
+      ]
+    }}
+    """
+    script_data = call_groq_json(prompt)
+    script_data["video_format"] = "shorts_quiz"
+    return script_data
+
+
 def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
     day_number = int(day.get("day", 1))
     series_title = plan.get("series_title", "EnglishVibesHub Weekly Challenge")
@@ -449,7 +485,10 @@ def generate_weekly_challenge_scripts(topic=None) -> dict:
     for day in plan["days"]:
         day_number = int(day.get("day", len(scripts) + 1))
         print(f"Generating weekly challenge Day {day_number}: {day.get('title')}")
-        scripts.append(generate_weekly_challenge_day_script(plan, day))
+        day_script = generate_weekly_challenge_day_script(plan, day)
+        print(f"  Generating accompanying Quiz Short for Day {day_number}...")
+        day_script["quiz_script"] = generate_weekly_challenge_quiz_script(day_script)
+        scripts.append(day_script)
         if day_number < 7:
             groq_part_cooldown(f"Day {day_number + 1}")
 
