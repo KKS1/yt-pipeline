@@ -1091,6 +1091,7 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
     linking them to their respective long-form videos.
     """
     from youtube_uploader import set_pinned_comment
+    from english_generator import generate_weekly_challenge_quiz_script
 
     path = Path(json_path)
     if not path.exists():
@@ -1098,14 +1099,23 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
         return
 
     package = json.loads(path.read_text(encoding="utf-8"))
+    scripts = package.get("scripts", [])
+    if not scripts:
+        print(f"Error: No scripts found in {json_path}")
+        return
+
     short_ids = [vid.strip() for vid in short_ids_str.split(",")]
     related_ids = [rid.strip() for rid in related_ids_str.split(",")]
 
     print(f"\nRetrying pinned comments for {len(short_ids)} videos...")
-    for index, script in enumerate(package.get("scripts", [])):
+    for index, script in enumerate(scripts):
         if index >= len(short_ids): break
         
         quiz_script = script.get("quiz_script")
+        if not quiz_script:
+            print(f"  Day {index+1}: Missing quiz_script in JSON. Generating on the fly...")
+            quiz_script = generate_weekly_challenge_quiz_script(script)
+
         if quiz_script:
             comment_text = quiz_script.get("pinned_comment", "")
             rel_id = related_ids[index] if index < len(related_ids) else None
