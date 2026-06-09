@@ -19,12 +19,14 @@ def get_published_topics() -> dict:
             with open(PUBLISHED_TOPICS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
+                    if "quiz" not in data:
+                        data["quiz"] = []
                     return data
                 # Handle old list format by migrating it to "podcast"
-                return {"podcast": data, "shorts": [], "challenge": [], "slow": []}
+                return {"podcast": data, "shorts": [], "challenge": [], "slow": [], "quiz": []}
         except Exception as e:
             print(f"Error loading published topics: {e}")
-    return {"podcast": [], "shorts": [], "challenge": [], "slow": []}
+    return {"podcast": [], "shorts": [], "challenge": [], "slow": [], "quiz": []}
 
 def is_already_published(topic: str, topic_type: str) -> bool:
     """Check if a topic or title already exists in the published history for a specific type."""
@@ -815,6 +817,7 @@ CRITICAL RULES:
 - The `dialogue` array MUST contain around 8-12 turns in total (45-60 seconds of speaking).
 - Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
 - Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
+- Use searchable keywords in the title: e.g., "English in 60 Seconds" or "Speak English Like a Native".
 - Do NOT use mid-episode sign-offs or long pauses.
 - The final turn should include a quick call to action (e.g., "Subscribe for more daily English tips!").
 
@@ -824,9 +827,10 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (engaging YouTube Short title under 70 characters)",
+  "title": "string (SEO-focused Short title)",
   "title_options": ["string"],
-  "description": "string (short video description with a strong first-line hook, #Shorts, and relevant English learning keywords)",
+  "description": "string (Include #Shorts and a question for the comments)",
+  "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (include English learning, conversation, and topic-specific variants)"],
   "video_format": "shorts",
   "dialogue": [
@@ -849,65 +853,60 @@ JSON SCHEMA:
     
     return script_data
 
-def generate_english_quiz_shorts_script(topic=None):
+def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """Strategy 1: 15-30 second MCQ Quiz Short."""
+    topics_data = get_published_topics()
+    published_quizzes = topics_data.get("quiz", [])
+
     if not topic:
-        topic = random.choice(SLOW_IDIOM_POOL)
+        # Filter idioms by checking if they appear in any previously published quiz titles
+        remaining = [
+            i for i in SLOW_IDIOM_POOL 
+            if not any(i.lower() in p.lower() for p in published_quizzes)
+        ]
+        if not remaining:
+            remaining = SLOW_IDIOM_POOL  # cycle back when all done
+        topic = random.choice(remaining)
+    elif is_already_published(topic, "quiz"):
+        print(f"\n  [WARNING] Manual quiz idiom '{topic}' was found in 'quiz' history.")
+
+    print(f"\nSelected Quiz idiom: {topic}")
+
+    recent = published_quizzes[-50:] if published_quizzes else []
+    avoid_instruction = ""
+    if recent:
+        avoid_instruction = (
+            f"\nAvoid repeating or using the same distractors from these recent quizzes:\n"
+            + json.dumps(recent, indent=2)
+        )
     
     prompt = f"""
-    Write a 30-second YouTube Quiz Short for 'EnglishVibesHub'.
-    TOPIC: The idiom '{topic}'
+    Write a high-retention 30-second YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    TOPIC: The idiom or expression '{topic}'
+    {avoid_instruction}
     
-    STRUCTURE:
-    1. Emma: "Quick Quiz! What does '{topic}' mean?"
-    2. Liam: "Is it A), B), or C)?" (Give 3 plausible options, only one correct)
-    3. [PAUSE] (for the 3-second timer)
-    4. Emma: "The answer is... [Answer]! [Brief 1-sentence explanation]"
-    5. Liam: "Did you get it? Subscribe for daily quizzes!"
+    SEARCH-FOCUSED TITLE STRATEGY:
+    Small channels rely on SEARCH. The title MUST use searchable keywords to help discovery.
+    Use phrases like: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
+    Examples: "English Quiz: [Idiom] Meaning | English Practice for Beginners", "Do you know this idiom? [Idiom] Quiz #Shorts".
+    
+    STRUCTURE & PACING (Strict 30-second limit):
+    1. Emma: "Quick Quiz! What does '{topic}' mean?" (Instant hook)
+    2. Liam: "Is it A), B), or C)?" (Present 3 plausible multiple-choice options, only one is correct).
+    3. [PAUSE] (This cue is for a 3-second countdown timer animation).
+    4. Emma: "The answer is... [Correct Option]! [Brief 1-sentence explanation of the meaning]".
+    5. Liam: "Did you get it right? Write your score in the comments and subscribe for daily English quizzes!" (Engagement Trigger)
 
-    TITLE: Must be searchable, e.g., "English Quiz: Do you know this idiom? #Shorts"
+    LEVERAGE COMMENTS: 
+    Generate a 'pinned_comment' question to trigger algorithmic signals. 
+    Example: "What does '{topic}' mean? Write your guess below!" or "Have you used the phrase '{topic}' recently? Let us know!"
 
-    Return ONLY valid JSON:
+    JSON SCHEMA:
     {{
-      "title": "string",
-      "description": "Quick English Quiz! #Shorts #EnglishQuiz #LearnEnglish",
-      "pinned_comment": "How many did you get right today?",
-      "tags": ["English Quiz", "Shorts", "Idioms"],
-      "correct_answer": "string",
-      "dialogue": [
-        {{ "speaker": "Emma", "text": "..." }},
-        {{ "speaker": "Liam", "text": "..." }}
-      ]
-    }}
-    """
-    script_data = call_groq_json(prompt)
-    script_data["video_format"] = "shorts_quiz"
-    return script_data
-
-def generate_english_quiz_shorts_script(topic=None):
-    """Strategy 1: 15-30 second MCQ Quiz Short."""
-    if not topic:
-        topic = random.choice(SLOW_IDIOM_POOL)
-    
-    prompt = f"""
-    Write a 30-second YouTube Quiz Short for 'EnglishVibesHub'.
-    TOPIC: The idiom '{topic}'
-    
-    STRUCTURE:
-    1. Emma: "Quick Quiz! What does '{topic}' mean?"
-    2. Liam: "Is it A), B), or C)?" (Give 3 plausible options, only one correct)
-    3. [PAUSE] (for the 3-second timer)
-    4. Emma: "The answer is... [Answer]! [Brief 1-sentence explanation]"
-    5. Liam: "Did you get it? Subscribe for daily quizzes!"
-
-    TITLE: Must be searchable, e.g., "English Quiz: Do you know this idiom? #Shorts"
-
-    Return ONLY valid JSON:
-    {{
-      "title": "string",
-      "description": "Quick English Quiz! #Shorts #EnglishQuiz #LearnEnglish",
-      "pinned_comment": "How many did you get right today?",
-      "tags": ["English Quiz", "Shorts", "Idioms"],
+      "title": "string (Searchable keyword-rich title under 70 characters)",
+      "description": "string (High-intent description including #Shorts #EnglishQuiz #LearnEnglish)",
+      "pinned_comment": "string (Engaging specific question for the comments section)",
+      "tags": ["English Quiz", "Shorts", "Idioms", "English Practice"],
       "correct_answer": "string",
       "dialogue": [
         {{ "speaker": "Emma", "text": "..." }},
