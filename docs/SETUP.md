@@ -110,7 +110,10 @@ scp client_secrets.json root@YOUR_VPS_IP:/root/yt-pipeline/assets/
 cd /root/yt-pipeline/scripts
 python server.py &
 
-# 7. On your LOCAL machine, forward port 8080:
+# NOTE: Ensure server.py uses the following SCOPES to allow pinned comments:
+# ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl']
+
+# 7. On your LOCAL machine, forward ports:
 ssh -L 8080:localhost:8080 -L 5001:localhost:5001 root@YOUR_VPS_IP
 
 # 8. In your browser, visit:

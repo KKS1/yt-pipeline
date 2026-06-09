@@ -256,6 +256,7 @@ def setup_auth(channel):
         "https://www.googleapis.com/auth/youtube.upload",
         "https://www.googleapis.com/auth/youtube",
         "https://www.googleapis.com/auth/yt-analytics.readonly",
+        'https://www.googleapis.com/auth/youtube.force-ssl'
     ]
 
     flow = InstalledAppFlow.from_client_secrets_file(client_secrets, scopes)

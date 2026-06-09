@@ -1060,14 +1060,18 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
             
             rel_id = related_video_ids[index] if related_video_ids and index < len(related_video_ids) else None
             print(f"Uploading Day {day_number} Quiz scheduled for {schedule_time} (linked to {rel_id})...")
-            
+
+            comment_text = quiz_script.get("pinned_comment", "")
+            if rel_id and comment_text and "youtu.be" not in comment_text:
+                comment_text += f"\n\nWatch the full lesson here: https://youtu.be/{rel_id}"
+
             try:
                 quiz_result = _upload_video(
                     quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
                     channel="english",
                     schedule_time=schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
-                        pinned_comment=quiz_script.get("pinned_comment"),
+                        pinned_comment=comment_text,
                         related_video_id=rel_id
                 )
                 quiz_id = (quiz_result or {}).get("youtube_id")
@@ -1080,6 +1084,37 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
         cleanup_english_temp()
 
     print("\nQuiz Shorts pipeline done!\n")
+
+def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channel="english"):
+    """
+    Maintenance task: Posts/Retries pinned comments on existing Shorts
+    linking them to their respective long-form videos.
+    """
+    from youtube_uploader import set_pinned_comment
+
+    path = Path(json_path)
+    if not path.exists():
+        print(f"Error: {json_path} not found.")
+        return
+
+    package = json.loads(path.read_text(encoding="utf-8"))
+    short_ids = [vid.strip() for vid in short_ids_str.split(",")]
+    related_ids = [rid.strip() for rid in related_ids_str.split(",")]
+
+    print(f"\nRetrying pinned comments for {len(short_ids)} videos...")
+    for index, script in enumerate(package.get("scripts", [])):
+        if index >= len(short_ids): break
+        
+        quiz_script = script.get("quiz_script")
+        if quiz_script:
+            comment_text = quiz_script.get("pinned_comment", "")
+            rel_id = related_ids[index] if index < len(related_ids) else None
+            
+            if rel_id and "youtu.be" not in comment_text:
+                comment_text += f"\n\nWatch the full lesson here: https://youtu.be/{rel_id}"
+            
+            print(f"  Day {index+1}: Posting to https://youtu.be/{short_ids[index]}")
+            set_pinned_comment(short_ids[index], comment_text, channel)
 
 def run_english_shorts(topic=None, upload=True, schedule_time=None):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
@@ -1780,6 +1815,8 @@ def main():
     parser.add_argument("--slow-offset-hours", type=int, default=24, help="Hours to stagger the slow version (default 24)")
     parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for --channel english-challenge-shorts")
     parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
+    parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
+    parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1851,6 +1888,17 @@ def main():
     elif args.channel == "english-quiz":
         run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload)
     elif args.channel == "english-challenge-shorts":
+        if args.comments_only:
+            if not args.video_ids or not args.related_ids:
+                print("Error: --comments-only requires both --video-ids (Shorts) and --related-ids (Long form)")
+                return
+            run_english_comments_retry(
+                json_path=args.json_package or "scripts/output/english_weekly_challenge.json",
+                short_ids_str=args.video_ids,
+                related_ids_str=args.related_ids
+            )
+            return
+
         related_ids = [rid.strip() for rid in args.related_ids.split(",")] if args.related_ids else None
         run_english_challenge_shorts_only(
             json_path=args.json_package or "scripts/output/english_weekly_challenge.json",

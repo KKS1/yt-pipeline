@@ -153,6 +153,10 @@ def set_pinned_comment(video_id: str, text: str, channel: str) -> None:
         ).execute()
         print(f"  Comment posted: {text[:50]}...")
     except Exception as e:
+        if "insufficientPermissions" in str(e) or "403" in str(e):
+            print(f"\n  [ERROR] Insufficient Permissions to post comments.")
+            print(f"  The OAuth token for '{channel}' was generated without comment scopes.")
+            print(f"  Please add 'https://www.googleapis.com/auth/youtube.force-ssl' to SCOPES in server.py and re-authenticate.\n")
         print(f"  Could not post comment to https://youtu.be/{video_id}: {e}")
 
 

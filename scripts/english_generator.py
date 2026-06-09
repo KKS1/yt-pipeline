@@ -451,6 +451,7 @@ JSON SCHEMA:
   "title": "string (include Day {day_number}, a clear learning promise, and a high-CTR hook)",
   "title_options": ["string"],
   "description": "string (YouTube description with a strong first-line hook and relevant English learning keywords)",
+  "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string"],
   "day": {day_number},
   "series_title": "string",
