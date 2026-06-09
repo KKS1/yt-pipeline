@@ -813,6 +813,7 @@ def run_english(upload=True, schedule_time=None):
             channel="english",
             schedule_time=schedule_time,
             thumbnail_text=script.get("thumbnail_text", title),
+            pinned_comment=script.get("pinned_comment"),
             thumbnail_concept=script.get("thumbnail_concept", None),
         )
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
@@ -921,6 +922,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 channel="english",
                 schedule_time=schedule_time,
                 thumbnail_text=script.get("thumbnail_text", title),
+                pinned_comment=script.get("pinned_comment"),
                 thumbnail_concept=script.get("thumbnail_concept", None),
             )
             long_form_id = (result or {}).get("youtube_id")
@@ -1060,7 +1062,8 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upl
                     quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
                     channel="english",
                     schedule_time=schedule_time,
-                    thumbnail_text=f"QUIZ: DAY {day_number}"
+                        thumbnail_text=f"QUIZ: DAY {day_number}",
+                        pinned_comment=quiz_script.get("pinned_comment"),
                 )
                 quiz_id = (quiz_result or {}).get("youtube_id")
                 if quiz_playlist_id and quiz_id:
@@ -1152,7 +1155,8 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
             title,
             script.get("description", ""),
             script.get("tags", []),
-            channel="english",
+            channel="english", # Shorts don't use bumpers, but still use 'english' channel creds
+            pinned_comment=script.get("pinned_comment"),
             schedule_time=schedule_time,
         )
     else:
@@ -1192,11 +1196,21 @@ def run_english_quiz_shorts(topic=None, upload=True):
     )
 
     if upload:
-        _upload_video(
+        result = _upload_video(
             out_path, title, script["description"], script["tags"],
             channel="english",
-            thumbnail_text="QUIZ TIME!"
+            thumbnail_text="QUIZ TIME!",
+            pinned_comment=script.get("pinned_comment"),
         )
+
+        video_id = (result or {}).get("youtube_id")
+        if video_id:
+            try:
+                from youtube_uploader import add_video_to_playlist
+                add_video_to_playlist(video_id=video_id, playlist_id="PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD", channel="english")
+            except Exception as e:
+                print(f"  Could not add quiz to master playlist: {e}")
+
         save_published_topic(script.get("title", topic), topic_type="quiz")
         print(f"PINNED COMMENT: {script.get('pinned_comment')}")
     else:
@@ -1349,6 +1363,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         channel="english",
         schedule_time=schedule_time,
         thumbnail_text=script.get("thumbnail_text", normal_title),
+        pinned_comment=script.get("pinned_comment"),
         thumbnail_concept=script.get("thumbnail_concept", None),
     )
     normal_yt_id = (normal_result or {}).get("youtube_id", "")
@@ -1378,6 +1393,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         channel="english",
         schedule_time=slow_schedule,
         thumbnail_text=f"🐢 {script.get('thumbnail_text', idiom)}",
+        pinned_comment=script.get("pinned_comment"),
         thumbnail_concept=script.get("thumbnail_concept", None),
     )
     slow_yt_id = (slow_result or {}).get("youtube_id", "")
@@ -1634,7 +1650,7 @@ def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None, related_video_id=None):
+def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None, related_video_id=None, pinned_comment=None):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -1675,6 +1691,7 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
             channel=channel,
             schedule_time=schedule_time,
             related_video_id=related_video_id,
+            pinned_comment=pinned_comment,
             thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
         )
     except Exception as e:

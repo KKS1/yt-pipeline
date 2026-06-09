@@ -160,6 +160,7 @@ def youtube_upload(
     channel: str = "trending",
     schedule_time: str = None,
     related_video_id: str = None,
+    pinned_comment: str = None,
 ) -> dict:
     """Upload a video to YouTube using channel-specific OAuth credentials."""
 
@@ -262,6 +263,9 @@ def youtube_upload(
             media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
         ).execute()
         print("  Thumbnail set")
+
+    if pinned_comment:
+        set_pinned_comment(video_id, pinned_comment, channel)
 
     return {
         "youtube_id": video_id,

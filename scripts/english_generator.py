@@ -357,6 +357,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     LESSON FOCUS: {focus}
 
     STRUCTURE:
+    - The 'dialogue' array MUST contain around 10-15 turns.
     1. Emma: "Day {day_num} Challenge! Let's see if you remember what we just learned." (Hook)
     2. Liam: Presents a Multiple Choice Question (A, B, or C) testing the lesson focus: {focus}.
     3. [PAUSE] (3-second timer animation cue)
@@ -365,7 +366,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (e.g., 'English Quiz Day {day_num}: [Topic]')",
+      "title": "string (e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
       "description": "string (Include #Shorts #EnglishChallenge #EnglishVibesHub)",
       "pinned_comment": "string",
       "tags": ["English Quiz", "Shorts", "English Challenge", "Day {day_num}"],
@@ -929,6 +930,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     Use phrases like: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
     Examples: "English Quiz: [Idiom] Meaning | English Practice for Beginners", "Do you know this idiom? [Idiom] Quiz #Shorts".
     
+    - The 'dialogue' array MUST contain around 10-15 turns.
     STRUCTURE & PACING:
     1. Emma: "Quick Quiz! What does '{topic}' mean?" (Instant hook)
     2. Liam: "Is it A), B), or C)?" (Present 3 plausible multiple-choice options, only one is correct).
