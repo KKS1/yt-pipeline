@@ -1736,7 +1736,6 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz"],
     parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz", "english-challenge-shorts"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
@@ -1789,7 +1788,6 @@ def main():
         print("  6. english-shorts    — English shorts using Emma and Liam")
         print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
         print("  8. english-quiz      — 30-second English Quiz Short (NEW)")
-        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, or 8", "1")
         print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
         choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, 8, or 9", "1")
         args.channel = {
