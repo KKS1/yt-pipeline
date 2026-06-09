@@ -159,6 +159,7 @@ def youtube_upload(
     thumbnail_path: str = None,
     channel: str = "trending",
     schedule_time: str = None,
+    related_video_id: str = None,
 ) -> dict:
     """Upload a video to YouTube using channel-specific OAuth credentials."""
 
@@ -187,6 +188,9 @@ def youtube_upload(
         },
     }
 
+    if related_video_id:
+        body["contentDetails"] = {"relatedVideoId": related_video_id}
+
     if schedule_time:
         body["status"]["publishAt"] = schedule_time
 
@@ -201,7 +205,7 @@ def youtube_upload(
     )
 
     request_obj = youtube.videos().insert(
-        part="snippet,status",
+        part="snippet,status,contentDetails" if related_video_id else "snippet,status",
         body=body,
         media_body=media,
     )
@@ -305,4 +309,3 @@ def update_video_description(video_id: str, new_description: str, channel: str =
     except Exception as e:
         print(f"  update_video_description failed for {video_id}: {e}")
         return {}
-
