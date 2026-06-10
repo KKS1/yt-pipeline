@@ -206,9 +206,9 @@ Rules:
 Return ONLY valid JSON:
 {{
   "title": "YouTube Shorts title under 70 characters",
-  "title_options": ["strong title option 1", "strong title option 2", "strong title option 3"],
-  "description": "80-120 word YouTube description with relevant keywords, a strong first-line hook, and #Shorts",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+  "title_options": ["string"],
+  "description": "string (80-120 word YouTube description with relevant keywords, a strong first-line hook, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "thumbnail_text": "3-5 bold words",
   "stock_keyword": "2-4 word Pexels search phrase",
   "script": "full spoken script with visual cues",
@@ -248,9 +248,9 @@ Rules:
 Return ONLY valid JSON:
 {{
   "title": "YouTube title under 70 characters",
-  "title_options": ["strong title option 1", "strong title option 2", "strong title option 3"],
-  "description": "150-word YouTube description with relevant keywords, a strong first-line hook, and one CTA",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+  "title_options": ["string"],
+  "description": "string (150-word YouTube description with relevant keywords, a strong first-line hook, one CTA, and relevant hashtags that mirror the 'tags' list below)",
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "thumbnail_text": "3-5 bold words",
   "stock_keyword": "2-4 word Pexels search phrase",
   "script": "full spoken script with visual cues",

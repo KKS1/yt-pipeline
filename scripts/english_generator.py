@@ -367,9 +367,9 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
-      "description": "string (Include #Shorts #EnglishChallenge #EnglishVibesHub)",
+      "description": "string (Include #Shorts, #EnglishChallenge, #EnglishVibesHub, and hashtags mirroring the 'tags' list below)",
       "pinned_comment": "string",
-      "tags": ["English Quiz", "Shorts", "English Challenge", "Day {day_num}"],
+      "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
       "dialogue": [
         {{ "speaker": "Emma", "text": "..." }},
@@ -450,9 +450,9 @@ JSON SCHEMA:
 {{
   "title": "string (include Day {day_number}, a clear learning promise, and a high-CTR hook)",
   "title_options": ["string"],
-  "description": "string (YouTube description with a strong first-line hook and relevant English learning keywords)",
+  "description": "string (YouTube description with a strong first-line hook, relevant keywords, and hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
-  "tags": ["string"],
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "day": {day_number},
   "series_title": "string",
   "dialogue": [
@@ -546,9 +546,9 @@ JSON SCHEMA:
 {{
   "title": "string (SEO-focused title: [Keyword] + [Hook]. e.g., 'English Listening Practice: Mastering {topic}')",
   "title_options": ["string"],
-  "description": "string (80-120 words. Include a specific question for the comments section)",
+  "description": "string (80-120 words. Include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
-  "tags": ["string (include English learning, conversation, and topic-specific variants)"],
+  "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
@@ -767,18 +767,18 @@ SEARCHABLE TITLES REQUIRED:
 
 TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
 - description_normal: 80-100 words. Focus on idiom mastery and conversational English.
-  Tone: confident learner. Hashtags: #EnglishIdioms #LearnEnglish #EnglishVibesHub
+  Include hashtags that mirror the 'tags' list below.
 - description_slow: 80-100 words. Emphasise the slow-learner benefit (0.8x speed, big captions).
-  Tone: supportive for beginners. Hashtags: #SlowEnglish #EnglishIdioms #LearnEnglish #EnglishVibesHub #EnglishForBeginners
+  Include hashtags that mirror the 'tags' list below.
 
 JSON SCHEMA:
 {{
   "title_normal": "string",
   "title_slow":   "string",
-  "description_normal": "string",
-  "description_slow":   "string",
+  "description_normal": "string (Normal speed description with relevant hashtags mirroring the 'tags' list below)",
+  "description_slow":   "string (Slow speed description with relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific 'How would you use this?' question)",
-  "tags": ["string"],
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "idiom": "{topic}",
   "dialogue": [
     {{
@@ -870,9 +870,9 @@ JSON SCHEMA:
 {{
   "title": "string (SEO-focused Short title)",
   "title_options": ["string"],
-  "description": "string (Include #Shorts and a question for the comments)",
+  "description": "string (YouTube description with a strong first-line hook, an engaging question for the comments, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
-  "tags": ["string (include English learning, conversation, and topic-specific variants)"],
+  "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "video_format": "shorts",
   "dialogue": [
     {{
@@ -946,9 +946,9 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (Searchable keyword-rich title under 70 characters)",
-      "description": "string (High-intent description including #Shorts #EnglishQuiz #LearnEnglish)",
+      "description": "string (High-intent description including #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
       "pinned_comment": "string (Engaging specific question for the comments section)",
-      "tags": ["English Quiz", "Shorts", "Idioms", "English Practice"],
+      "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
       "dialogue": [
         {{ "speaker": "Emma", "text": "..." }},

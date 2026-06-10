@@ -151,8 +151,8 @@ Rules:
 Return ONLY valid JSON:
 {{
   "title_options": ["title1 (under 60 chars)", "title2", "title3"],
-  "description": "YouTube Shorts description 80-120 words with keywords naturally placed",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
+  "description": "string (YouTube Shorts description 80-120 words with keywords naturally placed, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "thumbnail_text": "3-5 bold words for thumbnail overlay",
   "script": "full script text with [PAUSE], [EMPHASIS], [VISUAL:] markers",
   "word_count": 0,
@@ -222,8 +222,8 @@ Script structure:
 Return ONLY valid JSON:
 {{
   "title_options": ["title1", "title2", "title3"],
-  "description": "150 word YouTube description, family-friendly keywords",
-  "tags": ["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8"],
+  "description": "string (150 word YouTube description, family-friendly keywords, and relevant hashtags that mirror the 'tags' list below)",
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "thumbnail_text": "punchy 3-5 word thumbnail text",
   "script": "full script with [PAUSE], [VISUAL:], [EMPHASIS] markers",
   "word_count": 0,
@@ -276,8 +276,8 @@ Key search terms to target: "lofi hip hop", "study music", "focus music",
 Return ONLY valid JSON:
 {{
   "title": "YouTube title under 70 chars, must include mood + duration hint",
-  "description": "200 word description. First 2 lines must hook with the mood. Include timestamps every 30min like '00:00 - Track 1 name'. List benefits: focus, study, relax. End with subscribe CTA.",
-  "tags": ["lofi hip hop","study music","focus music","chill beats","lofi beats","homework music","concentration","lofi chill","beats to study to","lofi mix"],
+  "description": "string (200 word description. First 2 lines must hook with the mood. Include timestamps every 30min like '00:00 - Track 1 name'. List benefits: focus, study, relax. End with subscribe CTA. Also include relevant hashtags that mirror the 'tags' list below.)",
+  "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "thumbnail_concept": "Describe the ideal thumbnail scene in 2 sentences — cozy, atmospheric, anime-adjacent",
   "visual_scene": "Describe a 30-second looping animation scene for the video background — what's in the scene, time of day, weather, small animated details like steam from coffee, rain on window, etc.",
   "mood_tags": ["tag1","tag2","tag3"],
