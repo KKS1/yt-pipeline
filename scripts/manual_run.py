@@ -1215,7 +1215,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
     
     print("\nDone!\n")
 
-def run_english_quiz_shorts(topic=None, upload=True):
+def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None):
     """Manual runner for the new Quiz Shorts strategy."""
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_quiz_shorts_script, save_published_topic
@@ -1833,6 +1833,15 @@ def main():
     if args.publish_hour < 0 or args.publish_hour > 23:
         parser.error("--publish-hour must be between 0 and 23")
 
+    # Calculate a UTC schedule time if local date/hour are provided
+    effective_schedule_time = args.schedule_time
+    if not effective_schedule_time and args.start_date:
+        effective_schedule_time = _challenge_schedule_time(
+            start_date=args.start_date,
+            day_offset=0,
+            publish_hour=args.publish_hour
+        )
+
     if args.upload_existing and not args.channel:
         parser.error("--upload-existing requires --channel")
 
@@ -1846,7 +1855,7 @@ def main():
             title=args.title,
             description=args.description,
             tags=tags,
-            schedule_time=args.schedule_time,
+            schedule_time=effective_schedule_time,
         )
         return
 
@@ -1875,11 +1884,11 @@ def main():
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
-        run_lofi(schedule_time=args.schedule_time)
+        run_lofi(schedule_time=effective_schedule_time)
     elif args.channel == "family":
-        run_family(schedule_time=args.schedule_time)
+        run_family(schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(upload=not args.no_upload, schedule_time=args.schedule_time)
+        run_english(upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
@@ -1888,16 +1897,16 @@ def main():
             publish_hour=args.publish_hour,
         )
     elif args.channel == "english-shorts":
-        run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
+        run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-slow":
         run_english_slow(
             topic=args.topic, 
             upload=not args.no_upload, 
-            schedule_time=args.schedule_time,
+            schedule_time=effective_schedule_time,
             slow_offset_hours=args.slow_offset_hours
         )
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
+        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-challenge-shorts":
         if args.comments_only:
             if not args.video_ids or not args.related_ids:
@@ -1920,14 +1929,14 @@ def main():
         )
     elif args.channel == "trending":
         if args.video_format == "both":
-            run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=args.schedule_time)
+            run_trending_pair(topic=args.topic, region=args.region, upload=not args.no_upload, schedule_time=effective_schedule_time)
         else:
             run_trending(
                 topic=args.topic,
                 region=args.region,
                 upload=not args.no_upload,
                 video_format=args.video_format,
-                schedule_time=args.schedule_time,
+                schedule_time=effective_schedule_time,
             )
 
 
