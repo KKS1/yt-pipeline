@@ -1223,7 +1223,7 @@ def run_english_quiz_shorts(topic=None, upload=True):
     
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Quiz Shorts (Strategy 1)")
-    print("=" * 50)
+    print("=" * 50) 
     
     script = generate_english_quiz_shorts_script(topic)
     title = script["title"]
@@ -1252,6 +1252,7 @@ def run_english_quiz_shorts(topic=None, upload=True):
             channel="english",
             thumbnail_text="QUIZ TIME!",
             pinned_comment=script.get("pinned_comment"),
+            schedule_time=schedule_time,
         )
 
         video_id = (result or {}).get("youtube_id")
@@ -1896,7 +1897,7 @@ def main():
             slow_offset_hours=args.slow_offset_hours
         )
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload)
+        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=args.schedule_time)
     elif args.channel == "english-challenge-shorts":
         if args.comments_only:
             if not args.video_ids or not args.related_ids:
