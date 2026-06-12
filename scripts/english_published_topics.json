@@ -82,7 +82,9 @@
     "Small Talk Without Freezing: 7-Day English Conversation Challenge",
     "Navigating Everyday Transactions"
   ],
-  "slow": ["Cut Corners 📚 Slow English"],
+  "slow": [
+    "Cut Corners 📚 Slow English"
+  ],
   "quiz": [
     "English Quiz: Drop the Ball",
     "English Quiz: Kill 2 Birds",
@@ -96,6 +98,7 @@
     "English Quiz Day 6: Conversation Essentials | Test Your English",
     "English Quiz Day 7: Conversational Transactions | Test Your English",
     "English Quiz: Face the Music",
-    "English Quiz: Once in a Blue Moon"
+    "English Quiz: Once in a Blue Moon",
+    "English Quiz: On the Fence"
   ]
 }
