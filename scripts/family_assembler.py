@@ -408,34 +408,40 @@ def make_question_card(question: str, option_a: str, option_b: str,
     return canvas
 
 
-def make_countdown_frame(number: int, pulse: float = 1.0) -> Image.Image:
-    colors = {3: GREY, 2: GOLD, 1: ACCENT}
-    color  = colors.get(number, WHITE)
+def make_countdown_frame(bg_img: Image.Image, progress: float) -> Image.Image:
+    """Draw a circular timer overlay on the background image."""
+    img = bg_img.copy()
+    draw = ImageDraw.Draw(img, "RGBA")
 
-    img  = gradient_bg(W, H, BG1, BG2)
-    img  = glow_circle(img, W//2, H//2, int(290*pulse), color, alpha=55)
-    draw = ImageDraw.Draw(img)
-    accent_bars(draw, color, 14)
-    dots(draw, [color], count=16, seed=number*7)
+    cx, cy = W // 2, H // 2
+    r = 75
 
-    cx, cy  = W//2, H//2
-    base_r  = 215
-    pulse_r = int(base_r + 48*pulse)
-    draw.ellipse([cx-pulse_r,cy-pulse_r,cx+pulse_r,cy+pulse_r],
-                 outline=color, width=10)
-    draw.ellipse([cx-base_r+20,cy-base_r+20,cx+base_r-20,cy+base_r-20],
-                 outline=color, width=5)
+    # Background dimming for the circle area
+    draw.ellipse([cx-r-15, cy-r-15, cx+r+15, cy+r+15], fill=(0, 0, 0, 180))
 
-    nf   = _font(220, bold=True)
-    bbox = draw.textbbox((0,0), str(number), font=nf)
-    nw, nh = bbox[2]-bbox[0], bbox[3]-bbox[1]
-    outlined_text(draw, cx-nw//2, cy-nh//2,
-                  str(number), nf, color, BLACK, 7)
+    # Timer arc (depletes as progress goes from 0 to 1 over 3 seconds)
+    angle = 360 * (1 - progress)
+    # Gray track
+    draw.ellipse([cx-r, cy-r, cx+r, cy+r], outline=(60, 60, 60, 255), width=15)
+    # Active track (ACCENT color)
+    draw.arc([cx-r, cy-r, cx+r, cy+r], start=-90, end=-90+angle, fill=ACCENT, width=15)
 
-    hints = {3:"Think carefully...", 2:"Almost time...", 1:"Lock it in!"}
-    centered_text(draw, hints.get(number,""), _font(38), cy+232,
-                  WHITE, W, outline=BLACK, ow=2)
-    return img
+    # Pulsing inner circle
+    pulse = 0.8 + 0.2 * math.sin(progress * math.pi * 6)  # 3 pulses over 3 seconds
+    pr = int((r-20) * pulse)
+    draw.ellipse([cx-pr, cy-pr, cx+pr, cy+pr], fill=(*GOLD, 100))
+
+    # Countdown number
+    num = str(max(1, math.ceil(3 * (1 - progress))))
+    nf = _font(70, bold=True)
+    bbox = draw.textbbox((0,0), num, font=nf)
+    draw.text((cx-(bbox[2]-bbox[0])//2, cy-(bbox[3]-bbox[1])//2 - 5),
+              num, font=nf, fill=WHITE)
+
+    centered_text(draw, "LOCK IT IN!", _font(32, bold=True), cy + r + 25,
+                  GOLD, W, outline=BLACK, ow=2)
+
+    return img.convert("RGB")
 
 
 def make_answer_card(answer: str, explanation: str,
@@ -590,18 +596,15 @@ def img_to_video(img: Image.Image, duration: float, output_path: str,
     Path(png).unlink(missing_ok=True)
 
 
-def animated_countdown(vid_out: str, aud_out: str) -> float:
+def animated_countdown(bg_img: Image.Image, vid_out: str, aud_out: str) -> float:
     frames_dir = TEMP_DIR / "cd_frames"
     frames_dir.mkdir(exist_ok=True)
 
-    idx = 0
-    for number in [3,2,1]:
-        for f in range(FPS):
-            t     = f/FPS
-            pulse = 0.5+0.5*math.sin(t*math.pi*2)
-            make_countdown_frame(number,pulse).save(
-                str(frames_dir/f"f{idx:04d}.png"))
-            idx += 1
+    total_frames = 3 * FPS
+    for f in range(total_frames):
+        progress = f / total_frames
+        make_countdown_frame(bg_img, progress).save(
+            str(frames_dir/f"f{f:04d}.png"))
 
     subprocess.run([FFMPEG,"-y","-framerate",str(FPS),
                     "-i",str(frames_dir/"f%04d.png"),
@@ -722,17 +725,16 @@ def build_question(q: dict, total: int, synth,
     v_dur = frame_dur(get_duration(voice) + 0.3)
 
     q_vid = str(TEMP_DIR/f"q{n}_card_silent.ts")
-    img_to_video(
-        make_question_card(q["question"],q["option_a"],q["option_b"],
-                           n, total, img_a, img_b, format_label),
-        v_dur, q_vid, kenburns=True)
+    q_card = make_question_card(q["question"],q["option_a"],q["option_b"],
+                                n, total, img_a, img_b, format_label)
+    img_to_video(q_card, v_dur, q_vid, kenburns=True)
         
     q_aud = str(TEMP_DIR/f"q{n}_card_audio.wav")
     build_audio_track(voice, v_dur, q_aud)
 
     cd_vid = str(TEMP_DIR/f"q{n}_cd.ts")
     cd_aud = str(TEMP_DIR/f"q{n}_cd.wav")
-    animated_countdown(cd_vid, cd_aud)
+    animated_countdown(q_card, cd_vid, cd_aud)
 
     return [(q_vid, q_aud), (cd_vid, cd_aud)]
 
