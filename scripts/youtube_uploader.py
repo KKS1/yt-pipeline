@@ -221,16 +221,13 @@ def youtube_upload(
             "defaultLanguage": "en",
         },
         "status": {
-            "privacyStatus": "private" if schedule_time else "public",
+            "privacyStatus": "unlisted" if schedule_time else "public",
             "selfDeclaredMadeForKids": channel == "kids",
         },
     }
 
     if related_video_id:
         body["contentDetails"] = {"relatedVideoId": related_video_id}
-
-    if schedule_time:
-        body["status"]["publishAt"] = schedule_time
 
     print(f"  Uploading to YouTube [{channel}]: {title[:60]}...")
 
@@ -303,6 +300,22 @@ def youtube_upload(
 
     if pinned_comment:
         set_pinned_comment(video_id, pinned_comment, channel)
+
+    if schedule_time:
+        print(f"  Scheduling video for {schedule_time}...")
+        try:
+            youtube.videos().update(
+                part="status",
+                body={
+                    "id": video_id,
+                    "status": {
+                        "privacyStatus": "private",
+                        "publishAt": schedule_time
+                    }
+                }
+            ).execute()
+        except Exception as e:
+            print(f"  Warning: Failed to set schedule for {video_id}: {e}")
 
     return {
         "youtube_id": video_id,

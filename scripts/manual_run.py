@@ -959,13 +959,16 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             )
             
             if upload:
-                # Quiz is published at the same time as the long form or slightly after
+                # Quiz is published one hour after the related day video
+                quiz_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
+                quiz_schedule_time = (quiz_dt + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+
                 print(f"Uploading Day {day_number} Quiz Linked to Video {long_form_id}...")
                 try:
                     quiz_result = _upload_video(
                         quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
                         channel="english",
-                        schedule_time=schedule_time,
+                        schedule_time=quiz_schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
                         related_video_id=long_form_id
                     )
@@ -1058,8 +1061,12 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                 publish_hour=publish_hour,
             )
             
+            # Quiz is published one hour after the related day video
+            quiz_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
+            quiz_schedule_time = (quiz_dt + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+
             rel_id = related_video_ids[index] if related_video_ids and index < len(related_video_ids) else None
-            print(f"Uploading Day {day_number} Quiz scheduled for {schedule_time} (linked to {rel_id})...")
+            print(f"Uploading Day {day_number} Quiz scheduled for {quiz_schedule_time} (linked to {rel_id})...")
 
             comment_text = quiz_script.get("pinned_comment", "")
             if rel_id and comment_text and "youtu.be" not in comment_text:
@@ -1069,7 +1076,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                 quiz_result = _upload_video(
                     quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
                     channel="english",
-                    schedule_time=schedule_time,
+                    schedule_time=quiz_schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
                         pinned_comment=comment_text,
                         related_video_id=rel_id
