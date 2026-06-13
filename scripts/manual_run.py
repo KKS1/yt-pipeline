@@ -1133,7 +1133,7 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
             print(f"  Day {index+1}: Posting to https://youtu.be/{short_ids[index]}")
             set_pinned_comment(short_ids[index], comment_text, channel)
 
-def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel="english"):
+def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel="english", related_only=False):
     """
     Maintenance task: Updates descriptions (adding practice tasks) and 
     posts pinned comments for both long-form videos and quiz shorts.
@@ -1160,40 +1160,42 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
         long_id = long_ids[i]
         day_num = script.get("day", i + 1)
         
-        # 1. Update Long-form Video
-        print(f"\n[Day {day_num}] Long Video: https://youtu.be/{long_id}")
-        
-        # Get practice task from the original plan
-        day_plan = days_info[i] if i < len(days_info) else {}
-        task = day_plan.get("practice_task", "")
-        
-        # Construct updated description including the practice task
-        base_desc = script.get("description", "")
-        if task and "PRACTICE TASK" not in base_desc.upper():
-            new_desc = f"📝 DAILY PRACTICE TASK: {task}\n\n" + base_desc
-        else:
-            new_desc = base_desc
-        
-        update_video_description(long_id, new_desc, channel)
-        
-        pinned = script.get("pinned_comment")
-        if pinned:
-            set_pinned_comment(long_id, pinned, channel)
+        if not related_only:
+            # 1. Update Long-form Video
+            print(f"\n[Day {day_num}] Long Video: https://youtu.be/{long_id}")
+            
+            # Get practice task from the original plan
+            day_plan = days_info[i] if i < len(days_info) else {}
+            task = day_plan.get("practice_task", "")
+            
+            # Construct updated description including the practice task
+            base_desc = script.get("description", "")
+            if task and "PRACTICE TASK" not in base_desc.upper():
+                new_desc = f"📝 DAILY PRACTICE TASK: {task}\n\n" + base_desc
+            else:
+                new_desc = base_desc
+            
+            update_video_description(long_id, new_desc, channel)
+            
+            pinned = script.get("pinned_comment")
+            if pinned:
+                set_pinned_comment(long_id, pinned, channel)
             
         # 2. Update Quiz Short
         if i < len(short_ids):
             short_id = short_ids[i]
-            print(f"  [Day {day_num}] Quiz Short: https://youtu.be/{short_id}")
+            print(f"\n[Day {day_num}] Linking Quiz Short: https://youtu.be/{short_id}")
 
             # Link the long video as the related video
             set_related_video(short_id, long_id, channel)
 
-            quiz_script = script.get("quiz_script", {})
-            quiz_pinned = quiz_script.get("pinned_comment", "")
-            if quiz_pinned and long_id not in quiz_pinned:
-                quiz_pinned += f"\n\nWatch the full lesson here: https://youtu.be/{long_id}"
-            if quiz_pinned:
-                set_pinned_comment(short_id, quiz_pinned, channel)
+            if not related_only:
+                quiz_script = script.get("quiz_script", {})
+                quiz_pinned = quiz_script.get("pinned_comment", "")
+                if quiz_pinned and long_id not in quiz_pinned:
+                    quiz_pinned += f"\n\nWatch the full lesson here: https://youtu.be/{long_id}"
+                if quiz_pinned:
+                    set_pinned_comment(short_id, quiz_pinned, channel)
 
 def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
@@ -1931,6 +1933,7 @@ def main():
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
     parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
     parser.add_argument("--fix-challenge", action="store_true", help="Fix missing tasks and pinned comments for a challenge run")
+    parser.add_argument("--related-only", action="store_true", help="Only update the related video link for shorts during fixup")
     parser.add_argument(
         "--dynamic-visuals",
         action="store_true",
@@ -2036,7 +2039,8 @@ def main():
             run_english_challenge_fixup(
                 json_path=args.json_package or "scripts/output/english_weekly_challenge.json",
                 long_ids_str=args.related_ids,
-                short_ids_str=args.video_ids
+                short_ids_str=args.video_ids,
+                related_only=args.related_only
             )
             return
 
