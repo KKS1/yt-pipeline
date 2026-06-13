@@ -1374,6 +1374,88 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None):
 
     cleanup_english_temp()
 
+def run_english_community(topic=None, content_type="quiz"):
+    """
+    Pipeline to generate Community Tab content (Quizzes and Image Polls).
+    Uses Pexels for free stock images when creating Image Polls.
+    """
+    from english_generator import generate_english_community_content
+    
+    print("\n" + "=" * 50)
+    print(f"ENGLISH VIBES HUB — Community {content_type.upper()}")
+    print("=" * 50)
+    
+    # Now calls generate_dynamic_topic internally if topic is None
+    data = generate_english_community_content(topic=topic, content_type=content_type)
+    
+    print(f"\nQUESTION: {data['question']}")
+    if content_type == "quiz":
+        for i, opt in enumerate(data.get("options", [])):
+            prefix = " [CORRECT] " if i == data.get("correct_index") else "           "
+            print(f"  {chr(65+i)}){prefix}{opt}")
+    else:
+        for i, opt in enumerate(data.get("options", [])):
+            print(f"  Option {i+1}: {opt}")
+    
+    print(f"\nEXPLANATION (for pinned comment or post body):")
+    print(data.get("correct_explanation", "No explanation generated."))
+
+    image_paths = []
+    # Handle Image Generation using Pexels (Free)
+    if data.get("image_prompts"):
+        print("\nFetching free poll images from Pexels...")
+        from ffmpeg_assembler import create_thumbnail
+        
+        prompts = data.get("image_prompts", [])
+        options = data.get("options", [])
+        
+        api_key = os.getenv("PEXELS_API_KEY")
+        if not api_key:
+            print("  [ERROR] PEXELS_API_KEY not found. Stock images required for Image Polls.")
+            return
+
+        for idx, (img_prompt, opt_text) in enumerate(zip(prompts, options)):
+            try:
+                # Search Pexels for a photo matching the prompt
+                resp = requests.get(
+                    f"https://api.pexels.com/v1/search?query={img_prompt}&per_page=1",
+                    headers={"Authorization": api_key},
+                    timeout=15
+                )
+                resp.raise_for_status()
+                photos = resp.json().get("photos", [])
+                if not photos:
+                    print(f"  No photo found for: {img_prompt}")
+                    continue
+                
+                img_url = photos[0]["src"]["large2x"]
+                img_data = requests.get(img_url, timeout=15).content
+                img_path = OUTPUT_DIR / f"community_poll_{idx}.jpg"
+                img_path.write_bytes(img_data)
+                
+                # Overlay the option text using existing thumbnail logic for branding
+                create_thumbnail(
+                    background_image=str(img_path),
+                    title_text=opt_text,
+                    output_path=str(img_path),
+                    style="english"
+                )
+                image_paths.append(img_path)
+                print(f"  ✓ Image {idx+1} ready: {img_path}")
+            except Exception as e:
+                print(f"  Failed to get image {idx+1} for '{img_prompt}': {e}")
+
+        if image_paths:
+            print(f"\nSUCCESS! {len(image_paths)} images generated in {OUTPUT_DIR}")
+    
+    print("\n" + "-" * 50)
+    print("POSTING INSTRUCTIONS:")
+    print("1. Go to YouTube Studio -> Content -> Community")
+    print(f"2. Copy/Paste the question and options above (Use 'Image Poll' for visual quizzes).")
+    if image_paths:
+        print(f"3. Upload the {len(image_paths)} generated images from the output folder.")
+    print("-" * 50)
+
 # ─────────────────────────────────────────────
 # SLOW ENGLISH PIPELINE — dual render + cross-pollination
 # ─────────────────────────────────────────────
@@ -1909,7 +1991,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz", "english-challenge-shorts"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz", "english-challenge-shorts", "english-community"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -1919,6 +2001,7 @@ def main():
         default="shorts",
         help="Trending format: shorts, explainer, or both for one Short plus one 5-7 minute explainer",
     )
+    parser.add_argument("--type", choices=["quiz", "image_poll"], default="quiz", help="Type of community post")
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
     parser.add_argument("--start-date", help="First publish date for english-challenge, YYYY-MM-DD")
     parser.add_argument("--publish-hour", type=int, default=6, help="Local publish hour for scheduled english-challenge videos")
@@ -1983,7 +2066,8 @@ def main():
         print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
         print("  8. english-quiz      — English Quiz Short (NEW)")
         print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
-        choice = prompt_input("Enter 1, 2, 3, 4, 5, 6, 7, 8, or 9", "1")
+        print("  10. english-community — English Community Tab Quizzes & Polls")
+        choice = prompt_input("Enter 1-10", "1")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -1994,6 +2078,7 @@ def main():
             "7": "english-slow",
             "8": "english-quiz",
             "9": "english-challenge-shorts",
+            "10": "english-community",
         }.get(choice, "lofi")
 
     if args.dynamic_visuals:
@@ -2029,6 +2114,8 @@ def main():
             schedule_time=effective_schedule_time,
             slow_offset_hours=args.slow_offset_hours
         )
+    elif args.channel == "english-community":
+        run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
         run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-challenge-shorts":

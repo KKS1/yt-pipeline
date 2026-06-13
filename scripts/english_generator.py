@@ -67,6 +67,17 @@ ENGLISH_TOPIC_POOL = [
     "Phrasal Verbs with 'Get'"
 ]
 
+COMMUNITY_POLL_POOL = [
+    "Grammar Quiz: Prepositions of Time",
+    "Vocabulary Challenge: Synonyms for 'Happy'",
+    "Common Mistakes: 'Your' vs 'You're'",
+    "Idiom Check: 'Under the weather' meaning",
+    "Pronunciation Poll: Which word is the odd one out?",
+    "Real-world English: Ordering at a Coffee Shop",
+    "Business English: Professional Email Openings",
+    "Slang Quiz: What does 'no cap' mean?"
+]
+
 WEEKLY_CHALLENGE_TOPIC_POOL = [
     "Speak Confidently in Daily Conversations",
     "Master Essential Phrasal Verbs",
@@ -128,7 +139,12 @@ def is_cta_line(text: str) -> bool:
 
 def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
     """Ask Groq to generate a fresh, trending English learning topic."""
-    type_label = "7-day weekly challenge" if is_challenge else "podcast episode"
+    if topic_type == "quiz":
+        type_label = "YouTube Community quiz or poll"
+    elif is_challenge:
+        type_label = "7-day weekly challenge"
+    else:
+        type_label = "podcast episode"
     topics_data = get_published_topics()
     published_topics = topics_data.get(topic_type, [])
     
@@ -153,10 +169,12 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
     try:
         res = call_groq_json(prompt)
-        return res.get("topic", random.choice(WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else ENGLISH_TOPIC_POOL))
+        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "quiz" else ENGLISH_TOPIC_POOL)
+        return res.get("topic", random.choice(fallback_pool))
     except Exception as e:
         print(f"  Error generating dynamic topic: {e}. Falling back to pool.")
-        return random.choice(WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else ENGLISH_TOPIC_POOL)
+        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "quiz" else ENGLISH_TOPIC_POOL)
+        return random.choice(fallback_pool)
 
 
 def generate_thumbnail_text(topic: str, is_challenge: bool = False) -> dict:
@@ -380,6 +398,46 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
     return script_data
+
+def generate_english_community_content(topic: str = None, content_type: str = "quiz") -> dict:
+    """
+    Generates content for YouTube Community Tab: 
+    types: 'quiz' (text poll with 1 right answer) or 'image_poll' (visual choices).
+    """
+    if not topic:
+        topic = generate_dynamic_topic(topic_type="quiz")
+    else:
+        # Check if manual topic is already published
+        if is_already_published(topic, "quiz"):
+            print(f"\n  [WARNING] Manual community topic '{topic}' was found in 'quiz' history.")
+
+    print(f"\nSelected community topic: {topic}")
+    
+    prompt = f"""
+    Create a highly engaging YouTube Community {content_type.replace('_', ' ')} for 'EnglishVibesHub'.
+    TOPIC: {topic}
+
+    REQUIREMENTS:
+    - Content must be for intermediate English learners.
+    - Provide a question and 4 options.
+    - Provide a 'correct_explanation' that explains WHY the answer is correct (for the pinned comment/post body).
+    - Provide 4 'image_prompts' (search keywords for Pexels), one for each option.
+
+    JSON SCHEMA:
+    {{
+      "question": "string",
+      "options": ["string", "string", "string", "string"],
+      "correct_index": 0,
+      "correct_explanation": "string",
+      "image_prompts": ["keyword1", "keyword2", "keyword3", "keyword4"]
+    }}
+    """
+    
+    res = call_groq_json(prompt)
+    res["content_type"] = content_type
+    res["topic"] = topic
+    save_published_topic(topic, topic_type="quiz")
+    return res
 
 
 def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
