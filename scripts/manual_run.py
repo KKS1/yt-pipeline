@@ -1133,6 +1133,64 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
             print(f"  Day {index+1}: Posting to https://youtu.be/{short_ids[index]}")
             set_pinned_comment(short_ids[index], comment_text, channel)
 
+def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel="english"):
+    """
+    Maintenance task: Updates descriptions (adding practice tasks) and 
+    posts pinned comments for both long-form videos and quiz shorts.
+    """
+    from youtube_uploader import update_video_description, set_pinned_comment
+
+    path = Path(json_path)
+    if not path.exists():
+        print(f"Error: {json_path} not found.")
+        return
+
+    package = json.loads(path.read_text(encoding="utf-8"))
+    scripts = package.get("scripts", [])
+    days_info = package.get("days", [])
+
+    long_ids = [vid.strip() for vid in long_ids_str.split(",")]
+    short_ids = [vid.strip() for vid in short_ids_str.split(",")]
+
+    print(f"\nFixing metadata for {len(long_ids)} Days of the Challenge...")
+
+    for i, script in enumerate(scripts):
+        if i >= len(long_ids): break
+        
+        long_id = long_ids[i]
+        day_num = script.get("day", i + 1)
+        
+        # 1. Update Long-form Video
+        print(f"\n[Day {day_num}] Long Video: https://youtu.be/{long_id}")
+        
+        # Get practice task from the original plan
+        day_plan = days_info[i] if i < len(days_info) else {}
+        task = day_plan.get("practice_task", "")
+        
+        # Construct updated description including the practice task
+        base_desc = script.get("description", "")
+        if task and "PRACTICE TASK" not in base_desc.upper():
+            new_desc = f"📝 DAILY PRACTICE TASK: {task}\n\n" + base_desc
+        else:
+            new_desc = base_desc
+        
+        update_video_description(long_id, new_desc, channel)
+        
+        pinned = script.get("pinned_comment")
+        if pinned:
+            set_pinned_comment(long_id, pinned, channel)
+            
+        # 2. Update Quiz Short
+        if i < len(short_ids):
+            short_id = short_ids[i]
+            print(f"  [Day {day_num}] Quiz Short: https://youtu.be/{short_id}")
+            quiz_script = script.get("quiz_script", {})
+            quiz_pinned = quiz_script.get("pinned_comment", "")
+            if quiz_pinned and long_id not in quiz_pinned:
+                quiz_pinned += f"\n\nWatch the full lesson here: https://youtu.be/{long_id}"
+            if quiz_pinned:
+                set_pinned_comment(short_id, quiz_pinned, channel)
+
 def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
@@ -1868,6 +1926,7 @@ def main():
     parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
     parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
+    parser.add_argument("--fix-challenge", action="store_true", help="Fix missing tasks and pinned comments for a challenge run")
     parser.add_argument(
         "--dynamic-visuals",
         action="store_true",
@@ -1966,6 +2025,17 @@ def main():
     elif args.channel == "english-quiz":
         run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-challenge-shorts":
+        if args.fix_challenge:
+            if not args.related_ids or not args.video_ids:
+                print("Error: --fix-challenge requires both --related-ids (Long videos) and --video-ids (Quiz shorts)")
+                return
+            run_english_challenge_fixup(
+                json_path=args.json_package or "scripts/output/english_weekly_challenge.json",
+                long_ids_str=args.related_ids,
+                short_ids_str=args.video_ids
+            )
+            return
+
         if args.comments_only:
             if not args.video_ids or not args.related_ids:
                 print("Error: --comments-only requires both --video-ids (Shorts) and --related-ids (Long form)")
