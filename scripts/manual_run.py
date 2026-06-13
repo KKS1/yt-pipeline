@@ -1138,7 +1138,7 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
     Maintenance task: Updates descriptions (adding practice tasks) and 
     posts pinned comments for both long-form videos and quiz shorts.
     """
-    from youtube_uploader import update_video_description, set_pinned_comment
+    from youtube_uploader import update_video_description, set_pinned_comment, set_related_video
 
     path = Path(json_path)
     if not path.exists():
@@ -1184,6 +1184,10 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
         if i < len(short_ids):
             short_id = short_ids[i]
             print(f"  [Day {day_num}] Quiz Short: https://youtu.be/{short_id}")
+
+            # Link the long video as the related video
+            set_related_video(short_id, long_id, channel)
+
             quiz_script = script.get("quiz_script", {})
             quiz_pinned = quiz_script.get("pinned_comment", "")
             if quiz_pinned and long_id not in quiz_pinned:

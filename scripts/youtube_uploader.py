@@ -363,3 +363,26 @@ def update_video_description(video_id: str, new_description: str, channel: str =
     except Exception as e:
         print(f"  update_video_description failed for {video_id}: {e}")
         return {}
+
+
+def set_related_video(video_id: str, related_video_id: str, channel: str = "english") -> dict:
+    """Update the 'relatedVideoId' (Related Video) property of an existing video.
+    This is primarily used to link Shorts to their long-form counterparts.
+    """
+    try:
+        youtube = _youtube_service(channel)
+
+        update_response = youtube.videos().update(
+            part="contentDetails",
+            body={
+                "id": video_id,
+                "contentDetails": {
+                    "relatedVideoId": related_video_id
+                }
+            }
+        ).execute()
+        print(f"  ✓ Linked related video {related_video_id} to {video_id}")
+        return update_response
+    except Exception as e:
+        print(f"  set_related_video failed for {video_id}: {e}")
+        return {}
