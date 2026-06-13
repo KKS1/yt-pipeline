@@ -696,7 +696,7 @@ def build_intro(script: dict, synth) -> tuple[str, str]:
     fmt   = script.get("format_label","THIS OR THAT?")
     sub   = script.get("subtitle", script["title"])
     voice = str(TEMP_DIR/"intro_voice.m4a")
-    synth(script["intro"], voice, voice="af_sarah", speed=1.1)
+    synth(script["intro"], voice, voice="af_heart", speed=0.95)
     dur   = frame_dur(get_duration(voice)+0.5)
 
     video = str(TEMP_DIR/"intro_silent.ts")
@@ -721,7 +721,7 @@ def build_question(q: dict, total: int, synth,
                         str(TEMP_DIR/f"q{n}_img_b.jpg"))
 
     voice = str(TEMP_DIR/f"q{n}_voice.m4a")
-    synth(text, voice, voice="af_sarah", speed=1.05)
+    synth(text, voice, voice="af_heart", speed=0.9)
     v_dur = frame_dur(get_duration(voice) + 0.3)
 
     q_vid = str(TEMP_DIR/f"q{n}_card_silent.ts")
@@ -751,7 +751,7 @@ def build_answer(q: dict, synth) -> tuple[str, str]:
         str(TEMP_DIR/f"q{n}_winner.jpg"))
 
     voice = str(TEMP_DIR/f"q{n}_ans_voice.m4a")
-    synth(text, voice, voice="af_sarah", speed=1.0)
+    synth(text, voice, voice="af_heart", speed=0.9)
     v_dur = frame_dur(get_duration(voice) + 1.0)
 
     card  = make_answer_card(answer, q["explanation"], winner_img, is_both)
@@ -767,7 +767,7 @@ def build_answer(q: dict, synth) -> tuple[str, str]:
 def build_funfact(text: str, n: int, synth) -> tuple[str, str]:
     print(f"  Fun fact after Q{n}...")
     voice = str(TEMP_DIR/f"ff{n}_voice.m4a")
-    synth(f"Fun fact! {text}", voice, voice="af_sarah", speed=0.95)
+    synth(f"Fun fact! {text}", voice, voice="af_heart", speed=0.85)
     dur   = frame_dur(get_duration(voice)+0.5)
 
     # Try to fetch a relevant image for fun fact background
@@ -788,7 +788,7 @@ def build_funfact(text: str, n: int, synth) -> tuple[str, str]:
 def build_outro(script: dict, synth) -> tuple[str, str]:
     print("\nBuilding outro...")
     voice = str(TEMP_DIR/"outro_voice.m4a")
-    synth(script["outro"], voice, voice="af_sarah", speed=1.05)
+    synth(script["outro"], voice, voice="af_heart", speed=0.95)
     dur   = frame_dur(get_duration(voice)+0.5)
 
     video = str(TEMP_DIR/"outro_silent.ts")
