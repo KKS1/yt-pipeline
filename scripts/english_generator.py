@@ -23,10 +23,10 @@ def get_published_topics() -> dict:
                         data["quiz"] = []
                     return data
                 # Handle old list format by migrating it to "podcast"
-                return {"podcast": data, "shorts": [], "challenge": [], "slow": [], "quiz": []}
+                return {"podcast": data, "shorts": [], "challenge": [], "slow": [], "quiz": [], "post": []}
         except Exception as e:
             print(f"Error loading published topics: {e}")
-    return {"podcast": [], "shorts": [], "challenge": [], "slow": [], "quiz": []}
+    return {"podcast": [], "shorts": [], "challenge": [], "slow": [], "quiz": [], "post": []}
 
 def is_already_published(topic: str, topic_type: str) -> bool:
     """Check if a topic or title already exists in the published history for a specific type."""
@@ -139,7 +139,7 @@ def is_cta_line(text: str) -> bool:
 
 def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
     """Ask Groq to generate a fresh, trending English learning topic."""
-    if topic_type == "quiz":
+    if topic_type == "post":
         type_label = "YouTube Community quiz or poll"
     elif is_challenge:
         type_label = "7-day weekly challenge"
@@ -169,11 +169,11 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
     try:
         res = call_groq_json(prompt)
-        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "quiz" else ENGLISH_TOPIC_POOL)
+        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
         return res.get("topic", random.choice(fallback_pool))
     except Exception as e:
         print(f"  Error generating dynamic topic: {e}. Falling back to pool.")
-        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "quiz" else ENGLISH_TOPIC_POOL)
+        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
         return random.choice(fallback_pool)
 
 
@@ -405,11 +405,11 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
     types: 'quiz' (text poll with 1 right answer) or 'image_poll' (visual choices).
     """
     if not topic:
-        topic = generate_dynamic_topic(topic_type="quiz")
+        topic = generate_dynamic_topic(topic_type="post")
     else:
         # Check if manual topic is already published
-        if is_already_published(topic, "quiz"):
-            print(f"\n  [WARNING] Manual community topic '{topic}' was found in 'quiz' history.")
+        if is_already_published(topic, "post"):
+            print(f"\n  [WARNING] Manual community topic '{topic}' was found in 'post' history.")
 
     print(f"\nSelected community topic: {topic}")
     
@@ -419,7 +419,7 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
 
     REQUIREMENTS:
     - Content must be for intermediate English learners.
-    - Provide a question and 4 options.
+    - Provide a question and 4 options. Keep each option extremely concise (max 20 characters) so they fit on mobile image overlays.
     - Provide a 'correct_explanation' that explains WHY the answer is correct (for the pinned comment/post body).
     - Provide 4 'image_prompts' (search keywords for Pexels), one for each option.
 
@@ -436,7 +436,7 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
     res = call_groq_json(prompt)
     res["content_type"] = content_type
     res["topic"] = topic
-    save_published_topic(topic, topic_type="quiz")
+    save_published_topic(topic, topic_type="post")
     return res
 
 

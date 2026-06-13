@@ -923,7 +923,8 @@ def create_thumbnail(
     """
 
     s = THUMBNAIL_STYLES.get(style, THUMBNAIL_STYLES["trending"])
-    wrapped_title = title_text[:50]  # Truncate if too long
+    # Escape text for FFmpeg drawtext filter
+    safe_title = _ffmpeg_escape_drawtext(title_text)
 
     cmd = [
         FFMPEG, "-y",
@@ -931,10 +932,10 @@ def create_thumbnail(
         "-vf",
         f"scale=1280:720,"
         f"drawbox=x=0:y=ih-200:w=iw:h=200:color={s['box_color']}:t=fill,"
-        f"drawtext=text='{wrapped_title}':"
+        f"drawtext=text='{safe_title}':"
         f"fontcolor={s['font_color']}:"
         f"fontsize={s['font_size']}:"
-        f"x=(w-text_w)/2:y=h-140:"
+        f"x=(w-text_w)/2:y=h-165:"
         f"font='DejaVu Sans Bold':"
         f"shadowcolor=black:shadowx=3:shadowy=3",
         "-frames:v", "1",

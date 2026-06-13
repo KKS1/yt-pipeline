@@ -20,6 +20,7 @@ import sys
 import json
 import argparse
 import subprocess
+import textwrap
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -1433,10 +1434,12 @@ def run_english_community(topic=None, content_type="quiz"):
                 img_path = OUTPUT_DIR / f"community_poll_{idx}.jpg"
                 img_path.write_bytes(img_data)
                 
-                # Overlay the option text using existing thumbnail logic for branding
+                # Overlay the option text using existing thumbnail logic for branding.
+                # We wrap the text to ensure it doesn't get cut off on mobile devices.
+                wrapped_text = "\n".join(textwrap.wrap(opt_text, width=18))
                 create_thumbnail(
                     background_image=str(img_path),
-                    title_text=opt_text,
+                    title_text=wrapped_text,
                     output_path=str(img_path),
                     style="english"
                 )
@@ -2067,7 +2070,7 @@ def main():
         print("  8. english-quiz      — English Quiz Short (NEW)")
         print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
         print("  10. english-community — English Community Tab Quizzes & Polls")
-        choice = prompt_input("Enter 1-10", "1")
+        choice = prompt_input("Enter 1-10", "10")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -2078,7 +2081,7 @@ def main():
             "7": "english-slow",
             "8": "english-quiz",
             "9": "english-challenge-shorts",
-            "10": "english-community",
+            "10": "english-community"
         }.get(choice, "lofi")
 
     if args.dynamic_visuals:
