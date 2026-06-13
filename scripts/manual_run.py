@@ -750,7 +750,7 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     return out_path
 
 
-def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publish_hour: int = 9) -> str:
+def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publish_hour: int = 6) -> str:
     timezone_name = os.getenv("LOCAL_TIMEZONE", "America/Regina")
     tz = ZoneInfo(timezone_name)
     now = datetime.now(tz)
@@ -823,7 +823,7 @@ def run_english(upload=True, schedule_time=None):
     print("\nDone!\n")
 
 
-def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=9):
+def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6):
     from english_generator import generate_weekly_challenge_scripts, save_published_topic
 
     print("\n" + "=" * 50)
@@ -981,7 +981,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_challenge_shorts_only(json_path, start_date, publish_hour=9, upload=True, related_video_ids=None):
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None):
     """
     Specialized runner to generate and upload ONLY the quiz shorts 
     from an existing weekly challenge JSON package.
@@ -1126,14 +1126,25 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
             print(f"  Day {index+1}: Posting to https://youtu.be/{short_ids[index]}")
             set_pinned_comment(short_ids[index], comment_text, channel)
 
-def run_english_shorts(topic=None, upload=True, schedule_time=None):
+def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
     
+    if dynamic_visuals and upload:
+        raise RuntimeError(
+            "Dynamic English visuals are prototype-only and must be run with --no-upload for manual review."
+        )
+
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Shorts Generator")
+    if dynamic_visuals:
+        print("Dynamic Emma/Liam visuals: ON (prototype, no-upload only)")
     print("=" * 50)
+
+    if dynamic_visuals:
+        from dynamic_english_renderer import preflight_dynamic_english_assets
+        preflight_dynamic_english_assets()
     
     try:
         cleanup_english_temp()
@@ -1155,6 +1166,28 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None):
         
     title = script["title"]
     out_slug = slug(title)
+
+    if dynamic_visuals:
+        from dynamic_english_renderer import render_dynamic_english_short
+        bg_music = ASSETS_DIR / "background_music.mp3"
+        bg_music_str = str(bg_music) if bg_music.exists() else None
+        srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+        out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+
+        cleanup_english_temp()
+        render_dynamic_english_short(
+            script_data=script,
+            output_path=out_path,
+            captions_srt=srt_path,
+            background_music=bg_music_str,
+            title=title,
+        )
+        cleanup_english_temp()
+
+        print(f"\nDynamic video assembled without upload: {out_path}")
+        print("Review this MP4 manually before promoting dynamic visuals to publishing.")
+        print("\nDone!\n")
+        return
 
     visuals_dir = ASSETS_DIR / "english_shorts_visuals"
     if not visuals_dir.exists():
@@ -1817,7 +1850,7 @@ def main():
     )
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
     parser.add_argument("--start-date", help="First publish date for english-challenge, YYYY-MM-DD")
-    parser.add_argument("--publish-hour", type=int, default=9, help="Local publish hour for scheduled english-challenge videos")
+    parser.add_argument("--publish-hour", type=int, default=6, help="Local publish hour for scheduled english-challenge videos")
     parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
     parser.add_argument("--title", help="Title to use with --upload-existing")
     parser.add_argument("--description", help="Description to use with --upload-existing")
@@ -1828,6 +1861,11 @@ def main():
     parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
     parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
+    parser.add_argument(
+        "--dynamic-visuals",
+        action="store_true",
+        help="Prototype only: render english-shorts with dynamic Emma/Liam visuals. Requires --no-upload.",
+    )
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1846,6 +1884,8 @@ def main():
         parser.error("--upload-existing requires --channel")
 
     if args.upload_existing:
+        if args.dynamic_visuals:
+            parser.error("--dynamic-visuals cannot be used with --upload-existing")
         tags = None
         if args.tags is not None:
             tags = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
@@ -1883,6 +1923,12 @@ def main():
             "9": "english-challenge-shorts",
         }.get(choice, "lofi")
 
+    if args.dynamic_visuals:
+        if args.channel != "english-shorts":
+            parser.error("--dynamic-visuals is currently supported only with --channel english-shorts")
+        if not args.no_upload:
+            parser.error("--dynamic-visuals is prototype-only and requires --no-upload")
+
     if args.channel == "lofi":
         run_lofi(schedule_time=effective_schedule_time)
     elif args.channel == "family":
@@ -1897,7 +1943,12 @@ def main():
             publish_hour=args.publish_hour,
         )
     elif args.channel == "english-shorts":
-        run_english_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
+        run_english_shorts(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            dynamic_visuals=args.dynamic_visuals,
+        )
     elif args.channel == "english-slow":
         run_english_slow(
             topic=args.topic, 

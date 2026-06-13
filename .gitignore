@@ -16,6 +16,10 @@ assets/english_visuals/
 assets/weekly_challenge_visuals/
 assets/english_shorts_visuals/
 assets/bumpers/
+assets/characters/emma/body.png
+assets/characters/liam/body.png
+assets/characters/generated_mouths/
+assets/dynamic_backgrounds/
 scripts/this_or_that.json
 
 # Python

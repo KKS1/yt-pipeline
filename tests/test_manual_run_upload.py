@@ -59,7 +59,7 @@ class ManualRunUploadTests(unittest.TestCase):
         schedule_time = manual_run._challenge_schedule_time(
             start_date="2026-06-01",
             day_offset=2,
-            publish_hour=9,
+            publish_hour=6,
         )
 
         self.assertEqual(schedule_time, "2026-06-03T15:00:00Z")
@@ -164,7 +164,7 @@ class ManualRunUploadTests(unittest.TestCase):
                                                 topic="small talk",
                                                 upload=True,
                                                 start_date="2026-05-28",
-                                                publish_hour=9,
+                                                publish_hour=6,
                                             )
             finally:
                 os.chdir(old_cwd)

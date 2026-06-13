@@ -1,0 +1,40 @@
+{
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "background": "assets/dynamic_backgrounds/test_scene.png",
+  "characters": {
+    "Emma": {
+      "body": "assets/characters/emma/body.png",
+      "position": {
+        "x": 60,
+        "y": 560,
+        "width": 470,
+        "height": 820
+      },
+      "mouth": {
+        "x": 250,
+        "y": 895,
+        "width": 86,
+        "height": 46
+      }
+    },
+    "Liam": {
+      "body": "assets/characters/liam/body.png",
+      "position": {
+        "x": 550,
+        "y": 560,
+        "width": 470,
+        "height": 820
+      },
+      "mouth": {
+        "x": 740,
+        "y": 895,
+        "width": 86,
+        "height": 46
+      }
+    }
+  }
+}

@@ -75,6 +75,10 @@ python scripts/manual_run.py --channel english-challenge --topic "Small Talk Wit
 
 This creates Day 1-6 daily learning videos plus a Day 7 recap/question challenge. Uploads use the existing `english` YouTube credentials and are scheduled one video per day at 9AM local time by default. Add `--no-upload` to only assemble the videos.
 
+Experimental dynamic Emma/Liam visuals are available for English Shorts only and
+must be run with `--no-upload` while the prototype is being reviewed. See
+**[docs/DYNAMIC_ENGLISH_VISUALS.md](docs/DYNAMIC_ENGLISH_VISUALS.md)**.
+
 ## Project structure
 
 ```
