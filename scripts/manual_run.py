@@ -52,23 +52,39 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 FAMILY_PUBLISHED_FILE = Path(__file__).resolve().parent / "family_published_topics.json"
 
-def get_family_history() -> list:
+def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
         try:
             with open(FAMILY_PUBLISHED_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data if isinstance(data, list) else []
+                if isinstance(data, dict):
+                    return data.get(tag, [])
+                if isinstance(data, list) and tag == "family":
+                    return data
         except Exception:
-            return []
+            pass
     return []
 
-def save_family_topic(topic: str):
-    history = get_family_history()
-    if topic not in history:
-        history.append(topic)
+def save_family_topic(topic: str, tag: str = "family"):
+    data = {}
+    if FAMILY_PUBLISHED_FILE.exists():
+        try:
+            with open(FAMILY_PUBLISHED_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    data = {"family": data}
+        except Exception:
+            pass
+
+    if tag not in data:
+        data[tag] = []
+    if topic not in data[tag]:
+        data[tag].append(topic)
+        if len(data[tag]) > 500:
+            data[tag] = data[tag][-500:]
         try:
             with open(FAMILY_PUBLISHED_FILE, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception:
             pass
 
