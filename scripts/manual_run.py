@@ -585,7 +585,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(upload=True, schedule_time=None):
+def run_english(topic=None, upload=True, schedule_time=None):
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
