@@ -443,7 +443,7 @@ def run_lofi(schedule_time=None):
 # FAMILY PIPELINE (free with local TTS)
 # ─────────────────────────────────────────────
 
-def run_family(schedule_time=None):
+def run_family(topic=None, schedule_time=None):
 
     from family_assembler import (
         assemble_family_video,
@@ -460,7 +460,7 @@ def run_family(schedule_time=None):
 
         print("\nGenerating script with Groq...\n")
 
-        script = generate_this_or_that_script()
+        script = generate_this_or_that_script(topic)
 
         Path("scripts").mkdir(exist_ok=True)
 
@@ -597,7 +597,7 @@ def run_english(upload=True, schedule_time=None):
         cleanup_english_temp()
         
         print("\nGenerating script with Groq...\n")
-        script = generate_english_script()
+        script = generate_english_script(topic)
         
         Path("scripts/output").mkdir(exist_ok=True)
         json_file = "scripts/output/english_podcast.json"
@@ -1907,9 +1907,9 @@ def main():
     if args.channel == "lofi":
         run_lofi(schedule_time=effective_schedule_time)
     elif args.channel == "family":
-        run_family(schedule_time=effective_schedule_time)
+        run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(upload=not args.no_upload, schedule_time=effective_schedule_time)
+        run_english(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
