@@ -1076,19 +1076,13 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         return
 
     visuals_dir = ASSETS_DIR / "english_shorts_visuals"
-    if not visuals_dir.exists():
-        visuals_dir.mkdir(parents=True)
-        print(f"\nCreated directory: {visuals_dir}")
-        print("Falling back to english_visuals since shorts visuals are not yet provided.")
-        visual_files, bg_music_str = _english_video_assets("english_visuals")
-    else:
-        visual_files = sorted(visuals_dir.glob("*.mp4"))
-        if not visual_files:
-            print(f"\nNo video files in {visuals_dir}, falling back to english_visuals.")
-            visual_files, bg_music_str = _english_video_assets("english_visuals")
-        else:
-            bg_music = ASSETS_DIR / "background_music.mp3"
-            bg_music_str = str(bg_music) if bg_music.exists() else None
+    visual_files = sorted(visuals_dir.glob("*.mp4"))
+    if not visual_files:
+        print(f"\nNo video files found in {visuals_dir}. Please ensure vertical assets are provided.")
+        sys.exit(1)
+
+    bg_music = ASSETS_DIR / "background_music.mp3"
+    bg_music_str = str(bg_music) if bg_music.exists() else None
 
     selected_visual = random.choice(visual_files)
     
@@ -1833,6 +1827,7 @@ def main():
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
     parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
     parser.add_argument("--fix-challenge", action="store_true", help="Fix missing tasks and pinned comments for a challenge run")
+    parser.add_argument("--profile", action="store_true", help="Enable cProfile for this run")
     parser.add_argument("--related-only", action="store_true", help="Only update the related video link for shorts during fixup")
     parser.add_argument(
         "--dynamic-visuals",
@@ -1995,4 +1990,9 @@ def profile_script():
             stats.print_stats()
 
 if __name__ == "__main__":
-    profile_script()
+    # Optimization: Only run profiler if explicitly requested. 
+    # Video processing is too heavy for standard profiling and causes massive slowdowns.
+    if "--profile" in sys.argv:
+        profile_script()
+    else:
+        main()

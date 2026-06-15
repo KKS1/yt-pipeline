@@ -584,7 +584,7 @@ def assemble_narrated_video(
             "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                    f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                    f"fps={VIDEO_FPS}",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
             "-an",  # Drop original audio from stock clips
             norm_path
         ]
@@ -663,7 +663,7 @@ def assemble_narrated_video(
         # Add fade in at start, fade out at end
         "-vf", f"fade=t=in:st=0:d=1,fade=t=out:st={narration_duration-2}:d=2,"
                + (f"subtitles={captions_srt}:force_style='{caption_style}'" if has_captions else ""),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",  # Web-optimized
         "-metadata", f"title={title}",
@@ -678,7 +678,7 @@ def assemble_narrated_video(
             "-i", concat_path, "-i", mixed_audio_path,
             "-map", "0:v", "-map", "1:a",
             "-vf", f"fade=t=in:st=0:d=1,fade=t=out:st={narration_duration-2}:d=2",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy", "-movflags", "+faststart",
             output_path
         ]
@@ -711,11 +711,19 @@ def assemble_shorts_video(
     normalized_clips = []
     for i, clip in enumerate(stock_clips):
         norm_path = str(TEMP_DIR / f"short_norm_{i:03d}.mp4")
+
+        # Optimization: Skip expensive scaling/cropping if the asset is already vertical 1080x1920.
+        info = _video_stream_info(clip)
+        if info.get("width") == SHORTS_WIDTH and info.get("height") == SHORTS_HEIGHT:
+            vf = f"fps={VIDEO_FPS}"
+        else:
+            vf = (f"scale={SHORTS_WIDTH}:{SHORTS_HEIGHT}:force_original_aspect_ratio=increase,"
+                  f"crop={SHORTS_WIDTH}:{SHORTS_HEIGHT},fps={VIDEO_FPS}")
+
         cmd = [
             FFMPEG, "-y", "-i", clip,
-            "-vf", f"scale={SHORTS_WIDTH}:{SHORTS_HEIGHT}:force_original_aspect_ratio=increase,"
-                   f"crop={SHORTS_WIDTH}:{SHORTS_HEIGHT},fps={VIDEO_FPS}",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
             "-an",
             norm_path
         ]
@@ -738,7 +746,7 @@ def assemble_shorts_video(
         FFMPEG, "-y",
         "-f", "concat", "-safe", "0", "-i", list_path,
         "-t", str(narration_duration),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-an",
         concat_path
     ]
@@ -784,8 +792,8 @@ def assemble_shorts_video(
         "-i", concat_path,
         "-i", mixed_audio_path,
         "-map", "0:v", "-map", "1:a",
-        "-vf", vf_filter,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-vf", vf_filter, # Use the already constructed vf_filter
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
@@ -798,8 +806,8 @@ def assemble_shorts_video(
             FFMPEG, "-y",
             "-i", concat_path, "-i", mixed_audio_path,
             "-map", "0:v", "-map", "1:a",
-            "-vf", f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-vf", f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1", # Fallback also uses 'fast' preset
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy", "-movflags", "+faststart",
             output_path
         ]
@@ -870,7 +878,7 @@ def assemble_lofi_video(
         "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-an", norm_visual, "-loglevel", "error"
     ], check=True)
     print(f"  Visual normalized (short loop only)")

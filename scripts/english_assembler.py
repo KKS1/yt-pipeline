@@ -46,7 +46,7 @@ def generate_podcast_audio(script_data: dict) -> str:
         try:
             print(f"  [{speaker}] -> {out_path}")
             # we use speed=1.0 for a more relaxed learning pace
-            synthesize(text, out_path, voice=voice, speed=0.95)
+            synthesize(text, out_path, voice=voice, speed=1.05) # Increased speed for shorts
             audio_files.append(out_path)
         except Exception as e:
             print(f"  Error generating audio for line {i}: {e}")
@@ -95,7 +95,7 @@ def assemble_english_video(
         "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-an", norm_visual, "-loglevel", "error"
     ], check=True)
     print(f"  Visual normalized")
@@ -144,7 +144,7 @@ def assemble_english_video(
         "-vf", vf_filter,
         "-map", "0:v", "-map", "1:a",
         "-t", str(duration),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
@@ -160,7 +160,7 @@ def assemble_english_video(
             "-i", final_audio,
             "-map", "0:v", "-map", "1:a",
             "-t", str(duration),
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy", "-movflags", "+faststart",
             output_path, "-loglevel", "error"
         ]
@@ -254,7 +254,7 @@ def assemble_slow_english_video(
         "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
                f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-an", norm_visual, "-loglevel", "error"
     ], check=True)
     print("  Visual normalized")
@@ -321,7 +321,7 @@ def assemble_slow_english_video(
         "-vf", vf_filter,
         "-map", "0:v", "-map", "1:a",
         "-t", str(duration),
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         "-metadata", f"title={title} [Slow Mode]",
@@ -337,7 +337,7 @@ def assemble_slow_english_video(
             "-i", final_audio,
             "-map", "0:v", "-map", "1:a",
             "-t", str(duration),
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy", "-movflags", "+faststart",
             output_path, "-loglevel", "error"
         ]
@@ -348,4 +348,3 @@ def assemble_slow_english_video(
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Slow English video assembled: {output_path} ({size_mb:.1f} MB)")
     return output_path
-
