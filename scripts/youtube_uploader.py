@@ -198,6 +198,7 @@ def youtube_upload(
     schedule_time: str = None,
     related_video_id: str = None,
     pinned_comment: str = None,
+    notify_subscribers: bool = True,
 ) -> dict:
     """Upload a video to YouTube using channel-specific OAuth credentials."""
 
@@ -243,6 +244,7 @@ def youtube_upload(
         part="snippet,status,contentDetails" if related_video_id else "snippet,status",
         body=body,
         media_body=media,
+        notifySubscribers=notify_subscribers,
     )
 
     session_path = _upload_session_path(video_path, channel)

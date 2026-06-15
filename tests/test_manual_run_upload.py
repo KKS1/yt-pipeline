@@ -62,7 +62,7 @@ class ManualRunUploadTests(unittest.TestCase):
             publish_hour=6,
         )
 
-        self.assertEqual(schedule_time, "2026-06-03T15:00:00Z")
+        self.assertEqual(schedule_time, "2026-06-03T12:00:00Z")
 
     def test_upload_existing_challenge_uses_english_credentials(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -139,7 +139,8 @@ class ManualRunUploadTests(unittest.TestCase):
             ],
         }
         fake_generator = types.SimpleNamespace(
-            generate_weekly_challenge_scripts=lambda topic=None: package
+            generate_weekly_challenge_scripts=lambda topic=None: package,
+            save_published_topic=lambda title, topic_type="quiz": None
         )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -169,12 +170,18 @@ class ManualRunUploadTests(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
-        create_playlist.assert_called_once()
+        self.assertEqual(create_playlist.call_count, 2)
         self.assertEqual(
-            create_playlist.call_args.kwargs["title"],
+            create_playlist.call_args_list[0].kwargs["title"],
             "Small Talk Without Freezing | 7-Day English Challenge",
         )
-        self.assertEqual(create_playlist.call_args.kwargs["channel"], "english")
+        self.assertEqual(
+            create_playlist.call_args_list[1].kwargs["title"],
+            "Small Talk Without Freezing | Daily Quizzes",
+        )
+        self.assertTrue(
+            all(call.kwargs["channel"] == "english" for call in create_playlist.call_args_list)
+        )
         self.assertEqual(
             [call.kwargs["video_id"] for call in add_to_playlist.call_args_list],
             ["video1", "video2"],

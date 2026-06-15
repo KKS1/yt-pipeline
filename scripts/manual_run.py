@@ -123,6 +123,15 @@ def slug(text: str) -> str:
     s = re.sub(r'[^a-z0-9]+', '_', s)
     return s.strip('_')
 
+def is_weekday_in_regina(schedule_time_utc: str) -> bool:
+    from zoneinfo import ZoneInfo
+    if schedule_time_utc.endswith("Z"):
+        utc_str = schedule_time_utc[:-1] + "+00:00"
+    else:
+        utc_str = schedule_time_utc
+    dt = datetime.fromisoformat(utc_str).astimezone(ZoneInfo("America/Regina"))
+    return dt.weekday() < 5
+
 def generate_lofi_metadata_local() -> dict:
     import random
 
@@ -585,7 +594,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(topic=None, upload=True, schedule_time=None):
+def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=None):
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
@@ -618,6 +627,20 @@ def run_english(topic=None, upload=True, schedule_time=None):
     selected_visual = random.choice(visual_files)
     out_path = _assemble_english_script(script, out_slug, selected_visual, bg_music_str)
 
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English slot: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        notify_subscribers = True
+
     if upload:
         print("\nUploading video...\n")
         _upload_video(
@@ -630,6 +653,9 @@ def run_english(topic=None, upload=True, schedule_time=None):
             thumbnail_text=script.get("thumbnail_text", title),
             pinned_comment=script.get("pinned_comment"),
             thumbnail_concept=script.get("thumbnail_concept", None),
+            notify_subscribers=notify_subscribers,
+            command_channel="english",
+            slot=slot_name
         )
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
@@ -638,12 +664,20 @@ def run_english(topic=None, upload=True, schedule_time=None):
     print("\nDone!\n")
 
 
-def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6):
+def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6, notify_subscribers=None):
     from english_generator import generate_weekly_challenge_scripts, save_published_topic
 
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Weekly Challenge Playlist")
     print("=" * 50)
+
+    if not start_date:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        start_dt = ledger.get_next_challenge_start_date(now_dt)
+        start_date = start_dt.date().isoformat()
+        print(f"  Selected default English Challenge start date: {start_date}")
 
     try:
         print("\nGenerating 7-day weekly challenge with Groq...\n")
@@ -739,6 +773,9 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 thumbnail_text=script.get("thumbnail_text", title),
                 pinned_comment=script.get("pinned_comment"),
                 thumbnail_concept=script.get("thumbnail_concept", None),
+                notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
+                command_channel="english-challenge",
+                slot=f"challenge_{publish_hour}am"
             )
             long_form_id = (result or {}).get("youtube_id")
             
@@ -774,9 +811,12 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             )
             
             if upload:
-                # Quiz is published one hour after the related day video
-                quiz_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
-                quiz_schedule_time = (quiz_dt + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+                # Quiz is published at 10:00 AM CST
+                quiz_schedule_time = _challenge_schedule_time(
+                    start_date=start_date,
+                    day_offset=index,
+                    publish_hour=10,
+                )
 
                 print(f"Uploading Day {day_number} Quiz Linked to Video {long_form_id}...")
                 try:
@@ -785,7 +825,10 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                         channel="english",
                         schedule_time=quiz_schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
-                        related_video_id=long_form_id
+                        related_video_id=long_form_id,
+                        notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
+                        command_channel="english-challenge",
+                        slot="challenge_quiz_10am"
                     )
                     quiz_id = (quiz_result or {}).get("youtube_id")
                     if quiz_playlist_id and quiz_id:
@@ -799,7 +842,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None):
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=None):
     """
     Specialized runner to generate and upload ONLY the quiz shorts 
     from an existing weekly challenge JSON package.
@@ -870,15 +913,12 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
         )
         
         if upload:
-            schedule_time = _challenge_schedule_time(
+            # Quiz is published at 10:00 AM CST
+            quiz_schedule_time = _challenge_schedule_time(
                 start_date=start_date,
                 day_offset=index,
-                publish_hour=publish_hour,
+                publish_hour=10,
             )
-            
-            # Quiz is published one hour after the related day video
-            quiz_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
-            quiz_schedule_time = (quiz_dt + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
 
             rel_id = related_video_ids[index] if related_video_ids and index < len(related_video_ids) else None
             print(f"Uploading Day {day_number} Quiz scheduled for {quiz_schedule_time} (linked to {rel_id})...")
@@ -892,9 +932,12 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                     quiz_out_path, quiz_script["title"], quiz_script["description"], quiz_script["tags"],
                     channel="english",
                     schedule_time=quiz_schedule_time,
-                        thumbnail_text=f"QUIZ: DAY {day_number}",
-                        pinned_comment=comment_text,
-                        related_video_id=rel_id
+                    thumbnail_text=f"QUIZ: DAY {day_number}",
+                    pinned_comment=comment_text,
+                    related_video_id=rel_id,
+                    notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
+                    command_channel="english-challenge",
+                    slot="challenge_quiz_10am"
                 )
                 quiz_id = (quiz_result or {}).get("youtube_id")
                 if quiz_playlist_id and quiz_id:
@@ -1012,7 +1055,7 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
                 if quiz_pinned:
                     set_pinned_comment(short_id, quiz_pinned, channel)
 
-def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False):
+def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
@@ -1076,13 +1119,19 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         return
 
     visuals_dir = ASSETS_DIR / "english_shorts_visuals"
-    visual_files = sorted(visuals_dir.glob("*.mp4"))
-    if not visual_files:
-        print(f"\nNo video files found in {visuals_dir}. Please ensure vertical assets are provided.")
-        sys.exit(1)
-
-    bg_music = ASSETS_DIR / "background_music.mp3"
-    bg_music_str = str(bg_music) if bg_music.exists() else None
+    if not visuals_dir.exists():
+        visuals_dir.mkdir(parents=True)
+        print(f"\nCreated directory: {visuals_dir}")
+        print("Falling back to english_visuals since shorts visuals are not yet provided.")
+        visual_files, bg_music_str = _english_video_assets("english_visuals")
+    else:
+        visual_files = sorted(visuals_dir.glob("*.mp4"))
+        if not visual_files:
+            print(f"\nNo video files in {visuals_dir}, falling back to english_visuals.")
+            visual_files, bg_music_str = _english_video_assets("english_visuals")
+        else:
+            bg_music = ASSETS_DIR / "background_music.mp3"
+            bg_music_str = str(bg_music) if bg_music.exists() else None
 
     selected_visual = random.choice(visual_files)
     
@@ -1111,6 +1160,24 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
 
     cleanup_english_temp()
 
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english-shorts", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English Shorts slot: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        if schedule_time:
+            from schedule_ledger import is_weekday_in_regina
+            notify_subscribers = is_weekday_in_regina(schedule_time)
+        else:
+            notify_subscribers = True
+
     if upload:
         print("\nUploading video...\n")
         # English shorts already have captions overlaid; YouTube Studio auto-generates unique thumbnails
@@ -1122,13 +1189,16 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
             channel="english", # Shorts don't use bumpers, but still use 'english' channel creds
             pinned_comment=script.get("pinned_comment"),
             schedule_time=schedule_time,
+            notify_subscribers=notify_subscribers,
+            command_channel="english-shorts",
+            slot=slot_name
         )
     else:
         print(f"\nVideo assembled without upload: {out_path}")
     
     print("\nDone!\n")
 
-def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None):
+def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None):
     """Manual runner for the new Quiz Shorts strategy."""
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_quiz_shorts_script, save_published_topic
@@ -1159,6 +1229,24 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None):
         title=title
     )
 
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english-quiz", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English Quiz slot: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        if schedule_time:
+            from schedule_ledger import is_weekday_in_regina
+            notify_subscribers = is_weekday_in_regina(schedule_time)
+        else:
+            notify_subscribers = True
+
     if upload:
         result = _upload_video(
             out_path, title, script["description"], script["tags"],
@@ -1166,6 +1254,9 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None):
             thumbnail_text="QUIZ TIME!",
             pinned_comment=script.get("pinned_comment"),
             schedule_time=schedule_time,
+            notify_subscribers=notify_subscribers,
+            command_channel="english-quiz",
+            slot=slot_name
         )
 
         video_id = (result or {}).get("youtube_id")
@@ -1283,7 +1374,7 @@ def _patch_video_description(channel: str, video_id: str, new_description: str) 
         print(f"  Warning: could not patch description for {video_id}: {e}")
 
 
-def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_hours=24):
+def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_hours=24, notify_subscribers=None):
     """Dual-render slow English pipeline:
 
     1. Generate one idiom-focused script (8-12 turns)
@@ -1390,6 +1481,24 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
 
     cleanup_english_temp()
 
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English slot for Slow Normal: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        if schedule_time:
+            from schedule_ledger import is_weekday_in_regina
+            notify_subscribers = is_weekday_in_regina(schedule_time)
+        else:
+            notify_subscribers = True
+
     if not upload:
         print(f"\nBoth videos assembled (upload skipped):")
         print(f"  Normal : {normal_path}")
@@ -1414,6 +1523,9 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         thumbnail_text=script.get("thumbnail_text", normal_title),
         pinned_comment=script.get("pinned_comment"),
         thumbnail_concept=script.get("thumbnail_concept", None),
+        notify_subscribers=notify_subscribers,
+        command_channel="english",
+        slot=slot_name
     )
     normal_yt_id = (normal_result or {}).get("youtube_id", "")
     normal_url   = f"https://youtu.be/{normal_yt_id}" if normal_yt_id else ""
@@ -1444,6 +1556,9 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         thumbnail_text=f"🐢 {script.get('thumbnail_text', idiom)}",
         pinned_comment=script.get("pinned_comment"),
         thumbnail_concept=script.get("thumbnail_concept", None),
+        notify_subscribers=notify_subscribers,
+        command_channel="english",
+        slot="slow_stagger"
     )
     slow_yt_id = (slow_result or {}).get("youtube_id", "")
     slow_url   = f"https://youtu.be/{slow_yt_id}" if slow_yt_id else ""
@@ -1699,7 +1814,21 @@ def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
-def _upload_video(video_path, title, description, tags, channel, schedule_time=None, thumbnail_text=None, thumbnail_concept=None, related_video_id=None, pinned_comment=None):
+def _upload_video(
+    video_path,
+    title,
+    description,
+    tags,
+    channel,
+    schedule_time=None,
+    thumbnail_text=None,
+    thumbnail_concept=None,
+    related_video_id=None,
+    pinned_comment=None,
+    notify_subscribers=True,
+    command_channel=None,
+    slot=None
+):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
 
@@ -1716,7 +1845,7 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
 
     # Auto-generate thumbnails only for the English channels.
     # English weekly challenge videos also upload under the english channel.
-    if channel in (""):
+    if channel == "english":
         try:
             from ffmpeg_assembler import create_thumbnail_from_video
             thumbnail_path = create_thumbnail_from_video(
@@ -1742,6 +1871,7 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
             related_video_id=related_video_id,
             pinned_comment=pinned_comment,
             thumbnail_path=str(thumbnail_path) if thumbnail_path else None,
+            notify_subscribers=notify_subscribers,
         )
     except Exception as e:
         print(f"\nUpload failed. You can retry after fixing the issue.")
@@ -1751,6 +1881,21 @@ def _upload_video(video_path, title, description, tags, channel, schedule_time=N
     if "youtube_id" in result:
         status = "Scheduled" if schedule_time else "Published"
         print(f"\n{status}: https://youtu.be/{result['youtube_id']}")
+        
+        if schedule_time and command_channel:
+            try:
+                from schedule_ledger import ScheduleLedger
+                ledger = ScheduleLedger()
+                ledger.record_upload(
+                    channel=command_channel,
+                    schedule_time_utc=schedule_time,
+                    title=title,
+                    youtube_id=result["youtube_id"],
+                    slot=slot
+                )
+            except Exception as e:
+                print(f"  Warning: Failed to record upload in ledger: {e}")
+
         _cleanup_uploaded_video_files(video_path)
         return result
     else:
@@ -1773,7 +1918,7 @@ def _cleanup_uploaded_video_files(video_path):
             print(f"  Cleanup skipped for {path}: {e}")
 
 
-def _upload_existing_video(video_path, channel, title=None, description=None, tags=None, schedule_time=None):
+def _upload_existing_video(video_path, channel, title=None, description=None, tags=None, schedule_time=None, notify_subscribers=True):
     video = Path(video_path).expanduser()
     if not video.is_absolute():
         video = Path.cwd() / video
@@ -1792,8 +1937,29 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
         tags_raw = prompt_input("Tags (comma-separated)", "")
         tags = [tag.strip() for tag in tags_raw.split(",") if tag.strip()]
 
+    if not schedule_time and channel in ("english", "english-challenge", "english-shorts", "english-quiz"):
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot(channel, now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default slot for existing upload: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
     upload_channel = "english" if channel == "english-challenge" else channel
-    _upload_video(str(video), title, description, tags, channel=upload_channel, schedule_time=schedule_time)
+    _upload_video(
+        str(video),
+        title,
+        description,
+        tags,
+        channel=upload_channel,
+        schedule_time=schedule_time,
+        notify_subscribers=notify_subscribers,
+        command_channel=channel,
+        slot=slot_name
+    )
 
 
 # ─────────────────────────────────────────────
@@ -1834,6 +2000,8 @@ def main():
         action="store_true",
         help="Prototype only: render english-shorts with dynamic Emma/Liam visuals. Requires --no-upload.",
     )
+    parser.add_argument("--notify-subs", action="store_true", help="Force notify subscribers")
+    parser.add_argument("--no-notify-subs", action="store_true", help="Force do NOT notify subscribers")
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -1851,6 +2019,14 @@ def main():
     if args.upload_existing and not args.channel:
         parser.error("--upload-existing requires --channel")
 
+    notify_override = None
+    if args.notify_subs and args.no_notify_subs:
+        parser.error("Cannot specify both --notify-subs and --no-notify-subs")
+    elif args.notify_subs:
+        notify_override = True
+    elif args.no_notify_subs:
+        notify_override = False
+
     if args.upload_existing:
         if args.dynamic_visuals:
             parser.error("--dynamic-visuals cannot be used with --upload-existing")
@@ -1864,6 +2040,7 @@ def main():
             description=args.description,
             tags=tags,
             schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override if notify_override is not None else True
         )
         return
 
@@ -1904,13 +2081,14 @@ def main():
     elif args.channel == "family":
         run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
+        run_english(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
             upload=not args.no_upload,
             start_date=args.start_date,
             publish_hour=args.publish_hour,
+            notify_subscribers=notify_override,
         )
     elif args.channel == "english-shorts":
         run_english_shorts(
@@ -1918,18 +2096,20 @@ def main():
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             dynamic_visuals=args.dynamic_visuals,
+            notify_subscribers=notify_override,
         )
     elif args.channel == "english-slow":
         run_english_slow(
             topic=args.topic, 
             upload=not args.no_upload, 
             schedule_time=effective_schedule_time,
-            slow_offset_hours=args.slow_offset_hours
+            slow_offset_hours=args.slow_offset_hours,
+            notify_subscribers=notify_override,
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time)
+        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:
             if not args.related_ids or not args.video_ids:
@@ -1960,7 +2140,8 @@ def main():
             start_date=args.start_date or "2026-06-11",
             publish_hour=args.publish_hour,
             upload=not args.no_upload,
-            related_video_ids=related_ids
+            related_video_ids=related_ids,
+            notify_subscribers=notify_override
         )
     elif args.channel == "trending":
         if args.video_format == "both":
