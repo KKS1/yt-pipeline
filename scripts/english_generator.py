@@ -147,9 +147,25 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
         type_label = "podcast episode"
     topics_data = get_published_topics()
     published_topics = topics_data.get(topic_type, [])
-    
-    # Send up to 50 most recent topics to avoid massive token usage
+
     recent_topics = published_topics[-50:] if published_topics else []
+
+    # ------ENABLE BELOW IF NEED ALL TOPICS ACROSS TYPES TO BE CONSIDERED FOR AVOIDANCE IN GROQ PROMPT------
+        # Merge history from ALL content types so Groq avoids themes already covered
+        # in any format (e.g. a "bank" shorts episode stops "banking" being chosen for podcast).
+        # all_published: list = []
+        # seen: set = set()
+        # for key, entries in topics_data.items():
+        #     for entry in entries:
+        #         norm = str(entry).strip()
+        #         if norm and norm not in seen:
+        #             seen.add(norm)
+        #             all_published.append(norm)
+
+        # # Keep the most recent 60 unique entries to stay within token budget
+        # recent_topics = all_published[-60:] if all_published else []
+    # ------ENABLE ABOVE IF NEED ALL TOPICS ACROSS TYPES TO BE CONSIDERED FOR AVOIDANCE IN GROQ PROMPT------
+
     avoid_instruction = ""
     if recent_topics:
         avoid_instruction = f"""
