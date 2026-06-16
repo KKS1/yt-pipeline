@@ -9,7 +9,7 @@
     "Emma": {
       "body": "assets/characters/emma/body.png",
       "position": {
-        "x": -220,
+        "x": -350,
         "y": 470,
         "width": 1150,
         "height": 1450
@@ -24,7 +24,7 @@
     "Liam": {
       "body": "assets/characters/liam/body.png",
       "position": {
-        "x": 220,
+        "x": 310,
         "y": 470,
         "width": 1150,
         "height": 1450
