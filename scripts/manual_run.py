@@ -1304,7 +1304,7 @@ def run_english_community(topic=None, content_type="quiz"):
     # Handle Image Generation using Pexels (Free)
     if data.get("image_prompts"):
         print("\nFetching free poll images from Pexels...")
-        from ffmpeg_assembler import create_thumbnail
+        # Thumbnail overlay is currently disabled; images are downloaded as-is.
         
         prompts = data.get("image_prompts", [])
         options = data.get("options", [])
@@ -1333,15 +1333,7 @@ def run_english_community(topic=None, content_type="quiz"):
                 img_path = OUTPUT_DIR / f"community_poll_{idx}.jpg"
                 img_path.write_bytes(img_data)
                 
-                # Overlay the option text using existing thumbnail logic for branding.
-                # We wrap the text to ensure it doesn't get cut off on mobile devices.
-                wrapped_text = "\n".join(textwrap.wrap(opt_text, width=18))
-                create_thumbnail(
-                    background_image=str(img_path),
-                    title_text=wrapped_text,
-                    output_path=str(img_path),
-                    style="english"
-                )
+                # Thumbnail overlay disabled — skip create_thumbnail call.
                 image_paths.append(img_path)
                 print(f"  ✓ Image {idx+1} ready: {img_path}")
             except Exception as e:
@@ -1843,20 +1835,8 @@ def _upload_video(
     if thumbnail_text is None:
         thumbnail_text = title
 
-    # Auto-generate thumbnails only for the English channels.
-    # English weekly challenge videos also upload under the english channel.
-    if channel == "english":
-        try:
-            from ffmpeg_assembler import create_thumbnail_from_video
-            thumbnail_path = create_thumbnail_from_video(
-                video_path=str(video_path),
-                title_text=thumbnail_text,
-                output_path=str(Path(video_path).with_suffix(".jpg")),
-                style="english",
-            )
-        except Exception as e:
-            print(f"  Thumbnail generation skipped: {e}")
-            thumbnail_path = None
+    # Thumbnail generation is currently disabled for all flows.
+    # thumbnail_path stays None; YouTube will use the auto-generated frame.
 
     print("\nUploading to YouTube...")
     try:
