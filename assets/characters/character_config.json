@@ -9,31 +9,31 @@
     "Emma": {
       "body": "assets/characters/emma/body.png",
       "position": {
-        "x": 60,
-        "y": 660,
-        "width": 550,
-        "height": 733
+        "x": 0,
+        "y": 420,
+        "width": 750,
+        "height": 1000
       },
       "mouth": {
-        "x": 310,
-        "y": 142,
-        "width": 50,
-        "height": 30
+        "x": 355,
+        "y": 215,
+        "width": 60,
+        "height": 35
       }
     },
     "Liam": {
       "body": "assets/characters/liam/body.png",
       "position": {
-        "x": 470,
-        "y": 660,
-        "width": 550,
-        "height": 733
+        "x": 330,
+        "y": 420,
+        "width": 750,
+        "height": 1000
       },
       "mouth": {
-        "x": 204,
-        "y": 193,
-        "width": 50,
-        "height": 30
+        "x": 220,
+        "y": 245,
+        "width": 60,
+        "height": 35
       }
     }
   }
