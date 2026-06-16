@@ -9,14 +9,14 @@
     "Emma": {
       "body": "assets/characters/emma/body.png",
       "position": {
-        "x": 0,
-        "y": 420,
-        "width": 750,
-        "height": 1000
+        "x": -220,
+        "y": 470,
+        "width": 1150,
+        "height": 1450
       },
       "mouth": {
-        "x": 355,
-        "y": 215,
+        "x": 545,
+        "y": 329,
         "width": 60,
         "height": 35
       }
@@ -24,14 +24,14 @@
     "Liam": {
       "body": "assets/characters/liam/body.png",
       "position": {
-        "x": 330,
-        "y": 420,
-        "width": 750,
-        "height": 1000
+        "x": 220,
+        "y": 470,
+        "width": 1150,
+        "height": 1450
       },
       "mouth": {
-        "x": 220,
-        "y": 245,
+        "x": 336,
+        "y": 375,
         "width": 60,
         "height": 35
       }

@@ -322,7 +322,7 @@ def _render_silent_video(
                 char = config["characters"][name]
                 box = char["position"]
                 is_speaking = active is not None and active.speaker == name
-                bounce = int(math.sin(timestamp * math.pi * 4) * 6) if is_speaking else 0
+                bounce = 0
                 x = int(box["x"])
                 y = int(box["y"]) - bounce
                 frame.alpha_composite(character_images[name], (x, y))
@@ -335,7 +335,11 @@ def _render_silent_video(
                     (int(mouth_cfg["width"]), int(mouth_cfg["height"])),
                     Image.Resampling.LANCZOS,
                 )
-                frame.alpha_composite(mouth, (int(mouth_cfg["x"]), int(mouth_cfg["y"]) - bounce))
+                
+                # Calculate mouth position relative to character body
+                abs_mouth_x = x + int(mouth_cfg["x"])
+                abs_mouth_y = y + int(mouth_cfg["y"])
+                frame.alpha_composite(mouth, (abs_mouth_x, abs_mouth_y))
 
             process.stdin.write(frame.convert("RGB").tobytes())
     finally:
