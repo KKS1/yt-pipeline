@@ -799,9 +799,7 @@ def assemble_shorts_video(
     else:
         vf_filter = fade_chain
 
-    base_output = output_path if not (idiom_windows and per_turn_times) else str(
-        Path(output_path).with_stem(Path(output_path).stem + "_precards")
-    )
+    base_output = output_path
 
     cmd = [
         FFMPEG, "-y",
@@ -850,34 +848,6 @@ def assemble_shorts_video(
 
     append_channel_bumpers(base_output, channel=channel)
 
-    # Idiom card overlays — top-right corner for Shorts
-    if idiom_windows and per_turn_times:
-        try:
-            from english_assembler import (
-                apply_idiom_overlays, resolve_idiom_timestamps
-            )
-            from idiom_card_renderer import render_idiom_cards_batch
-
-            bumper_intro = Path(__file__).resolve().parent.parent / "assets" / "bumpers" / "english" / "intro.mp4"
-            bumper_pad = get_media_duration(str(bumper_intro)) if bumper_intro.exists() else 0.0
-
-            resolved = resolve_idiom_timestamps(idiom_windows, per_turn_times, bumper_pad)
-            card_pngs = render_idiom_cards_batch(
-                idiom_windows,
-                output_dir=TEMP_DIR / "idiom_cards",
-            )
-            apply_idiom_overlays(base_output, resolved, card_pngs, output_path, is_shorts=True)
-            if base_output != output_path and Path(base_output).exists():
-                Path(base_output).unlink()
-        except Exception as exc:
-            print(f"  Idiom overlays skipped: {exc}")
-            if base_output != output_path:
-                import shutil
-                shutil.copy2(base_output, output_path)
-    else:
-        if base_output != output_path:
-            import shutil
-            shutil.copy2(base_output, output_path)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Short assembled: {output_path} ({size_mb:.1f} MB)")
