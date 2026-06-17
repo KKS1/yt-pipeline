@@ -355,6 +355,8 @@ def generate_ass_captions(
     # Build per-turn speaker lookup from script_data
     # Maps (approx_start, approx_end) → speaker
     turn_speaker_map: list[tuple[float, float, str]] = []
+    events: list[str] = []
+
     if script_data:
         # We'll build this after the caller populates per_turn_times via
         # the optional keyword; for now we use a simple heuristic: split the
@@ -380,8 +382,6 @@ def generate_ass_captions(
     # Group words into caption chunks
     chunks = _group_words_into_chunks(all_words, max_chars)
 
-    # Build ASS events
-    events: list[str] = []
     for chunk in chunks:
         if not chunk:
             continue
@@ -440,6 +440,8 @@ def generate_ass_captions_from_words(
 
     # Build per-turn speaker lookup
     turn_speaker_map: list[tuple[float, float, str]] = []
+    events: list[str] = []
+
     for i, (s, e) in enumerate(per_turn_times):
         if i < len(dialogue):
             turn_speaker_map.append((s, e, dialogue[i].get("speaker", "Emma")))
@@ -455,7 +457,6 @@ def generate_ass_captions_from_words(
 
     chunks = _group_words_into_chunks(words, max_chars)
 
-    events: list[str] = []
     for chunk in chunks:
         if not chunk:
             continue
