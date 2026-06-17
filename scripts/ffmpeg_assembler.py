@@ -778,10 +778,10 @@ def assemble_shorts_video(
         "FontSize=18,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
-        "BackColour=&H80000000,"
         "Bold=1,"
-        "Outline=2,"
-        "Shadow=1,"
+        "BorderStyle=1,"
+        "Outline=4,"
+        "Shadow=2,"
         "Alignment=2,"
         "MarginV=60"
     )

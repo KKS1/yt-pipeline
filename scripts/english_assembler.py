@@ -433,7 +433,7 @@ def assemble_english_video(
         caption_style = (
             "FontName=Arial,FontSize=22,"
             "PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,"
-            "BackColour=&H80000000,Bold=1,BorderStyle=3,Outline=1,Shadow=0,MarginV=40"
+            "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
         )
         vf_filter = f"subtitles={captions_srt}:force_style='{caption_style}'"
     else:

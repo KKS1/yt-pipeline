@@ -44,7 +44,7 @@ STYLE_IDIOM  = "Idiom"
 # ASS colour format: &HBBGGRR  (alpha=00 = fully opaque)
 COLOUR_WHITE     = "&H00FFFFFF"
 COLOUR_BLACK     = "&H00000000"
-COLOUR_BG_SEMI   = "&H99000000"   # semi-transparent black box
+COLOUR_BG_SEMI   = "&H00000000"   # opaque black for sharp shadows
 
 COLOUR_EMMA_HL   = "&H6666FF"     # coral-pink (BGR) highlights for Emma's spoken words
 COLOUR_LIAM_HL   = "&HFF9966"     # sky-blue (BGR) highlights for Liam's spoken words
@@ -161,9 +161,9 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_EMMA_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,3,2,1,2,{margin_l},{margin_r},{margin_v},1
-Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,3,2,1,2,{margin_l},{margin_r},{margin_v},1
-Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,3,2,1,2,{margin_l},{margin_r},{margin_v},1
+Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_EMMA_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v},1
+Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v},1
+Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -209,29 +209,37 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     badge = _badge_override(speaker)
     parts = []
 
+    # Heuristic for multiline: split at approx middle word if chunk is long enough
+    total_chars = sum(len(w["word"]) for w in words)
+    split_at = -1
+    if total_chars > 15 and len(words) > 2:
+        split_at = len(words) // 2
+
     for i, w in enumerate(words):
         word_text = w["word"].strip()
         if not word_text:
             continue
         dur_cs = _cs(w["end"] - w["start"])
 
+        line_break = r"\N" if i == split_at else ""
+
         if _is_idiom_chunk(word_text, extra_idiom_phrases):
             # Golden accent style override for idiom words
             parts.append(
-                rf"{{\k{dur_cs}\c{COLOUR_IDIOM_HL}&\b1\fs+2}}{word_text}{{\r}} "
+                rf"{line_break}{{\k{dur_cs}\c{COLOUR_IDIOM_HL}&\b1\fs+2}}{word_text}{{\r}} "
             )
         else:
             # Normal karaoke: word highlight in speaker colour when spoken
             highlight = COLOUR_EMMA_HL if speaker.lower() == "emma" else COLOUR_LIAM_HL
-            parts.append(rf"{{\k{dur_cs}\2c{highlight}&}}{word_text} ")
+            parts.append(rf"{line_break}{{\k{dur_cs}\2c{highlight}&}}{word_text} ")
 
     return badge + "".join(parts).rstrip()
 
 
 # ─── Core grouping ────────────────────────────────────────────────────────────
 
-_MAX_CHARS_NORMAL  = 30
-_MAX_CHARS_SHORTS  = 16
+_MAX_CHARS_NORMAL  = 50
+_MAX_CHARS_SHORTS  = 30
 
 
 def _group_words_into_chunks(
