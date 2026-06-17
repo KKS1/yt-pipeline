@@ -260,7 +260,7 @@ def apply_idiom_overlays(
         png_path = card_pngs.get(idiom)
         if not png_path or not Path(png_path).exists():
             continue
-        inputs += ["-i", png_path]
+        inputs += ["-loop", "1", "-i", png_path]
         valid_windows.append((window, card_input_index))
         card_input_index += 1
 
