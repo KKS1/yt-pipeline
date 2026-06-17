@@ -147,8 +147,8 @@ def _build_ass_header(
         margin_r = 80
     else:
         margin_v = 80
-        margin_l = 150
-        margin_r = 150
+        margin_l = 300
+        margin_r = 300
 
     # ASS colour: &HAABBGGRR  (AA=alpha, 00=opaque)
     header = f"""\
