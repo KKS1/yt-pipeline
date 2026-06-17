@@ -155,7 +155,7 @@ def apply_face_badge_overlays(
         "-c:a", "copy",
         output_path
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(cmd, check=True)
     return output_path
 
 def generate_podcast_audio(script_data: dict, return_turn_times: bool = False):
@@ -260,7 +260,7 @@ def apply_idiom_overlays(
         png_path = card_pngs.get(idiom)
         if not png_path or not Path(png_path).exists():
             continue
-        inputs += ["-loop", "1", "-i", png_path]
+        inputs += ["-loop", "1", "-framerate", str(VIDEO_FPS), "-i", png_path]
         valid_windows.append((window, card_input_index))
         card_input_index += 1
 
@@ -321,7 +321,7 @@ def apply_idiom_overlays(
         "-filter_complex", filter_complex,
         "-map", final_label,
         "-map", "0:a",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         output_path,
@@ -329,7 +329,7 @@ def apply_idiom_overlays(
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"  Idiom overlay failed (FFmpeg error), keeping plain video: {result.stderr[:300]}")
+        print(f"  Idiom overlay failed (FFmpeg error), check console above for details.")
         if video_path != output_path:
             import shutil
             shutil.copy2(video_path, output_path)
