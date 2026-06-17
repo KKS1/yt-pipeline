@@ -315,6 +315,117 @@ def call_groq_json(user_prompt: str) -> dict:
     return res
 
 
+def annotate_script_with_idiom_windows(script_data: dict) -> dict:
+    """
+    Post-generation Groq call: given the finalized dialogue, ask Groq to
+    identify each idiom / phrasal verb and the dialogue turn index range
+    when it is first *introduced and explained* (not just mentioned).
+
+    Mutates script_data in-place by adding:
+        script_data["idiom_windows"] = [
+            {
+              "idiom":       "get out of hand",
+              "type":        "phrasal_verb",   # or "idiom"
+              "definition":  "to become uncontrollable",
+              "start_turn":  4,
+              "end_turn":    6,
+            },
+            ...
+        ]
+
+    Returns the (mutated) script_data dict.
+    Falls back to an empty list on any Groq error — never blocks the pipeline.
+    """
+    dialogue = script_data.get("dialogue", [])
+    if not dialogue:
+        script_data.setdefault("idiom_windows", [])
+        return script_data
+
+    # Build a compact dialogue summary for the prompt (index + speaker + text)
+    max_turns = min(len(dialogue), 80)  # cap to stay within token budget
+    turns_summary = "\n".join(
+        f"{i}: [{line.get('speaker','?')}] {line.get('text','')[:120]}"
+        for i, line in enumerate(dialogue[:max_turns])
+    )
+
+    prompt = f"""You are analysing an English learning podcast dialogue.
+
+DIALOGUE TURNS (index: [Speaker] text):
+{turns_summary}
+
+TASK:
+Identify every idiom or phrasal verb that is explicitly INTRODUCED AND EXPLAINED to the listener in this dialogue (not just casually mentioned). For each one return:
+- "idiom":      the exact phrase
+- "type":       "idiom" or "phrasal_verb"
+- "definition": one concise sentence explaining its meaning
+- "start_turn": dialogue turn index where the explanation STARTS (0-based integer)
+- "end_turn":   dialogue turn index where the explanation ENDS (inclusive, 0-based integer)
+
+RULES:
+- Only include phrases that are actually taught/explained to the listener.
+- start_turn and end_turn must be valid 0-based integers within range 0..{max_turns - 1}.
+- end_turn must be >= start_turn.
+- If no idioms or phrasal verbs are explained, return an empty array.
+- Output ONLY valid JSON.
+
+JSON SCHEMA:
+{{
+  "idiom_windows": [
+    {{
+      "idiom": "string",
+      "type": "idiom or phrasal_verb",
+      "definition": "string",
+      "start_turn": 0,
+      "end_turn": 2
+    }}
+  ]
+}}
+"""
+    try:
+        res = groq_chat_json(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a precise JSON extractor. "
+                        "Return only valid JSON with no extra text."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1024,
+            temperature=0.2,
+        )
+        windows = res.get("idiom_windows", [])
+        if not isinstance(windows, list):
+            windows = []
+
+        # Clamp turn indices to valid range
+        n = len(dialogue)
+        cleaned = []
+        for w in windows:
+            try:
+                st = max(0, min(int(w.get("start_turn", 0)), n - 1))
+                et = max(st, min(int(w.get("end_turn", st)), n - 1))
+                cleaned.append({
+                    "idiom":       str(w.get("idiom", "")).strip(),
+                    "type":        str(w.get("type", "idiom")).strip(),
+                    "definition":  str(w.get("definition", "")).strip(),
+                    "start_turn":  st,
+                    "end_turn":    et,
+                })
+            except (TypeError, ValueError):
+                continue
+
+        script_data["idiom_windows"] = cleaned
+        print(f"  Idiom annotation: {len(cleaned)} window(s) identified")
+    except Exception as exc:
+        print(f"  Idiom annotation skipped (Groq error): {exc}")
+        script_data.setdefault("idiom_windows", [])
+
+    return script_data
+
+
 def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
     cleaned = dict(script)
     cleaned["dialogue"] = sanitize_dialogue_part(

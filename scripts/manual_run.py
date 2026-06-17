@@ -546,16 +546,41 @@ def _english_video_assets(subfolder="english_visuals"):
 def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     from english_assembler import generate_podcast_audio, assemble_english_video, cleanup_english_temp
     from ffmpeg_assembler import generate_captions
+    from english_generator import annotate_script_with_idiom_windows
 
     cleanup_english_temp()
-    audio_path = generate_podcast_audio(script)
 
+    # Generate audio AND collect per-turn timestamps for idiom overlay timing
+    res = generate_podcast_audio(script, return_turn_times=True)
+    if isinstance(res, tuple):
+        audio_path, per_turn_times = res
+    else:
+        audio_path, per_turn_times = res, []
+
+    # .srt fallback captions
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
     try:
         generate_captions(audio_path, srt_path)
     except Exception as e:
-        print(f"  Captions skipped: {e}")
+        print(f"  .srt captions skipped: {e}")
         srt_path = None
+
+    # .ass karaoke captions
+    ass_path = str(OUTPUT_DIR / f"{out_slug}.ass")
+    try:
+        from ass_caption_writer import generate_ass_captions
+        # Annotate script with idiom windows before generating captions
+        annotate_script_with_idiom_windows(script)
+        generate_ass_captions(
+            audio_path=audio_path,
+            output_ass=ass_path,
+            script_data=script,
+            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+            is_shorts=False,
+        )
+    except Exception as e:
+        print(f"  .ass captions skipped: {e}")
+        ass_path = None
 
     print(f"\n  Visual loop  : {visual_path.name}")
 
@@ -565,9 +590,13 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
         loop_visual=str(visual_path),
         output_path=out_path,
         captions_srt=srt_path,
+        ass_captions=ass_path,
         background_music=bg_music_str,
         title=script["title"],
         channel="english",
+        idiom_windows=script.get("idiom_windows"),
+        per_turn_times=per_turn_times,
+        dialogue=script.get("dialogue", []),
     )
 
     cleanup_english_temp()
@@ -793,21 +822,41 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             print(f"\nAssembling Quiz Short for Day {day_number}...")
             from english_assembler import generate_podcast_audio, cleanup_english_temp
             from ffmpeg_assembler import assemble_shorts_video, generate_captions
-            
+
             cleanup_english_temp()
-            quiz_audio = generate_podcast_audio(quiz_script)
+            res = generate_podcast_audio(quiz_script, return_turn_times=True)
+            if isinstance(res, tuple):
+                quiz_audio, quiz_turn_times = res
+            else:
+                quiz_audio, quiz_turn_times = res, []
             quiz_slug = slug(f"quiz_day_{day_number}_{quiz_script['title']}")
             quiz_srt = str(OUTPUT_DIR / f"{quiz_slug}.srt")
-            generate_captions(quiz_audio, quiz_srt, max_line_width=20)
-            
+            quiz_ass = str(OUTPUT_DIR / f"{quiz_slug}.ass")
+            try:
+                generate_captions(quiz_audio, quiz_srt, max_line_width=20)
+            except Exception as e:
+                print(f"  .srt captions skipped: {e}")
+                quiz_srt = None
+            try:
+                from ass_caption_writer import generate_ass_captions
+                generate_ass_captions(
+                    audio_path=quiz_audio, output_ass=quiz_ass,
+                    script_data=quiz_script, is_shorts=True,
+                    video_width=1080, video_height=1920,
+                )
+            except Exception as e:
+                print(f"  .ass captions skipped: {e}")
+                quiz_ass = None
+
             quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
             assemble_shorts_video(
                 narration_audio=quiz_audio,
                 stock_clips=[str(random.choice(quiz_visual_files))],
                 background_music=bg_music_str,
                 captions_srt=quiz_srt,
+                ass_captions=quiz_ass,
                 output_path=quiz_out_path,
-                title=quiz_script["title"]
+                title=quiz_script["title"],
             )
             
             if upload:
@@ -1134,17 +1183,43 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
             bg_music_str = str(bg_music) if bg_music.exists() else None
 
     selected_visual = random.choice(visual_files)
-    
-    # Audio & Subtitles
-    cleanup_english_temp()
-    audio_path = generate_podcast_audio(script)
 
+    # Audio + per-turn timestamps
+    cleanup_english_temp()
+    res = generate_podcast_audio(script, return_turn_times=True)
+    if isinstance(res, tuple):
+        audio_path, per_turn_times = res
+    else:
+        audio_path, per_turn_times = res, []
+
+    # Idiom annotation
+    from english_generator import annotate_script_with_idiom_windows
+    try:
+        annotate_script_with_idiom_windows(script)
+    except Exception as e:
+        print(f"  Idiom annotation skipped: {e}")
+
+    # .srt captions
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
     try:
         generate_captions(audio_path, srt_path, max_line_width=25, max_line_count=2)
     except Exception as e:
-        print(f"  Captions skipped: {e}")
+        print(f"  .srt captions skipped: {e}")
         srt_path = None
+
+    # .ass karaoke captions
+    ass_path = str(OUTPUT_DIR / f"{out_slug}.ass")
+    try:
+        from ass_caption_writer import generate_ass_captions
+        generate_ass_captions(
+            audio_path=audio_path, output_ass=ass_path,
+            script_data=script,
+            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+            is_shorts=True, video_width=1080, video_height=1920,
+        )
+    except Exception as e:
+        print(f"  .ass captions skipped: {e}")
+        ass_path = None
 
     print(f"\n  Visual loop  : {selected_visual.name}")
 
@@ -1154,8 +1229,11 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         stock_clips=[str(selected_visual)],
         background_music=bg_music_str,
         captions_srt=srt_path,
+        ass_captions=ass_path,
         output_path=out_path,
-        title=title
+        title=title,
+        idiom_windows=script.get("idiom_windows"),
+        per_turn_times=per_turn_times,
     )
 
     cleanup_english_temp()
@@ -1215,9 +1293,33 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
     visual_files, bg_music_str = _english_video_assets("english_shorts_visuals")
     selected_visual = random.choice(visual_files)
     
-    audio_path = generate_podcast_audio(script)
+    res = generate_podcast_audio(script, return_turn_times=True)
+    if isinstance(res, tuple):
+        audio_path, per_turn_times = res
+    else:
+        audio_path, per_turn_times = res, []
     srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
-    generate_captions(audio_path, srt_path, max_line_width=20)
+    ass_path = str(OUTPUT_DIR / f"{out_slug}.ass")
+    try:
+        generate_captions(audio_path, srt_path, max_line_width=20)
+    except Exception as e:
+        print(f"  .srt captions skipped: {e}")
+        srt_path = None
+    try:
+        from ass_caption_writer import generate_ass_captions
+        # Annotate script with idiom windows before generating captions
+        from english_generator import annotate_script_with_idiom_windows
+        annotate_script_with_idiom_windows(script)
+        
+        generate_ass_captions(
+            audio_path=audio_path, output_ass=ass_path,
+            script_data=script, is_shorts=True,
+            video_width=1080, video_height=1920,
+            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+        )
+    except Exception as e:
+        print(f"  .ass captions skipped: {e}")
+        ass_path = None
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
     assemble_shorts_video(
@@ -1225,8 +1327,12 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         stock_clips=[str(selected_visual)],
         background_music=bg_music_str,
         captions_srt=srt_path,
+        ass_captions=ass_path,
         output_path=out_path,
-        title=title
+        title=title,
+        idiom_windows=script.get("idiom_windows"),
+        per_turn_times=per_turn_times,
+        dialogue=script.get("dialogue", []),
     )
 
     if not schedule_time:
@@ -1383,7 +1489,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         generate_slow_podcast_audio,
         assemble_slow_english_video,
     )
-    from english_generator import generate_english_slow_script
+    from english_generator import generate_english_slow_script, annotate_script_with_idiom_windows
     from ffmpeg_assembler import generate_captions
 
     print("\n" + "=" * 50)
@@ -1426,14 +1532,37 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
     print("Rendering NORMAL video (0.95x speed)...")
     print("-" * 40)
     cleanup_english_temp()
-    normal_audio = generate_podcast_audio(script)
+
+    # Annotate idiom windows once (shared between both renders)
+    try:
+        annotate_script_with_idiom_windows(script)
+    except Exception as e:
+        print(f"  Idiom annotation skipped: {e}")
+
+    res = generate_podcast_audio(script, return_turn_times=True)
+    if isinstance(res, tuple):
+        normal_audio, normal_turn_times = res
+    else:
+        normal_audio, normal_turn_times = res, []
 
     normal_srt = str(OUTPUT_DIR / f"{normal_slug}.srt")
+    normal_ass = str(OUTPUT_DIR / f"{normal_slug}.ass")
     try:
         generate_captions(normal_audio, normal_srt)
     except Exception as e:
-        print(f"  Captions skipped: {e}")
+        print(f"  .srt captions skipped: {e}")
         normal_srt = None
+    try:
+        from ass_caption_writer import generate_ass_captions
+        generate_ass_captions(
+            audio_path=normal_audio, output_ass=normal_ass,
+            script_data=script,
+            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+            is_shorts=False,
+        )
+    except Exception as e:
+        print(f"  .ass captions skipped: {e}")
+        normal_ass = None
 
     normal_path = str(OUTPUT_DIR / f"{normal_slug}.mp4")
     assemble_english_video(
@@ -1441,9 +1570,13 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         loop_visual=str(selected_visual),
         output_path=normal_path,
         captions_srt=normal_srt,
+        ass_captions=normal_ass,
         background_music=bg_music_str,
         title=normal_title,
         channel="english",
+        idiom_windows=script.get("idiom_windows"),
+        per_turn_times=normal_turn_times,
+        dialogue=script.get("dialogue", []),
     )
 
     # ── 3. Render Slow video ──────────────────────────────
@@ -1451,14 +1584,30 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
     print("Rendering SLOW video (0.80x speed)...")
     print("-" * 40)
     cleanup_english_temp()
-    slow_audio = generate_slow_podcast_audio(script)
+    res = generate_slow_podcast_audio(script, return_turn_times=True)
+    if isinstance(res, tuple):
+        slow_audio, slow_turn_times = res
+    else:
+        slow_audio, slow_turn_times = res, []
 
     slow_srt = str(OUTPUT_DIR / f"{slow_slug}.srt")
+    slow_ass = str(OUTPUT_DIR / f"{slow_slug}.ass")
     try:
         generate_captions(slow_audio, slow_srt)
     except Exception as e:
-        print(f"  Captions skipped: {e}")
+        print(f"  .srt captions skipped: {e}")
         slow_srt = None
+    try:
+        from ass_caption_writer import generate_ass_captions
+        generate_ass_captions(
+            audio_path=slow_audio, output_ass=slow_ass,
+            script_data=script,
+            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+            is_shorts=False,
+        )
+    except Exception as e:
+        print(f"  .ass captions skipped: {e}")
+        slow_ass = None
 
     slow_path = str(OUTPUT_DIR / f"{slow_slug}.mp4")
     assemble_slow_english_video(
@@ -1466,9 +1615,13 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
         loop_visual=str(selected_visual),
         output_path=slow_path,
         captions_srt=slow_srt,
+        ass_captions=slow_ass,
         background_music=bg_music_str,
         title=slow_title,
         channel="english",
+        idiom_windows=script.get("idiom_windows"),
+        per_turn_times=slow_turn_times,
+        dialogue=script.get("dialogue", []),
     )
 
     cleanup_english_temp()
