@@ -23,8 +23,20 @@ dummy_script_base = {
         {"speaker": "Emma", "text": "Thanks for listening, see you next time!"},
         {"speaker": "Liam", "text": "Bye!"}
     ],
-    "idiom_windows": [{"idiom": "under the bus", "start_turn": 0, "end_turn": 8}]
 }
+
+def mock_annotate(script):
+    # Ensure the card is populated even in dummy tests
+    if "idiom_windows" not in script or not script["idiom_windows"]:
+        script["idiom_windows"] = [
+            {
+                "idiom": "under the bus", 
+                "type": "idiom", 
+                "definition": "to sacrifice someone for personal gain", 
+                "start_turn": 1, 
+                "end_turn": 4
+            }
+        ]
 
 def mock_gen_english(topic=None):
     return {**dummy_script_base, "title": "Test English Landscape"}
@@ -41,6 +53,7 @@ def mock_gen_challenge(topic=None):
 english_generator.generate_english_script = mock_gen_english
 english_generator.generate_english_shorts_script = mock_gen_shorts
 english_generator.generate_english_quiz_shorts_script = mock_gen_quiz
+english_generator.annotate_script_with_idiom_windows = mock_annotate
 
 from manual_run import run_english, run_english_shorts, run_english_quiz_shorts
 
