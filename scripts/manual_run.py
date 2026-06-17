@@ -857,6 +857,9 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 ass_captions=quiz_ass,
                 output_path=quiz_out_path,
                 title=quiz_script["title"],
+                idiom_windows=quiz_script.get("idiom_windows"),
+                per_turn_times=quiz_turn_times,
+                dialogue=quiz_script.get("dialogue", []),
             )
             
             if upload:
@@ -946,7 +949,11 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
         cleanup_english_temp()
-        quiz_audio = generate_podcast_audio(quiz_script)
+        res = generate_podcast_audio(quiz_script, return_turn_times=True)
+        if isinstance(res, tuple):
+            quiz_audio, quiz_turn_times = res
+        else:
+            quiz_audio, quiz_turn_times = res, []
         quiz_slug = slug(f"quiz_day_{day_number}_{quiz_script['title']}")
         quiz_srt = str(OUTPUT_DIR / f"{quiz_slug}.srt")
         generate_captions(quiz_audio, quiz_srt, max_line_width=20)
@@ -958,7 +965,10 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
             background_music=bg_music_str,
             captions_srt=quiz_srt,
             output_path=quiz_out_path,
-            title=quiz_script["title"]
+            title=quiz_script["title"],
+            idiom_windows=quiz_script.get("idiom_windows"),
+            per_turn_times=quiz_turn_times,
+            dialogue=quiz_script.get("dialogue", []),
         )
         
         if upload:
@@ -1234,6 +1244,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         title=title,
         idiom_windows=script.get("idiom_windows"),
         per_turn_times=per_turn_times,
+        dialogue=script.get("dialogue", []),
     )
 
     cleanup_english_temp()
