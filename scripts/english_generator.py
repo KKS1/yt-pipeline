@@ -174,13 +174,13 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
 
     prompt = f"""
-    Generate a single, highly engaging topic for an English learning {type_label}.
+    Generate a high-CTR single, highly engaging topic for an English learning {type_label}.
     The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     {avoid_instruction}
 
     CRITICAL: For titles, prioritize searchable keywords like "Practice for Beginners", "Easy English Listening", or "Daily Conversation".
 
-    Return ONLY a JSON object with 'topic' and 'search_keyword' keys.
+    Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
     Example: {{"topic": "Mastering Sarcasm and Irony", "search_keyword": "English Conversation Practice"}}
     """
     try:
@@ -452,7 +452,7 @@ def generate_weekly_challenge_plan(topic=None) -> dict:
 
     print(f"\nSelected weekly challenge topic: {topic} for @EnglishVibesHub-s6w")
     prompt = f"""
-Create a 7-day weekly challenge playlist plan for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+Create a high-retention & high-CTR 7-day weekly challenge playlist plan for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 WEEKLY THEME: {topic}
 {avoid_instruction}
 
@@ -497,7 +497,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     focus = day_script.get("focus", "English conversation")
 
     prompt = f"""
-    Write a high-retention YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
+    Write a high-retention high-CTR YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
 
     LESSON FOCUS: {focus}
 
@@ -511,8 +511,8 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
-      "description": "string (Include #Shorts, #EnglishChallenge, #EnglishVibesHub, and hashtags mirroring the 'tags' list below)",
+      "title": "string (make it high-retention and high-CTR, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
+      "description": "string (Include #Shorts, #EnglishChallenge, #EnglishVibesHub, and hashtags mirroring the 'tags' list below along with high CTR tags)",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
@@ -633,9 +633,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (include Day {day_number}, a clear learning promise, and a high-CTR hook)",
+  "title": "string (include Day {day_number} in the suffix, a clear learning promise, and a high-CTR hook)",
   "title_options": ["string"],
-  "description": "string (YouTube description with a strong first-line hook, relevant keywords, and hashtags mirroring the 'tags' list below)",
+  "description": "string (YouTube description with a strong first-line hook for high-CTR, timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high CTR tags)",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "day": {day_number},
@@ -708,7 +708,7 @@ def generate_english_script(topic=None):
 
     print("Generating Part 1 (Intro & Setup)...")
     prompt_1 = f"""
-You are writing PART 1 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing PART 1 (of 3) for a high retention & CTR massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
 
@@ -729,9 +729,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (SEO-focused title: [Keyword] + [Hook]. e.g., 'English Listening Practice: Mastering {topic}')",
+  "title": "string (SEO-focused title: [Keyword] + [Hook] for high CTR. e.g., 'English Listening Practice: Mastering {topic}')",
   "title_options": ["string"],
-  "description": "string (80-120 words. Include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
+  "description": "string (YouTube description with a strong first-line hook for high CTR, relevant keywords, timeline, and a clear call-to-action). Include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "dialogue": [
@@ -924,7 +924,7 @@ def generate_english_slow_script(topic=None):
         )
 
     prompt = f"""
-You are writing a short English learning podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing a high CTR short English learning podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 
 IDIOM / TOPIC: {topic}
 {avoid_instruction}
@@ -1034,7 +1034,7 @@ def generate_english_shorts_script(topic=None):
 
     print(f"\nSelected Shorts topic: {topic}")
     prompt = f"""
-You are writing a short, snappy English learning podcast script for a YouTube Short on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing a short, snappy English learning podcast script for a high CTR YouTube Short on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
 
@@ -1045,7 +1045,7 @@ CRITICAL RULES:
 - Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
 - Use searchable keywords in the title: e.g., "English in 60 Seconds" or "Speak English Like a Native".
 - Do NOT use mid-episode sign-offs or long pauses.
-- The final turn should include a quick call to action (e.g., "Subscribe for more daily English tips!").
+- The final turn should include a quick call to action (e.g., "Comment below if you learned something new!" or "Subscribe for more daily English tips!").
 
 STYLE:
 - Fast-paced, punchy, conversational, and highly engaging.
@@ -1107,12 +1107,12 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
         )
     
     prompt = f"""
-    Write a high-retention YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    Write a high-retention & high-CTR YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
     TOPIC: The idiom or expression '{topic}'
     {avoid_instruction}
     
     SEARCH-FOCUSED TITLE STRATEGY:
-    Small channels rely on SEARCH. The title MUST use searchable keywords to help discovery.
+    Small channels rely on SEARCH. The title MUST use searchable keywords to help discovery with high CTR.
     Use phrases like: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
     Examples: "English Quiz: [Idiom] Meaning | English Practice for Beginners", "Do you know this idiom? [Idiom] Quiz #Shorts".
     
