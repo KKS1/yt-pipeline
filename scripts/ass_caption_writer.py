@@ -255,7 +255,8 @@ def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: lis
             end_t   = turn_times[et_idx][1]
             idiom   = str(w.get("idiom", "")).upper()
             defn    = w.get("definition", "")
-            text    = f"{idiom}: {defn}"
+            # Line 1: Bold (from style). Line 2: Not Bold, Italics, Smaller font (\fs-15).
+            text    = rf"{idiom}\N{{\b0\i1\fs-15}}{defn}"
             # Layer 1 ensures it prints over Layer 0 dialogue if they ever overlapped
             events.append(f"Dialogue: 1,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},{STYLE_IDIOM_CARD},,0,0,0,,{text}")
 
