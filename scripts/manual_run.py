@@ -877,6 +877,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                         channel="english",
                         schedule_time=quiz_schedule_time,
                         thumbnail_text=f"QUIZ: DAY {day_number}",
+                        pinned_comment=comment_text,
                         related_video_id=long_form_id,
                         notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
                         command_channel="english-challenge",
