@@ -1043,16 +1043,18 @@ TOPIC: {topic}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 8-12 turns in total (45-60 seconds of speaking).
+- The `dialogue` array MUST contain around 8-12 turns in total (25-40 seconds of speaking).
 - Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
 - Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
 - Use searchable keywords in the title: e.g., "English in 60 Seconds" or "Speak English Like a Native".
 - Do NOT use mid-episode sign-offs or long pauses.
-- The final turn should include a quick call to action (e.g., "Comment below if you learned something new!" or "Subscribe for more daily English tips!").
+- The script must start with a strong hook and end with a phrase that seamlessly loops back to the beginning.
+- The final turn should include a quick call to action that encourages re-watching (e.g., "Did you catch that? Let's try another one...").
 
 STYLE:
 - Fast-paced, punchy, conversational, and highly engaging.
 - Perfect for vertical YouTube Shorts.
+- No intro, no outro. The video should feel like it starts mid-conversation and loops perfectly.
 
 JSON SCHEMA:
 {{
