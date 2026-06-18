@@ -83,7 +83,8 @@
     "Bank Like a Native: Master Everyday Conversations in 60 Seconds!",
     "English in 60 Seconds: Daily Routines Made Easy",
     "English in 60 Seconds: Master Daily Chores with 'Get On With' and 'Catch Up On'",
-    "English in 60 Seconds: Mastering Appointments in English"
+    "English in 60 Seconds: Mastering Appointments in English",
+    "English in 60 Seconds: Master 'Run Errands' and 'Get Things Done'!"
   ],
   "challenge": [
     "Mastering Apologies & Complaints in English Conversations: EnglishVibesHub Weekly Challenge",
@@ -91,7 +92,9 @@
     "Navigating Everyday Transactions",
     "Essential Phrases for Daily Routines Challenge"
   ],
-  "slow": ["Cut Corners 📚 Slow English"],
+  "slow": [
+    "Cut Corners 📚 Slow English"
+  ],
   "quiz": [
     "English Quiz: Drop the Ball",
     "English Quiz: Kill 2 Birds",
@@ -122,7 +125,10 @@
     "English Quiz: In Hot Water",
     "English Quiz: Pull Someone's Leg",
     "English Quiz: Under the Weather",
-    "English Quiz: Back to Square One"
+    "English Quiz: Back to Square One",
+    "English Quiz: Let Sleeping Dogs Lie"
   ],
-  "post": ["Phrasal Verbs for Travel"]
+  "post": [
+    "Phrasal Verbs for Travel"
+  ]
 }
