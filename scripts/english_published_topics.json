@@ -91,9 +91,7 @@
     "Navigating Everyday Transactions",
     "Essential Phrases for Daily Routines Challenge"
   ],
-  "slow": [
-    "Cut Corners 📚 Slow English"
-  ],
+  "slow": ["Cut Corners 📚 Slow English"],
   "quiz": [
     "English Quiz: Drop the Ball",
     "English Quiz: Kill 2 Birds",
@@ -125,7 +123,5 @@
     "English Quiz: Pull Someone's Leg",
     "English Quiz: Under the Weather"
   ],
-  "post": [
-    "Phrasal Verbs for Travel"
-  ]
+  "post": ["Phrasal Verbs for Travel"]
 }

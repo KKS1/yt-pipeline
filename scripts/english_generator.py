@@ -1121,7 +1121,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
     - [13-20s] Context Hint: Liam provides an educational example sentence or hint.
-    - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and cuts instantly into a seamless word loop back to the hook.
+    - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and ends with a phrase that seamlessly loops back to the hook (e.g., "Let's try another one..."). Do NOT repeat the original question.
 
     PACING:
     The pacing must allow English learners time to read, but remain engaging enough to prevent swipe-aways.
