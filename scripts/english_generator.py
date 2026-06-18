@@ -766,7 +766,6 @@ CRITICAL RULES:
 
 STRUCTURE & CONTENT (PART 2):
 1. **Deep Dive**: Continue the extensive discussion of the topic.
-2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally.
 2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally and make it more engaging.
 3. Use and carefully explain 4-5 additional phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
