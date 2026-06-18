@@ -505,7 +505,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     - The 'dialogue' array MUST contain around 10-15 turns.
     1. Emma: "Day {day_num} Challenge! Let's see if you remember what we just learned." (Hook)
     2. Liam: Presents a Multiple Choice Question (A, B, or C) testing the lesson focus: {focus}.
-    3. [PAUSE] (3-second timer animation cue)
+    3. A dialogue turn containing ONLY "[PAUSE]" (to provide a 3-second gap for the timer).
     4. Emma: Reveals the correct answer and gives a 1-sentence explanation.
     5. Liam: "Got it right? Check out the full Day {day_num} lesson to master this focus!" (CTA pointing to the related video)
 
@@ -937,7 +937,7 @@ CRITICAL RULES:
 - Each turn should be 2-3 sentences. No single-sentence turns.
 - The FINAL turn should gently invite viewers to try using the idiom in the comments.
 - Do NOT add like/subscribe CTAs mid-episode; only a brief mention is allowed in the last turn.
-- END-OF-VIDEO REVIEW: The last 3 turns MUST be a 'Test Your Understanding' segment. Emma asks a multiple choice question about the idiom, followed by a 3-second pause cue [PAUSE], then Liam reveals the answer.
+- END-OF-VIDEO REVIEW: The last 3 turns MUST be a 'Test Your Understanding' segment. Emma asks a multiple choice question about the idiom, followed by a dialogue turn containing ONLY "[PAUSE]", then Liam reveals the answer.
 
 STYLE:
 - Warm, encouraging, crystal-clear pacing.
@@ -1120,7 +1120,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     STRUCTURE & PACING:
     1. Emma: "Quick Quiz! What does '{topic}' mean?" (Instant hook)
     2. Liam: "Is it A), B), or C)?" (Present 3 plausible multiple-choice options, only one is correct).
-    3. [PAUSE] (This cue is for a 3-second countdown timer animation).
+    3. A dialogue turn containing ONLY "[PAUSE]" (to provide a 3-second gap for the timer).
     4. Emma: "The answer is... [Correct Option]! [Brief 1-sentence explanation of the meaning]".
     5. Liam: "Did you get it right? Write your score in the comments and subscribe for daily English quizzes!" (Engagement Trigger)
 
