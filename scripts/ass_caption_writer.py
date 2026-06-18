@@ -144,16 +144,16 @@ def _build_ass_header(
     """Build the [Script Info] and [V4+ Styles] sections of the ASS file."""
     if is_shorts:
         margin_v_bottom = 850
-        margin_v_top = 100
+        margin_v_top = 160
         margin_l = 80
         margin_r = 80
-        card_font_size = 65
+        card_font_size = 80
     else:
         margin_v_bottom = 80
-        margin_v_top = 40
+        margin_v_top = 100
         margin_l = 300
         margin_r = 300
-        card_font_size = 45
+        card_font_size = 60
 
     # ASS colour: &HAABBGGRR  (AA=alpha, 00=opaque)
     header = f"""\
@@ -169,7 +169,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_EMMA_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
+Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -242,7 +242,7 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     return badge + "".join(parts).rstrip()
 
 
-def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: list[tuple[float, float]]):
+def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: list[tuple[float, float]], video_width: int, margin_v: int):
     """Add top-of-screen Idiom Box events based on script_data['idiom_windows']."""
     if not script_data:
         return
@@ -255,8 +255,9 @@ def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: lis
             end_t   = turn_times[et_idx][1]
             idiom   = str(w.get("idiom", "")).upper()
             defn    = w.get("definition", "")
-            # Line 1: Bold (from style). Line 2: Not Bold, Italics, Smaller font (\fs-15).
-            text    = rf"{idiom}\N{{\b0\i1\fs-15}}{defn}"
+            center_x = video_width // 2
+            # Slide from Y=-150 to target margin_v over 500ms
+            text    = rf"{{\move({center_x},-150,{center_x},{margin_v},0,500)}}{idiom}\N{{\b0\i1\fs-15}}{defn}"
             # Layer 1 ensures it prints over Layer 0 dialogue if they ever overlapped
             events.append(f"Dialogue: 1,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},{STYLE_IDIOM_CARD},,0,0,0,,{text}")
 
@@ -372,7 +373,8 @@ def generate_ass_captions(
             turn_speaker_map.append((s, e, spk))
 
     # Add Idiom Box events (Top of screen)
-    _add_idiom_card_events(events, script_data, [(s, e) for s, e, _ in turn_speaker_map])
+    margin_v_top = 160 if is_shorts else 100
+    _add_idiom_card_events(events, script_data, [(s, e) for s, e, _ in turn_speaker_map], video_width, margin_v_top)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
@@ -448,7 +450,8 @@ def generate_ass_captions_from_words(
             turn_speaker_map.append((s, e, dialogue[i].get("speaker", "Emma")))
 
     # Add Idiom Box events (Top of screen)
-    _add_idiom_card_events(events, {"idiom_windows": dialogue[0].get("idiom_windows", []) if isinstance(dialogue, list) and dialogue and "idiom_windows" in dialogue[0] else []}, per_turn_times)
+    margin_v_top = 160 if is_shorts else 100
+    _add_idiom_card_events(events, {"idiom_windows": dialogue[0].get("idiom_windows", []) if isinstance(dialogue, list) and dialogue and "idiom_windows" in dialogue[0] else []}, per_turn_times, video_width, margin_v_top)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
