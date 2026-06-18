@@ -308,6 +308,7 @@ def generate_ass_captions(
     is_shorts: bool = False,
     video_width: int = 1920,
     video_height: int = 1080,
+    per_turn_times: Optional[list[tuple[float, float]]] = None,
 ) -> str:
     """
     Transcribe `audio_path` with faster-whisper at word level and write an
@@ -323,6 +324,8 @@ def generate_ass_captions(
                      annotation (used for golden highlighting).
     is_shorts      : If True, uses tighter max_chars for vertical video.
     video_width/height : Canvas size — written into [Script Info].
+    per_turn_times : Optional list of (start, end) tuples for each dialogue turn.
+                     If provided, this is used for speaker mapping instead of estimation.
 
     Returns
     -------
@@ -363,18 +366,18 @@ def generate_ass_captions(
     turn_speaker_map: list[tuple[float, float, str]] = []
     events: list[str] = []
 
-    if script_data:
-        # We'll build this after the caller populates per_turn_times via
-        # the optional keyword; for now we use a simple heuristic: split the
-        # full audio into equal chunks per dialogue turn.
+    if script_data and per_turn_times and len(per_turn_times) == len(script_data.get("dialogue", [])):
+        dialogue = script_data.get("dialogue", [])
+        for i, (s, e) in enumerate(per_turn_times):
+            spk = dialogue[i].get("speaker", "Emma")
+            turn_speaker_map.append((s, e, spk))
+    elif script_data:
+        # Fallback to estimation if precise times aren't available
         dialogue = script_data.get("dialogue", [])
         total_dur = all_words[-1]["end"] if all_words else 0.0
         turn_dur = total_dur / max(len(dialogue), 1)
         for i, line in enumerate(dialogue):
-            s = i * turn_dur
-            e = (i + 1) * turn_dur
-            spk = line.get("speaker", "Emma")
-            turn_speaker_map.append((s, e, spk))
+            turn_speaker_map.append((i * turn_dur, (i + 1) * turn_dur, line.get("speaker", "Emma")))
 
     # Add Idiom Box events (Top of screen)
     margin_v_top = 160 if is_shorts else 100

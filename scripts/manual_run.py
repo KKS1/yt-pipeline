@@ -1621,6 +1621,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
             script_data=script,
             idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
             is_shorts=False,
+            per_turn_times=per_turn_times,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
