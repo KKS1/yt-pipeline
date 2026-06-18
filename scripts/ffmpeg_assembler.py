@@ -647,7 +647,7 @@ def assemble_narrated_video(
         "Bold=1,"
         "Outline=2,"
         "Shadow=1,"
-        "MarginV=40"
+        "MarginV=140"
     )
 
     # Check if captions exist
@@ -699,9 +699,14 @@ def assemble_shorts_video(
     output_path: str,
     title: str = "",
     channel: str = None,
+    ass_captions: str = None,
+    idiom_windows: list = None,
+    per_turn_times: list = None,
+    dialogue: list = None,
 ) -> str:
     """
     Assemble a vertical 9:16 narrated video for YouTube Shorts.
+    Supports .ass karaoke captions and idiom card overlays.
     """
 
     narration_duration = get_audio_duration(narration_audio)
@@ -773,31 +778,40 @@ def assemble_shorts_video(
         "FontSize=18,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
-        "BackColour=&H80000000,"
         "Bold=1,"
-        "Outline=2,"
-        "Shadow=1,"
+        "BorderStyle=1,"
+        "Outline=4,"
+        "Shadow=2,"
         "Alignment=2,"
         "MarginV=60"
     )
 
-    has_captions = captions_srt and Path(captions_srt).exists()
+    has_ass = ass_captions and Path(ass_captions).exists()
+    has_srt = captions_srt and Path(captions_srt).exists()
     fade_start = max(narration_duration - 1, 0)
-    vf_filter = f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1"
-    if has_captions:
-        vf_filter += f",subtitles={captions_srt}:force_style='{caption_style}'"
+    fade_chain = f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1"
+
+    if has_ass:
+        ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
+        vf_filter = f"{fade_chain},ass={ass_escaped}"
+    elif has_srt:
+        vf_filter = f"{fade_chain},subtitles={captions_srt}:force_style='{caption_style}'"
+    else:
+        vf_filter = fade_chain
+
+    base_output = output_path
 
     cmd = [
         FFMPEG, "-y",
         "-i", concat_path,
         "-i", mixed_audio_path,
         "-map", "0:v", "-map", "1:a",
-        "-vf", vf_filter, # Use the already constructed vf_filter
+        "-vf", vf_filter,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
-        output_path
+        base_output
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -806,14 +820,34 @@ def assemble_shorts_video(
             FFMPEG, "-y",
             "-i", concat_path, "-i", mixed_audio_path,
             "-map", "0:v", "-map", "1:a",
-            "-vf", f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1", # Fallback also uses 'fast' preset
+            "-vf", fade_chain,
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy", "-movflags", "+faststart",
-            output_path
+            base_output
         ]
         run_ffmpeg(cmd)
 
-    append_channel_bumpers(output_path, channel=channel)
+    # Apply face overlays if .ass subtitles are used and face PNGs exist
+    if has_ass and dialogue:
+        try:
+            from english_assembler import apply_face_badge_overlays
+            temp_face = str(Path(base_output).with_suffix(".face.mp4"))
+            apply_face_badge_overlays(
+                video_path=base_output,
+                dialogue=dialogue,
+                per_turn_times=per_turn_times or [],
+                output_path=temp_face,
+                is_shorts=True
+            )
+            if Path(temp_face).exists():
+                Path(base_output).unlink()
+                import shutil
+                shutil.move(temp_face, base_output)
+        except Exception as e:
+            print(f"  Face badge overlay skipped: {e}")
+
+    append_channel_bumpers(base_output, channel=channel)
+
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Short assembled: {output_path} ({size_mb:.1f} MB)")

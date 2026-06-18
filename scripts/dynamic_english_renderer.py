@@ -355,9 +355,12 @@ def _mux_dynamic_video(
     narration_audio: str,
     output_path: str,
     captions_srt: str | None,
+    ass_captions: str | None,
     background_music: str | None,
     duration: float,
     title: str,
+    idiom_windows: list | None = None,
+    per_turn_times: list | None = None,
 ) -> None:
     if background_music and Path(background_music).exists():
         mixed_audio_path = str(TEMP_DIR / "dynamic_english_mixed_audio.m4a")
@@ -380,22 +383,35 @@ def _mux_dynamic_video(
     else:
         final_audio = narration_audio
 
-    caption_style = (
-        "FontName=Arial,"
-        "FontSize=18,"
-        "PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00000000,"
-        "BackColour=&H80000000,"
-        "Bold=1,"
-        "Outline=2,"
-        "Shadow=1,"
-        "Alignment=2,"
-        "MarginV=60"
-    )
+    # Prefer .ass for karaoke highlighting; fall back to .srt
+    has_ass = ass_captions and Path(ass_captions).exists()
     fade_start = max(duration - 1, 0)
-    vf_filter = f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1"
-    if captions_srt and Path(captions_srt).exists():
-        vf_filter += f",subtitles={captions_srt}:force_style='{caption_style}'"
+    fade_chain = f"fade=t=in:st=0:d=0.3,fade=t=out:st={fade_start}:d=1"
+
+    if has_ass:
+        ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
+        vf_filter = f"{fade_chain},ass={ass_escaped}"
+    elif captions_srt and Path(captions_srt).exists():
+        caption_style = (
+            "FontName=Arial,"
+            "FontSize=18,"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,"
+            "BackColour=&H80000000,"
+            "Bold=1,"
+            "Outline=2,"
+            "Shadow=1,"
+            "Alignment=2,"
+            "MarginV=60"
+        )
+        vf_filter = f"{fade_chain},subtitles={captions_srt}:force_style='{caption_style}'"
+    else:
+        vf_filter = fade_chain
+
+    # Use a pre-cards path if idiom overlays will follow
+    base_output = output_path if not (idiom_windows and per_turn_times) else str(
+        Path(output_path).with_stem(Path(output_path).stem + "_precards")
+    )
 
     run_ffmpeg([
         FFMPEG, "-y",
@@ -410,8 +426,32 @@ def _mux_dynamic_video(
         "-c:a", "copy",
         "-movflags", "+faststart",
         "-metadata", f"title={title}",
-        output_path,
+        base_output,
     ])
+
+    # Idiom card overlays as final pass (top-right for Shorts)
+    if idiom_windows and per_turn_times:
+        try:
+            from english_assembler import apply_idiom_overlays, resolve_idiom_timestamps
+            from idiom_card_renderer import render_idiom_cards_batch
+            from ffmpeg_assembler import get_media_duration
+
+            bumper_intro = Path(__file__).resolve().parent.parent / "assets" / "bumpers" / "english" / "intro.mp4"
+            bumper_pad = get_media_duration(str(bumper_intro)) if bumper_intro.exists() else 0.0
+            resolved = resolve_idiom_timestamps(idiom_windows, per_turn_times, bumper_pad)
+            card_pngs = render_idiom_cards_batch(idiom_windows, output_dir=TEMP_DIR / "idiom_cards")
+            apply_idiom_overlays(base_output, resolved, card_pngs, output_path, is_shorts=True)
+            if base_output != output_path and Path(base_output).exists():
+                Path(base_output).unlink()
+        except Exception as exc:
+            print(f"  Idiom overlays skipped: {exc}")
+            if base_output != output_path:
+                import shutil
+                shutil.copy2(base_output, output_path)
+    else:
+        if base_output != output_path:
+            import shutil
+            shutil.copy2(base_output, output_path)
 
 
 def render_dynamic_english_short(
@@ -420,6 +460,8 @@ def render_dynamic_english_short(
     captions_srt: str | None = None,
     background_music: str | None = None,
     title: str = "",
+    idiom_windows: list | None = None,
+    per_turn_times: list | None = None,
 ) -> str:
     print("\nAssembling dynamic English Short with Emma and Liam...")
     config = preflight_dynamic_english_assets()
@@ -429,11 +471,28 @@ def render_dynamic_english_short(
     segments, narration_audio = _generate_dialogue_segments(script_data, rhubarb_bin)
     duration = get_audio_duration(narration_audio)
 
+    # Generate .ass captions (karaoke) + .srt fallback
+    ass_path: str | None = None
     if captions_srt:
+        try:
+            from ass_caption_writer import generate_ass_captions
+            ass_path = captions_srt.replace(".srt", ".ass")
+            generate_ass_captions(
+                audio_path=narration_audio,
+                output_ass=ass_path,
+                script_data=script_data,
+                idiom_phrases=[w.get("idiom", "") for w in (idiom_windows or [])],
+                is_shorts=True,
+                video_width=config.get("canvas", {}).get("width", SHORTS_WIDTH),
+                video_height=config.get("canvas", {}).get("height", SHORTS_HEIGHT),
+            )
+        except Exception as exc:
+            print(f"  .ass captions skipped: {exc}")
+            ass_path = None
         try:
             generate_captions(narration_audio, captions_srt, max_line_width=25, max_line_count=2)
         except Exception as exc:
-            print(f"  Captions skipped: {exc}")
+            print(f"  .srt captions skipped: {exc}")
             captions_srt = None
 
     silent_video = str(TEMP_DIR / "dynamic_english_silent.mp4")
@@ -443,9 +502,12 @@ def render_dynamic_english_short(
         narration_audio=narration_audio,
         output_path=output_path,
         captions_srt=captions_srt,
+        ass_captions=ass_path,
         background_music=background_music,
         duration=duration,
         title=title,
+        idiom_windows=idiom_windows,
+        per_turn_times=per_turn_times,
     )
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
