@@ -647,7 +647,7 @@ def assemble_narrated_video(
         "Bold=1,"
         "Outline=2,"
         "Shadow=1,"
-        "MarginV=40"
+        "MarginV=140"
     )
 
     # Check if captions exist

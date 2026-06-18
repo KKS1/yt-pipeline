@@ -149,7 +149,7 @@ def _build_ass_header(
         margin_r = 80
         card_font_size = 80
     else:
-        margin_v_bottom = 80
+        margin_v_bottom = 140
         margin_v_top = 100
         margin_l = 300
         margin_r = 300

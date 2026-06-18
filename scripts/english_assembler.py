@@ -120,7 +120,7 @@ def apply_face_badge_overlays(
         y = 990
     else:
         x = 180
-        y = 900
+        y = 840
 
     inputs = [FFMPEG, "-y", "-i", video_path]
     filter_parts = []
