@@ -487,7 +487,7 @@ def generate_captions(audio_path: str, output_srt: str, max_line_width: int = No
     except ImportError:
         raise RuntimeError("faster-whisper not installed. Run: pip install faster-whisper --break-system-packages")
 
-    model = WhisperModel("base", device="cpu", compute_type="int8")
+    model = WhisperModel("tiny", device="cpu", compute_type="int8")
     
     # We need word-level timestamps if we're enforcing width/count limits
     needs_word_timestamps = bool(max_line_width or max_line_count)

@@ -420,44 +420,45 @@ def assemble_english_video(
     else:
         final_audio = podcast_audio
 
-    # 3. Combine visual loop + audio + subtitles
-    # Prefer .ass (karaoke + avatar badges); fall back to .srt with style
-    has_ass = ass_captions and Path(ass_captions).exists()
-    has_srt = captions_srt and Path(captions_srt).exists()
-
-    if has_ass:
-        # Escape colon in path for FFmpeg filter (Windows + macOS)
-        ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
-        vf_filter = f"ass={ass_escaped}"
-    elif has_srt:
-        caption_style = (
-            "FontName=Arial,FontSize=22,"
-            "PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,"
-            "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
-        )
-        vf_filter = f"subtitles={captions_srt}:force_style='{caption_style}'"
-    else:
-        vf_filter = "null"
-
+    # 3. Combine visual loop + audio + subtitles in a single pass
     base_output = output_path
+    try:
+        # Prefer .ass (karaoke + avatar badges); fall back to .srt with style
+        has_ass = ass_captions and Path(ass_captions).exists()
+        has_srt = captions_srt and Path(captions_srt).exists()
 
-    cmd = [
-        FFMPEG, "-y",
-        "-stream_loop", "-1", "-i", norm_visual,
-        "-i", final_audio,
-        "-vf", vf_filter,
-        "-map", "0:v", "-map", "1:a",
-        "-t", str(duration),
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-c:a", "copy",
-        "-movflags", "+faststart",
-        "-metadata", f"title={title}",
-        base_output, "-loglevel", "error"
-    ]
+        vf_filter_parts = []
+        if has_ass:
+            # Escape colon in path for FFmpeg filter (Windows + macOS)
+            ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
+            vf_filter_parts.append(f"ass={ass_escaped}")
+        elif has_srt:
+            caption_style = (
+                "FontName=Arial,FontSize=22,"
+                "PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,"
+                "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
+            )
+            vf_filter_parts.append(f"subtitles={captions_srt}:force_style='{caption_style}'")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print("  Caption burn failed, assembling without captions...")
+        vf_filter = ",".join(vf_filter_parts) if vf_filter_parts else "null"
+
+        cmd = [
+            FFMPEG, "-y",
+            "-stream_loop", "-1", "-i", norm_visual,
+            "-i", final_audio,
+            "-vf", vf_filter,
+            "-map", "0:v", "-map", "1:a",
+            "-t", str(duration),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
+            base_output, "-loglevel", "error"
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  Caption burn failed, assembling without captions... Error: {e.stderr}")
+        # Fallback without captions
         cmd = [
             FFMPEG, "-y",
             "-stream_loop", "-1", "-i", norm_visual,
@@ -465,10 +466,12 @@ def assemble_english_video(
             "-map", "0:v", "-map", "1:a",
             "-t", str(duration),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-            "-c:a", "copy", "-movflags", "+faststart",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
             base_output, "-loglevel", "error"
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        subprocess.run(cmd, check=True, capture_output=True)
 
     # Apply face overlays if .ass subtitles are used and face PNGs exist
     if has_ass and dialogue:
