@@ -76,7 +76,7 @@ def apply_face_badge_overlays(
         return output_path
 
     # Prepare badges
-    size = 80 if is_shorts else 100
+    size = 140 if is_shorts else 120
     emma_src = prepare_face_badge("Emma", size)
     liam_src = prepare_face_badge("Liam", size)
     if not emma_src or not liam_src:
@@ -116,11 +116,11 @@ def apply_face_badge_overlays(
 
     # Determine coordinates
     if is_shorts:
-        x = 80
-        y = 990
+        x = 80  # Top-left with margin
+        y = 80  # Top-left with margin
     else:
-        x = 180
-        y = 840
+        x = (1920 - size) // 2 # Center horizontally
+        y = 630 # Position above captions
 
     inputs = [FFMPEG, "-y", "-i", video_path]
     filter_parts = []

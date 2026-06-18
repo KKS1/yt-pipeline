@@ -341,8 +341,8 @@ def generate_ass_captions(
         font_size_normal = 120
         font_size_idiom  = 135
     else:
-        font_size_normal = 85
-        font_size_idiom  = 95
+        font_size_normal = 95
+        font_size_idiom  = 105
 
     print("  Transcribing audio with faster-whisper (word timestamps)...")
     model = WhisperModel("base", device="cpu", compute_type="int8")
@@ -442,8 +442,8 @@ def generate_ass_captions_from_words(
         font_size_normal = 120
         font_size_idiom  = 135
     else:
-        font_size_normal = 85
-        font_size_idiom  = 95
+        font_size_normal = 95
+        font_size_idiom  = 105
 
     # Build per-turn speaker lookup
     turn_speaker_map: list[tuple[float, float, str]] = []
