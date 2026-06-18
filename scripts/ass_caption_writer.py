@@ -244,6 +244,10 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
 
 def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: list[tuple[float, float]], video_width: int, margin_v: int):
     """Add top-of-screen Idiom Box events based on script_data['idiom_windows']."""
+    # Avoid showing idiom card captions in English quizzes, as it reveals the answer
+    if script_data and script_data.get("video_format") == "shorts_quiz":
+        return
+
     if not script_data:
         return
     windows = script_data.get("idiom_windows", [])
