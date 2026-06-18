@@ -497,21 +497,24 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     focus = day_script.get("focus", "English conversation")
 
     prompt = f"""
-    Write a high-retention high-CTR YouTube Quiz Short based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
+    You are an expert short-form scriptwriter. Generate a high-retention, 25-second YouTube Shorts English quiz loop based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
 
     LESSON FOCUS: {focus}
 
-    STRUCTURE:
-    - The 'dialogue' array MUST contain around 10-15 turns.
-    1. Emma: "Day {day_num} Challenge! Let's see if you remember what we just learned." (Hook)
-    2. Liam: Presents a Multiple Choice Question (A, B, or C) testing the lesson focus: {focus}.
-    3. A dialogue turn containing ONLY "[PAUSE]" (to provide a 3-second gap for the timer).
-    4. Emma: Reveals the correct answer and gives a 1-sentence explanation.
-    5. Liam: "Got it right? Check out the full Day {day_num} lesson to master this focus!" (CTA pointing to the related video)
+    TIME ALLOCATION RULES:
+    - [0-3s] Hook: Emma introduces the Day {day_num} Challenge question clearly.
+    - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
+    - [13-20s] Context Hint: Liam provides an educational example sentence or hint related to "{focus}".
+    - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and cuts instantly into a seamless word loop back to the hook.
+
+    PACING:
+    The pacing must allow English learners time to read, but remain engaging enough to prevent swipe-aways.
+
+    LEVERAGE COMMENTS: Generate a 'pinned_comment' question to trigger algorithmic signals.
 
     JSON SCHEMA:
     {{
-      "title": "string (make it high-retention and high-CTR, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
+      "title": "string (Searchable keyword-rich title, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
       "description": "string (Include #Shorts, #EnglishChallenge, #EnglishVibesHub, and hashtags mirroring the 'tags' list below along with high CTR tags)",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
@@ -1107,30 +1110,27 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
         )
     
     prompt = f"""
-    Write a high-retention & high-CTR YouTube Quiz Short for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    You are an expert short-form scriptwriter. Generate a high-retention, 25-second YouTube Shorts English quiz loop between Emma and Liam for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
     TOPIC: The idiom or expression '{topic}'
     {avoid_instruction}
     
     SEARCH-FOCUSED TITLE STRATEGY:
-    Small channels rely on SEARCH. The title MUST use searchable keywords to help discovery with high CTR.
-    Use phrases like: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
-    Examples: "English Quiz: [Idiom] Meaning | English Practice for Beginners", "Do you know this idiom? [Idiom] Quiz #Shorts".
-    
-    - The 'dialogue' array MUST contain around 10-15 turns.
-    STRUCTURE & PACING:
-    1. Emma: "Quick Quiz! What does '{topic}' mean?" (Instant hook)
-    2. Liam: "Is it A), B), or C)?" (Present 3 plausible multiple-choice options, only one is correct).
-    3. A dialogue turn containing ONLY "[PAUSE]" (to provide a 3-second gap for the timer).
-    4. Emma: "The answer is... [Correct Option]! [Brief 1-sentence explanation of the meaning]".
-    5. Liam: "Did you get it right? Write your score in the comments and subscribe for daily English quizzes!" (Engagement Trigger)
+    The title MUST use searchable keywords: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
 
-    LEVERAGE COMMENTS: 
-    Generate a 'pinned_comment' question to trigger algorithmic signals. 
-    Example: "What does '{topic}' mean? Write your guess below!" or "Have you used the phrase '{topic}' recently? Let us know!"
+    TIME ALLOCATION RULES:
+    - [0-3s] Hook: Emma introduces the idiom question clearly.
+    - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
+    - [13-20s] Context Hint: Liam provides an educational example sentence or hint.
+    - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and cuts instantly into a seamless word loop back to the hook.
+
+    PACING:
+    The pacing must allow English learners time to read, but remain engaging enough to prevent swipe-aways.
+
+    LEVERAGE COMMENTS: Generate a 'pinned_comment' question to trigger algorithmic signals.
 
     JSON SCHEMA:
     {{
-      "title": "string (Searchable keyword-rich title under 70 characters)",
+      "title": "string (Searchable keyword-rich title under 70 chars)",
       "description": "string (High-intent description including #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
