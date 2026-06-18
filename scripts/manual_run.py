@@ -870,6 +870,11 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                     publish_hour=10,
                 )
 
+                comment_text = quiz_script.get("pinned_comment", "")
+                # Add related video link to pinned comment if available
+                if long_form_id and comment_text and "youtu.be" not in comment_text:
+                    comment_text += f"\n\nWatch the full lesson here: https://youtu.be/{long_form_id}"
+
                 print(f"Uploading Day {day_number} Quiz Linked to Video {long_form_id}...")
                 try:
                     quiz_result = _upload_video(
