@@ -61,6 +61,7 @@ def test_visuals():
     print("=" * 60)
     print("Testing English Landscape...")
     print("=" * 60)
+    # Note: run_english now returns the output path from _upload_video, which can be None.
     out1 = run_english(topic="test", upload=False)
     
     print("\n" + "=" * 60)

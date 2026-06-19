@@ -115,6 +115,7 @@ def synthesize(
         "-ac", "2",
         "-c:a", "aac",
         "-b:a", "192k",
+        "-preset", "ultrafast",
         str(Path(output_path).with_suffix(".m4a")),
         "-loglevel", "error"
     ], check=True)

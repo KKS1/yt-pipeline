@@ -100,6 +100,7 @@ _OUTRO_PATTERNS = [
         r"\bthanks?\s+for\s+(?:listening|watching|tuning\s+in|joining)\b",
         r"\btune\s+in\s+(?:next|for\s+more|again)\b",
         r"\bsee\s+you\s+(?:next|soon|later)\b",
+        r"\blooking\s+forward\s+to\s+(?:next|seeing\s+you)\b",
         r"\buntil\s+next\s+time\b",
         r"\bdon'?t\s+forget\s+to\s+(?:like|subscribe)\b",
         r"\bEnglishVibesHub\b.*\b(?:bye|goodbye|see\s+you)\b",
@@ -636,9 +637,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (include Day {day_number} in the suffix, a clear learning promise, and a high-CTR hook)",
+  "title": "string (High-CTR title using hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include Day {day_number} in the suffix. e.g., 'Day {day_number}: STOP Using Basic Words!')",
   "title_options": ["string"],
-  "description": "string (YouTube description with a strong first-line hook for high-CTR, timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high CTR tags)",
+  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high CTR tags)",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "day": {day_number},
@@ -732,9 +733,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (SEO-focused title: [Keyword] + [Hook] for high CTR. e.g., 'English Listening Practice: Mastering {topic}')",
+  "title": "string (High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
   "title_options": ["string"],
-  "description": "string (YouTube description with a strong first-line hook for high CTR, relevant keywords, timeline, and a clear call-to-action). Include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
+  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, and a clear call-to-action. Also include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "dialogue": [
@@ -765,7 +766,7 @@ CRITICAL RULES:
 
 STRUCTURE & CONTENT (PART 2):
 1. **Deep Dive**: Continue the extensive discussion of the topic.
-2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally.
+2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally and make it more engaging.
 3. Use and carefully explain 4-5 additional phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
@@ -948,14 +949,13 @@ STYLE:
 - Define every word that might be unfamiliar.
 
 SEARCHABLE TITLES REQUIRED:
-- title_normal: discovery-friendly, no "slow" branding.
-  Must include: "English Practice for Beginners" or "Learn English Idioms".
+- title_normal: High-CTR, discovery-friendly, no "slow" branding. Use hooks like 'STOP Saying...' or 'The Real Meaning of...'.
+  Example: "STOP Saying 'I Don't Know' — Use These Phrases Instead".
 - title_slow: beginner-targeted, slow-learning branding with the 🐢 emoji.
-  Must include: "Slow English Practice" or "Easy English Listening".
+  Example: "🐢 SLOW English: STOP Saying 'I Don't Know'".
 
 TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
-- description_normal: 80-100 words. Focus on idiom mastery and conversational English.
-  Include hashtags that mirror the 'tags' list below.
+- description_normal: 80-100 words. First 2 lines must be packed with SEO keywords. Focus on idiom mastery and conversational English. Include hashtags that mirror the 'tags' list below.
 - description_slow: 80-100 words. Emphasise the slow-learner benefit (0.8x speed, big captions).
   Include hashtags that mirror the 'tags' list below.
 
@@ -963,8 +963,8 @@ JSON SCHEMA:
 {{
   "title_normal": "string",
   "title_slow":   "string",
-  "description_normal": "string (Normal speed description with relevant hashtags mirroring the 'tags' list below)",
-  "description_slow":   "string (Slow speed description with relevant hashtags mirroring the 'tags' list below)",
+  "description_normal": "string (Normal speed description. First 2 lines packed with SEO keywords. Include relevant hashtags mirroring the 'tags' list below)",
+  "description_slow":   "string (Slow speed description. First 2 lines packed with SEO keywords. Include relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (A specific 'How would you use this?' question)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "idiom": "{topic}",
@@ -1058,9 +1058,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (SEO-focused Short title)",
+  "title": "string (High-CTR Short title using hooks like 'STOP Saying...' or '1 Mistake All Learners Make')",
   "title_options": ["string"],
-  "description": "string (YouTube description with a strong first-line hook, an engaging question for the comments, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
+  "description": "string (YouTube description. First 2 lines MUST be packed with SEO keywords for maximum reach. Include an engaging question, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "video_format": "shorts",
@@ -1132,8 +1132,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (Searchable keyword-rich title under 70 chars)",
-      "description": "string (High-intent description including #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
+      "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: STOP Making This Mistake!')",
+      "description": "string (High-intent description. First 2 lines MUST be packed with SEO keywords. Include #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",

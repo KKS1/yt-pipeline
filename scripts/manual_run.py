@@ -577,6 +577,7 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
             script_data=script,
             idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
             is_shorts=False,
+            per_turn_times=per_turn_times,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
@@ -842,6 +843,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 generate_ass_captions(
                     audio_path=quiz_audio, output_ass=quiz_ass,
                     script_data=quiz_script, is_shorts=True,
+                    per_turn_times=quiz_turn_times,
                     video_width=1080, video_height=1920,
                 )
             except Exception as e:
@@ -1232,6 +1234,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
             script_data=script,
             idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
             is_shorts=True, video_width=1080, video_height=1920,
+            per_turn_times=per_turn_times,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
@@ -1333,6 +1336,7 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
             script_data=script, is_shorts=True,
             video_width=1080, video_height=1920,
             idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+            per_turn_times=per_turn_times,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
@@ -1621,6 +1625,7 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
             script_data=script,
             idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
             is_shorts=False,
+            per_turn_times=slow_turn_times,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
