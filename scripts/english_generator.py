@@ -735,7 +735,7 @@ CRITICAL RULES:
 
 STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
-2. **Searchability**: The title MUST include high-intent phrases like "English Listening Practice" or "Improve Your Speaking".
+2. **High CTR & Searchability & SEO**: High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') or '5 Tips To Improve Your Speaking' etc. Include a timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
 3. **Setup**: Begin the deep dive discussion into the topic.
 4. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
@@ -1134,8 +1134,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     TOPIC: The idiom or expression '{topic}'
     {avoid_instruction}
     
-    SEARCH-FOCUSED TITLE STRATEGY:
-    The title MUST use searchable keywords: "English Practice for Beginners", "Easy English Listening", or "English Quiz".
+    HIGH CTR & SEARCH-FOCUSED TITLE STRATEGY:
+    High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
 
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
