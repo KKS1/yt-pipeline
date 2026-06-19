@@ -13,6 +13,36 @@ ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
+ENGLISH_METADATA_RULES = """
+METADATA RULES:
+- Titles must be high-CTR, searchable, curiosity-driven, and punchy.
+- Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
+- Keep titles natural for YouTube search; front-load keywords like English Listening Practice, English Speaking Practice, English Quiz, or Learn English.
+- Descriptions must start with 2 SEO-heavy lines, then include a timeline when the video is long-form.
+- Descriptions must include a comment prompt, a subscribe CTA, relevant hashtags, and a playlist placeholder line: Watch the playlist here: {playlist_url}
+- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
+- Pinned comments must ask a specific question that viewers can answer quickly.
+"""
+
+
+def ensure_english_description_cta(description: str, *, include_timeline: bool = False) -> str:
+    """Guarantee core YouTube metadata CTAs even if the model skips them."""
+    text = str(description or "").strip()
+    additions = []
+
+    if include_timeline and not re.search(r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE):
+        additions.append("Timeline:\n0:00 - Start the lesson\n5:00 - Practice examples\n10:00 - Review and next steps")
+    if "{playlist_url}" not in text:
+        additions.append("Watch the playlist here: {playlist_url}")
+    if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
+        additions.append("Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+    if not re.search(r"\bcomment\b", text, re.IGNORECASE):
+        additions.append("Comment below: Which phrase will you practice today?")
+
+    if additions:
+        text = (text + "\n\n" if text else "") + "\n".join(additions)
+    return text
+
 def get_published_topics() -> dict:
     if PUBLISHED_TOPICS_FILE.exists():
         try:
@@ -273,6 +303,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
     description = part1_data.get("description")
     if not description:
         description = f"Learn English with this detailed conversation about {topic}."
+    description = ensure_english_description_cta(description, include_timeline=True)
 
     tags = part1_data.get("tags")
     if not tags:
@@ -512,6 +543,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     You are an expert short-form scriptwriter. Generate a high-retention, 25-second YouTube Shorts English quiz loop based on Day {day_num} of the '{series_title}' challenge on @EnglishVibesHub-s6w.
 
     LESSON FOCUS: {focus}
+    {ENGLISH_METADATA_RULES}
 
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the Day {day_num} Challenge question clearly.
@@ -527,7 +559,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (Searchable keyword-rich title, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
-      "description": "string (Include #Shorts, #EnglishChallenge, #EnglishVibesHub, and hashtags mirroring the 'tags' list below along with high CTR tags)",
+      "description": "string (First 2 lines packed with SEO keywords. Include #Shorts, #EnglishChallenge, #EnglishVibesHub, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high CTR tags)",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
@@ -539,6 +571,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
     return script_data
 
 def generate_english_community_content(topic: str = None, content_type: str = "quiz") -> dict:
@@ -630,6 +663,7 @@ TITLE: {day.get('title')}
 {avoid_instruction}
 FOCUS: {day.get('focus')}
 PRACTICE TASK: {day.get('practice_task')}
+{ENGLISH_METADATA_RULES}
 
 CRITICAL RULES:
 - Output ONLY valid JSON.
@@ -650,7 +684,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR title using hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include Day {day_number} in the suffix. e.g., 'Day {day_number}: STOP Using Basic Words!')",
   "title_options": ["string"],
-  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high CTR tags)",
+  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high CTR tags)",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "day": {day_number},
@@ -667,6 +701,7 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+    script["description"] = ensure_english_description_cta(script.get("description", ""), include_timeline=True)
 
     if not script.get("title"):
         title_options = script.get("title_options") or []
@@ -726,6 +761,7 @@ def generate_english_script(topic=None):
 You are writing PART 1 (of 3) for one continuous high-retention long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
+{ENGLISH_METADATA_RULES}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
@@ -735,7 +771,7 @@ CRITICAL RULES:
 
 STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
-2. **High CTR & Searchability & SEO**: High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') or '5 Tips To Improve Your Speaking' etc. Include a timeline, relevant keywords, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
+2. **High CTR & Searchability & SEO**: High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'The #1 Way To...', 'DON'T Say This', or 'Why Native Speakers Say...'. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
 3. **Setup**: Begin the deep dive discussion into the topic.
 4. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
@@ -746,9 +782,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
+  "title": "string (High-CTR, curiosity-based, searchable title using title case and selective ALL CAPS for hook words, e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
   "title_options": ["string"],
-  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, and a clear call-to-action. Also include a specific question for the comments section and relevant hashtags mirroring the 'tags' list below)",
+  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, a specific comment question, a subscribe CTA, playlist placeholder line 'Watch the playlist here: {{playlist_url}}', and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "dialogue": [
@@ -950,6 +986,7 @@ You are writing a high CTR short English learning podcast script for the YouTube
 
 IDIOM / TOPIC: {topic}
 {avoid_instruction}
+{ENGLISH_METADATA_RULES}
 
 CRITICAL RULES:
 - Output ONLY valid JSON.
@@ -967,22 +1004,22 @@ STYLE:
 - Define every word that might be unfamiliar.
 
 SEARCHABLE TITLES REQUIRED:
-- title_normal: High-CTR, discovery-friendly, no "slow" branding. Use hooks like 'STOP Saying...' or 'The Real Meaning of...'.
+- title_normal: High-CTR, discovery-friendly, curiosity-based, no "slow" branding. Use hooks like 'STOP Saying...', 'The Real Meaning of...', or 'DON'T Use This Wrong'.
   Example: "STOP Saying 'I Don't Know' — Use These Phrases Instead".
 - title_slow: beginner-targeted, slow-learning branding with the 🐢 emoji.
   Example: "🐢 SLOW English: STOP Saying 'I Don't Know'".
 
 TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
-- description_normal: 80-100 words. First 2 lines must be packed with SEO keywords. Focus on idiom mastery and conversational English. Include hashtags that mirror the 'tags' list below.
+- description_normal: 80-100 words. First 2 lines must be packed with SEO keywords. Focus on idiom mastery and conversational English. Include a comment CTA, subscribe CTA, playlist placeholder, and hashtags that mirror the 'tags' list below.
 - description_slow: 80-100 words. Emphasise the slow-learner benefit (0.8x speed, big captions).
-  Include hashtags that mirror the 'tags' list below.
+  Include a comment CTA, subscribe CTA, playlist placeholder, and hashtags that mirror the 'tags' list below.
 
 JSON SCHEMA:
 {{
   "title_normal": "string",
   "title_slow":   "string",
-  "description_normal": "string (Normal speed description. First 2 lines packed with SEO keywords. Include relevant hashtags mirroring the 'tags' list below)",
-  "description_slow":   "string (Slow speed description. First 2 lines packed with SEO keywords. Include relevant hashtags that mirror the 'tags' list below)",
+  "description_normal": "string (Normal speed description. First 2 lines packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, and relevant hashtags mirroring the 'tags' list below)",
+  "description_slow":   "string (Slow speed description. First 2 lines packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, and relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (A specific 'How would you use this?' question)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "idiom": "{topic}",
@@ -1025,13 +1062,13 @@ JSON SCHEMA:
         base_slow = script_data.get("description", base_normal)
 
     script_data["description_normal"] = (
-        base_normal.rstrip()
+        ensure_english_description_cta(base_normal).rstrip()
         + "\n\n🐢 Didn't catch that? Watch the Slow English version here:\n{slow_url}"
     )
     script_data["description_slow"] = (
         f"🐢 SLOW English Learning Mode — \"{idiom}\" explained at 0.8x speed "
         f"with large on-screen captions!\n\n"
-        + base_slow.rstrip()
+        + ensure_english_description_cta(base_slow).rstrip()
         + "\n\n⚡ Ready for the real speed? Watch here:\n{normal_url}"
     )
 
@@ -1058,6 +1095,7 @@ def generate_english_shorts_script(topic=None):
 You are writing a short, snappy English learning podcast script for a high CTR YouTube Short on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
+{ENGLISH_METADATA_RULES}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
@@ -1076,9 +1114,9 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR Short title using hooks like 'STOP Saying...' or '1 Mistake All Learners Make')",
+  "title": "string (High-CTR, curiosity-based Short title under 70 chars using hooks like 'STOP Saying...', 'DON'T Say This', or '1 Mistake All Learners Make')",
   "title_options": ["string"],
-  "description": "string (YouTube description. First 2 lines MUST be packed with SEO keywords for maximum reach. Include an engaging question, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
+  "description": "string (YouTube description. First 2 lines MUST be packed with SEO keywords for maximum reach. Include an engaging comment question, subscribe CTA, playlist placeholder, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "video_format": "shorts",
@@ -1092,6 +1130,7 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
+    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
 
     if not script_data.get("title"):
         title_options = script_data.get("title_options") or []
@@ -1133,9 +1172,10 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     You are an expert short-form scriptwriter. Generate a high-retention, 25-second YouTube Shorts English quiz loop between Emma and Liam for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
     TOPIC: The idiom or expression '{topic}'
     {avoid_instruction}
+    {ENGLISH_METADATA_RULES}
     
     HIGH CTR & SEARCH-FOCUSED TITLE STRATEGY:
-    High-CTR title using hooks like 'STOP Making These Mistakes' or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
+    High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'DON'T Use This Wrong', or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
 
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
@@ -1151,7 +1191,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: STOP Making This Mistake!')",
-      "description": "string (High-intent description. First 2 lines MUST be packed with SEO keywords. Include #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
+      "description": "string (High-intent description. First 2 lines MUST be packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
@@ -1163,4 +1203,5 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
     return script_data
