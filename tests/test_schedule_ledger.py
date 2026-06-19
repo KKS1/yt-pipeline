@@ -64,31 +64,32 @@ class TestScheduleLedger(unittest.TestCase):
         self.assertEqual(slot, "quiz_afternoon")
         self.assertEqual(dt.hour, 15)
 
-    def test_english_weekend_slots(self):
-        # A mock current time: Friday 8:00 AM local
-        now_dt = datetime(2026, 6, 19, 8, 0, tzinfo=self.tz)
+    # skip this test for now since we removed the weekend English slots
+    # def test_english_weekend_slots(self):
+    #     # A mock current time: Friday 8:00 AM local
+    #     now_dt = datetime(2026, 6, 19, 8, 0, tzinfo=self.tz)
         
-        # 1st run: should select Saturday 7:00 PM
-        dt1, slot1 = self.ledger.get_next_slot("english", now_dt)
-        self.assertEqual(slot1, "weekend_sat")
-        self.assertEqual(dt1.hour, 19)
-        self.assertEqual(dt1.weekday(), 5) # Saturday
+    #     # 1st run: should select Saturday 7:00 PM
+    #     dt1, slot1 = self.ledger.get_next_slot("english", now_dt)
+    #     self.assertEqual(slot1, "weekend_sat")
+    #     self.assertEqual(dt1.hour, 19)
+    #     self.assertEqual(dt1.weekday(), 5) # Saturday
         
-        self.ledger.record_upload("english", dt1.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Podcast 1")
+    #     self.ledger.record_upload("english", dt1.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Podcast 1")
         
-        # 2nd run: should select Sunday 7:00 PM
-        dt2, slot2 = self.ledger.get_next_slot("english", now_dt)
-        self.assertEqual(slot2, "weekend_sun")
-        self.assertEqual(dt2.hour, 19)
-        self.assertEqual(dt2.weekday(), 6) # Sunday
+    #     # 2nd run: should select Sunday 7:00 PM
+    #     dt2, slot2 = self.ledger.get_next_slot("english", now_dt)
+    #     self.assertEqual(slot2, "weekend_sun")
+    #     self.assertEqual(dt2.hour, 19)
+    #     self.assertEqual(dt2.weekday(), 6) # Sunday
         
-        self.ledger.record_upload("english", dt2.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Podcast 2")
+    #     self.ledger.record_upload("english", dt2.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Podcast 2")
         
-        # 3rd run: should select next Saturday 7:00 PM
-        dt3, slot3 = self.ledger.get_next_slot("english", now_dt)
-        self.assertEqual(slot3, "weekend_sat")
-        self.assertEqual(dt3.hour, 19)
-        self.assertEqual(dt3.date(), dt1.date() + timedelta(days=7))
+    #     # 3rd run: should select next Saturday 7:00 PM
+    #     dt3, slot3 = self.ledger.get_next_slot("english", now_dt)
+    #     self.assertEqual(slot3, "weekend_sat")
+    #     self.assertEqual(dt3.hour, 19)
+    #     self.assertEqual(dt3.date(), dt1.date() + timedelta(days=7))
 
     def test_english_shorts_weekday_notifications(self):
         # Test Monday 5 PM (weekday -> notify True)

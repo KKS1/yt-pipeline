@@ -28,13 +28,15 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
         elif h == 21 and m == 0:
             return "quiz_night"
     elif channel == "english-shorts": # english-slow will add later
-        if h == 17 and m == 0:
-            return "tip_5pm"
+        if h == 19 and m == 0:
+            return "tip_7pm"
     elif channel in ("english"):
-        if local_dt.weekday() == 5 and h == 19 and m == 0:
-            return "weekend_sat"
-        elif local_dt.weekday() == 6 and h == 19 and m == 0:
-            return "weekend_sun"
+        if h == 17 and m == 0:
+            return "masterclass_5pm"
+        # if local_dt.weekday() == 5 and h == 19 and m == 0:
+        #     return "weekend_sat"
+        # elif local_dt.weekday() == 6 and h == 19 and m == 0:
+        #     return "weekend_sun"
     return "custom"
 
 class ScheduleLedger:
@@ -90,33 +92,43 @@ class ScheduleLedger:
             check_date = (current_dt + timedelta(days=day_offset)).date()
             date_str = check_date.isoformat()
             
-            slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=17, minute=0)
+            slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=19, minute=0)
             if slot_dt > now_dt + timedelta(minutes=20):
-                if not self.is_slot_taken(date_str, "tip_5pm"):
-                    return slot_dt, "tip_5pm"
+                if not self.is_slot_taken(date_str, "tip_7pm"):
+                    return slot_dt, "tip_7pm"
             day_offset += 1
 
     def get_next_english_slot(self, now_dt: datetime):
         current_dt = now_dt.astimezone(self.tz)
         day_offset = 0
         while True:
-            check_dt = current_dt + timedelta(days=day_offset)
-            weekday = check_dt.weekday()
-            if weekday == 5: # Saturday
-                check_date = check_dt.date()
-                date_str = check_date.isoformat()
-                slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=19, minute=0)
-                if slot_dt > now_dt + timedelta(minutes=20):
-                    if not self.is_slot_taken(date_str, "weekend_sat"):
-                        return slot_dt, "weekend_sat"
-            elif weekday == 6: # Sunday
-                check_date = check_dt.date()
-                date_str = check_date.isoformat()
-                slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=19, minute=0)
-                if slot_dt > now_dt + timedelta(minutes=20):
-                    if not self.is_slot_taken(date_str, "weekend_sun"):
-                        return slot_dt, "weekend_sun"
+            check_date = (current_dt + timedelta(days=day_offset)).date()
+            date_str = check_date.isoformat()
+            
+            slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=17, minute=0)
+            if slot_dt > now_dt + timedelta(minutes=20):
+                if not self.is_slot_taken(date_str, "masterclass_5pm"):
+                    return slot_dt
             day_offset += 1
+
+            # # Check for weekend slots
+            # check_dt = current_dt + timedelta(days=day_offset)
+            # weekday = check_dt.weekday()
+            # if weekday == 5: # Saturday
+            #     check_date = check_dt.date()
+            #     date_str = check_date.isoformat()
+            #     slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=19, minute=0)
+            #     if slot_dt > now_dt + timedelta(minutes=20):
+            #         if not self.is_slot_taken(date_str, "weekend_sat"):
+            #             return slot_dt, "weekend_sat"
+            # elif weekday == 6: # Sunday
+            #     check_date = check_dt.date()
+            #     date_str = check_date.isoformat()
+            #     slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=19, minute=0)
+            #     if slot_dt > now_dt + timedelta(minutes=20):
+            #         if not self.is_slot_taken(date_str, "weekend_sun"):
+            #             return slot_dt, "weekend_sun"
+            # day_offset += 1
 
     def get_next_challenge_start_date(self, now_dt: datetime) -> datetime:
         current_dt = now_dt.astimezone(self.tz)
