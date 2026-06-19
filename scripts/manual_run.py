@@ -624,7 +624,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=None):
+def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True):
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
@@ -865,11 +865,11 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             )
             
             if upload:
-                # Quiz is published at 10:00 AM CST
+                # Quiz is published at 9:00 AM CST
                 quiz_schedule_time = _challenge_schedule_time(
                     start_date=start_date,
                     day_offset=index,
-                    publish_hour=10,
+                    publish_hour=9,
                 )
 
                 comment_text = quiz_script.get("pinned_comment", "")
@@ -886,7 +886,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                         thumbnail_text=f"QUIZ: DAY {day_number}",
                         pinned_comment=comment_text,
                         related_video_id=long_form_id,
-                        notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
+                        notify_subscribers=False,  # Don't send a separate notification for the quiz
                         command_channel="english-challenge",
                         slot="challenge_quiz_9am"
                     )
@@ -902,7 +902,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=None):
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=False):
     """
     Specialized runner to generate and upload ONLY the quiz shorts 
     from an existing weekly challenge JSON package.
@@ -1270,11 +1270,12 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         slot_name = None
 
     if notify_subscribers is None:
-        if schedule_time:
-            from schedule_ledger import is_weekday_in_regina
-            notify_subscribers = is_weekday_in_regina(schedule_time)
-        else:
-            notify_subscribers = True
+        notify_subscribers = False # TODO: Check if we want to notify subscribers
+        # if schedule_time:
+        #     from schedule_ledger import is_weekday_in_regina
+        #     notify_subscribers = is_weekday_in_regina(schedule_time)
+        # else:
+        #     notify_subscribers = True
 
     if upload:
         print("\nUploading video...\n")
@@ -1368,11 +1369,16 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         slot_name = None
 
     if notify_subscribers is None:
-        if schedule_time:
-            from schedule_ledger import is_weekday_in_regina
-            notify_subscribers = is_weekday_in_regina(schedule_time)
-        else:
+        if slot_name == "quiz_lunch":
             notify_subscribers = True
+        else:
+            notify_subscribers = False
+
+        # if schedule_time:
+        #     from schedule_ledger import is_weekday_in_regina
+        #     notify_subscribers = is_weekday_in_regina(schedule_time)
+        # else:
+        #     notify_subscribers = True
 
     if upload:
         result = _upload_video(
