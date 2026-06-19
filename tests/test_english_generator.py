@@ -9,6 +9,9 @@ from scripts.english_generator import (
 def test_is_outro_line_detects_cta():
     assert is_outro_line("Thanks for listening, and don't forget to subscribe!")
     assert is_outro_line("See you next time on EnglishVibesHub!")
+    assert is_outro_line("Let's take a quick break before the next section.")
+    assert is_outro_line("Stay tuned for the next episode, where we'll explore travel idioms.")
+    assert is_outro_line("Looking forward to it!")
     assert not is_outro_line("Welcome to EnglishVibesHub, today we talk about travel.")
 
 
@@ -16,6 +19,8 @@ def test_sanitize_strips_mid_part_signoffs():
     dialogue = [
         {"speaker": "Emma", "text": "Let's look at this phrasal verb."},
         {"speaker": "Liam", "text": "Thanks for watching, subscribe for more!"},
+        {"speaker": "Emma", "text": "Next episode we will be exploring airport English."},
+        {"speaker": "Liam", "text": "Stay tuned for the next lesson."},
         {"speaker": "Emma", "text": "Another teaching point here."},
     ]
     cleaned = sanitize_dialogue_part(dialogue, max_outro_turns_at_end=0)

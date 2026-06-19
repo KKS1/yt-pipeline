@@ -99,8 +99,15 @@ _OUTRO_PATTERNS = [
         r"\bnotification\s+bell\b",
         r"\bthanks?\s+for\s+(?:listening|watching|tuning\s+in|joining)\b",
         r"\btune\s+in\s+(?:next|for\s+more|again)\b",
+        r"\bstay\s+tuned\b",
+        r"\bnext\s+epis(?:ode|ide)\b",
+        r"\bin\s+(?:the\s+)?(?:next|future|upcoming)\s+(?:episode|lesson|video|part)\b",
+        r"\b(?:we|we'll|we\s+will)\s+(?:explore|cover|talk\s+about|look\s+at|continue)\b.*\bnext\b",
+        r"\b(?:next|after\s+the)\s+break\b",
+        r"\b(?:take|taking|let'?s\s+take)\s+a\s+(?:quick\s+)?break\b",
+        r"\bwe'?ll\s+be\s+right\s+back\b",
         r"\bsee\s+you\s+(?:next|soon|later)\b",
-        r"\blooking\s+forward\s+to\s+(?:next|seeing\s+you)\b",
+        r"\blooking\s+forward\s+to\s+(?:it|next|seeing\s+you|continuing)\b",
         r"\buntil\s+next\s+time\b",
         r"\bdon'?t\s+forget\s+to\s+(?:like|subscribe)\b",
         r"\bEnglishVibesHub\b.*\b(?:bye|goodbye|see\s+you)\b",
@@ -117,16 +124,20 @@ _CTA_PATTERNS = [
         r"\bnotification\s+bell\b",
         r"\bdon'?t\s+forget\s+to\s+(?:like|subscribe)\b",
         r"\btune\s+in\s+(?:next|for\s+more|again)\b",
+        r"\bstay\s+tuned\b",
+        r"\bnext\s+epis(?:ode|ide)\b",
         r"\bsee\s+you\s+(?:next|soon|later)\b",
     )
 ]
 
 _NOT_FINAL_PART_RULES = """
-CONTINUITY (THIS IS NOT THE FINAL PART OF THE EPISODE):
+CONTINUITY (THIS IS NOT THE FINAL PART OF THE VIDEO):
+- Treat this as one invisible chunk inside a single continuous long-form video, not as a standalone episode.
 - Do NOT thank listeners for watching or say goodbye.
 - Do NOT ask viewers to like, subscribe, or hit the bell.
-- Do NOT say "see you next time", "tune in next episode", or similar closings.
-- End on an open conversation beat so the next part continues naturally.
+- Do NOT say "see you next time", "tune in next episode", "stay tuned", "let's take a break", "we'll be right back", "next episode", or similar closings.
+- Do NOT preview future videos, future episodes, or a later break.
+- End on an open conversation beat or unfinished teaching moment so the next generated part continues naturally.
 """
 
 
@@ -712,13 +723,15 @@ def generate_english_script(topic=None):
 
     print("Generating Part 1 (Intro & Setup)...")
     prompt_1 = f"""
-You are writing PART 1 (of 3) for a high retention & CTR massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing PART 1 (of 3) for one continuous high-retention long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
 - The `dialogue` array MUST contain around 35-45 turns.
+- Part 1 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
+- The last turn of Part 1 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 1):
 1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
@@ -753,7 +766,7 @@ JSON SCHEMA:
     d1 = part1_data.get("dialogue", [])
     last_turn = d1[-1] if d1 else {"speaker": "Emma", "text": "Let's continue."}
     prompt_2 = f"""
-You are writing PART 2 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing PART 2 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
 
@@ -763,6 +776,9 @@ Pick up the conversation naturally from here.
 CRITICAL RULES:
 - Output ONLY valid JSON
 - The `dialogue` array MUST contain around 35-45 turns.
+- Part 2 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
+- The first turn must continue directly from the previous turn.
+- The last turn of Part 2 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 2):
 1. **Deep Dive**: Continue the extensive discussion of the topic.
@@ -791,7 +807,7 @@ JSON SCHEMA:
     d2 = part2_data.get("dialogue", [])
     last_turn_2 = d2[-1] if d2 else {"speaker": "Emma", "text": "Let's wrap up."}
     prompt_3 = f"""
-You are writing PART 3 (of 3) for a massive English conversation podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+You are writing PART 3 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
 TOPIC: {topic}
 {avoid_instruction}
 
@@ -801,11 +817,13 @@ Pick up the conversation naturally from here.
 CRITICAL RULES:
 - Output ONLY valid JSON
 - The `dialogue` array MUST contain around 30-40 turns.
+- Part 3 is the only place an ending is allowed, and only at the actual end of the final video.
+- Do not mention "next episode", "stay tuned", "take a break", or "we'll be right back" anywhere in Part 3.
 
 STRUCTURE & CONTENT (PART 3):
 1. **Wrap-up**: Share final thoughts, tips, or examples (most of this part).
 2. Use and carefully explain 3-4 final phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like, subscribe, and tune in for more on EnglishVibesHub (@EnglishVibesHub-s6w). Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
+3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like and subscribe to EnglishVibesHub (@EnglishVibesHub-s6w). Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
 
 STYLE:
 - Conversational, friendly, and natural.
