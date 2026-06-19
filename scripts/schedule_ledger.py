@@ -18,8 +18,8 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
     if channel == "english-challenge":
         if h == 6 and m == 0:
             return "challenge_6am"
-        elif h == 10 and m == 0:
-            return "challenge_quiz_10am"
+        elif h == 9 and m == 0:
+            return "challenge_quiz_9am"
     elif channel == "english-quiz":
         if h == 12 and m == 0:
             return "quiz_lunch"
@@ -27,10 +27,10 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
             return "quiz_afternoon"
         elif h == 21 and m == 0:
             return "quiz_night"
-    elif channel == "english-shorts":
+    elif channel == "english-shorts": # english-slow will add later
         if h == 17 and m == 0:
             return "tip_5pm"
-    elif channel in ("english", "english-slow"):
+    elif channel in ("english"):
         if local_dt.weekday() == 5 and h == 19 and m == 0:
             return "weekend_sat"
         elif local_dt.weekday() == 6 and h == 19 and m == 0:

@@ -888,7 +888,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                         related_video_id=long_form_id,
                         notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
                         command_channel="english-challenge",
-                        slot="challenge_quiz_10am"
+                        slot="challenge_quiz_9am"
                     )
                     quiz_id = (quiz_result or {}).get("youtube_id")
                     if quiz_playlist_id and quiz_id:
@@ -1004,7 +1004,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                     related_video_id=rel_id,
                     notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
                     command_channel="english-challenge",
-                    slot="challenge_quiz_10am"
+                    slot="challenge_quiz_9am"
                 )
                 quiz_id = (quiz_result or {}).get("youtube_id")
                 if quiz_playlist_id and quiz_id:
