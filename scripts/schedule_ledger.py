@@ -108,7 +108,7 @@ class ScheduleLedger:
             slot_dt = datetime.combine(check_date, datetime.min.time(), tzinfo=self.tz).replace(hour=17, minute=0)
             if slot_dt > now_dt + timedelta(minutes=20):
                 if not self.is_slot_taken(date_str, "masterclass_5pm"):
-                    return slot_dt
+                    return slot_dt, "masterclass_5pm"
             day_offset += 1
 
             # # Check for weekend slots
