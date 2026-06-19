@@ -1033,7 +1033,7 @@ def generate_english_shorts_script(topic=None):
     # History injection
     topics_data = get_published_topics()
     recent = topics_data.get("shorts", [])[-50:]
-    avoid_instruction = f"\nAvoid repeating concepts or phrasing from these recent shorts:\n{json.dumps(recent, indent=2)}" if recent else ""
+    avoid_instruction = f"\nAvoid welcoming to channel, and avoid repeating concepts or phrasing from these recent shorts:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected Shorts topic: {topic}")
     prompt = f"""
@@ -1107,7 +1107,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     avoid_instruction = ""
     if recent:
         avoid_instruction = (
-            f"\nAvoid repeating or using the same distractors from these recent quizzes:\n"
+            f"\nAvoid welcoming to channel, and avoid repeating or using the same distractors from these recent quizzes:\n"
             + json.dumps(recent, indent=2)
         )
     
