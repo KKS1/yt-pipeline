@@ -673,7 +673,7 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
 
     if upload:
         print("\nUploading video...\n")
-        _upload_video(
+        result = _upload_video(
             out_path,
             title,
             script.get("description", ""),
@@ -687,6 +687,15 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
             command_channel="english",
             slot=slot_name
         )
+
+        video_id = (result or {}).get("youtube_id")
+        if video_id:
+            try:
+                from youtube_uploader import add_video_to_playlist
+                add_video_to_playlist(video_id=video_id, playlist_id="PLQcVuzsH3e2I", channel="english")
+            except Exception as e:
+                print(f"  Could not add quiz to master playlist: {e}")
+
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -1280,7 +1289,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
     if upload:
         print("\nUploading video...\n")
         # English shorts already have captions overlaid; YouTube Studio auto-generates unique thumbnails
-        _upload_video(
+        result = _upload_video(
             out_path,
             title,
             script.get("description", ""),
@@ -1292,6 +1301,14 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
             command_channel="english-shorts",
             slot=slot_name
         )
+
+        video_id = (result or {}).get("youtube_id")
+        if video_id:
+            try:
+                from youtube_uploader import add_video_to_playlist
+                add_video_to_playlist(video_id=video_id, playlist_id="PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd", channel="english")
+            except Exception as e:
+                print(f"  Could not add quiz to master playlist: {e}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
     
