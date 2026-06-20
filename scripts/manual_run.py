@@ -52,6 +52,17 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 FAMILY_PUBLISHED_FILE = Path(__file__).resolve().parent / "family_published_topics.json"
 
+ENGLISH_DESCRIPTION_PLAYLIST_URLS = {
+    "english": "https://www.youtube.com/playlist?list=PLQcVuzsH3e2I",
+    "english-shorts": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd",
+    "english-quiz": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD",
+}
+
+ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
+    channel: url.rsplit("list=", 1)[-1]
+    for channel, url in ENGLISH_DESCRIPTION_PLAYLIST_URLS.items()
+}
+
 def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
         try:
@@ -96,6 +107,19 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
+
+def _description_with_playlist_url(description: str, command_channel: str | None) -> str:
+    """Inject the fixed playlist URL for standalone English upload descriptions."""
+    playlist_url = ENGLISH_DESCRIPTION_PLAYLIST_URLS.get(command_channel or "")
+    text = str(description or "").strip()
+    if not playlist_url:
+        return text
+    if "{playlist_url}" in text:
+        return text.replace("{playlist_url}", playlist_url)
+    if playlist_url in text:
+        return text
+    playlist_line = f"📺 Watch the playlist here: {playlist_url}"
+    return f"{text}\n\n{playlist_line}" if text else playlist_line
 
 def prompt_multiline(prompt_text: str) -> str:
     """Read multi-line input until user types END on its own line."""
@@ -637,6 +661,10 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
         
         print("\nGenerating script with Groq...\n")
         script = generate_english_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""),
+            "english",
+        )
         
         Path("scripts/output").mkdir(exist_ok=True)
         json_file = "scripts/output/english_podcast.json"
@@ -692,7 +720,11 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
         if video_id:
             try:
                 from youtube_uploader import add_video_to_playlist
-                add_video_to_playlist(video_id=video_id, playlist_id="PLQcVuzsH3e2I", channel="english")
+                add_video_to_playlist(
+                    video_id=video_id,
+                    playlist_id=ENGLISH_DESCRIPTION_PLAYLIST_IDS["english"],
+                    channel="english",
+                )
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
 
@@ -1156,6 +1188,10 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         
         print("\nGenerating Shorts script with Groq...\n")
         script = generate_english_shorts_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""),
+            "english-shorts",
+        )
         
         Path("scripts/output").mkdir(exist_ok=True)
         json_file = "scripts/output/english_shorts.json"
@@ -1306,7 +1342,11 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         if video_id:
             try:
                 from youtube_uploader import add_video_to_playlist
-                add_video_to_playlist(video_id=video_id, playlist_id="PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd", channel="english")
+                add_video_to_playlist(
+                    video_id=video_id,
+                    playlist_id=ENGLISH_DESCRIPTION_PLAYLIST_IDS["english-shorts"],
+                    channel="english",
+                )
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
     else:
@@ -1325,6 +1365,10 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
     print("=" * 50) 
     
     script = generate_english_quiz_shorts_script(topic)
+    script["description"] = _description_with_playlist_url(
+        script.get("description", ""),
+        "english-quiz",
+    )
     title = script["title"]
     out_slug = slug(title)
 
@@ -1414,7 +1458,11 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         if video_id:
             try:
                 from youtube_uploader import add_video_to_playlist
-                add_video_to_playlist(video_id=video_id, playlist_id="PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD", channel="english")
+                add_video_to_playlist(
+                    video_id=video_id,
+                    playlist_id=ENGLISH_DESCRIPTION_PLAYLIST_IDS["english-quiz"],
+                    channel="english",
+                )
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
 
@@ -2036,6 +2084,8 @@ def _upload_video(
 
     # Thumbnail generation is currently disabled for all flows.
     # thumbnail_path stays None; YouTube will use the auto-generated frame.
+
+    description = _description_with_playlist_url(description, command_channel or channel)
 
     print("\nUploading to YouTube...")
     try:

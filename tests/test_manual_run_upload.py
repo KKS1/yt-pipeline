@@ -11,6 +11,62 @@ from scripts import manual_run
 
 
 class ManualRunUploadTests(unittest.TestCase):
+    def test_english_description_playlist_urls_replace_placeholder(self):
+        cases = {
+            "english": "https://www.youtube.com/playlist?list=PLQcVuzsH3e2I",
+            "english-shorts": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd",
+            "english-quiz": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD",
+        }
+
+        for channel, expected_url in cases.items():
+            with self.subTest(channel=channel):
+                description = manual_run._description_with_playlist_url(
+                    "Practice today.\n\n📺 Watch the playlist here: {playlist_url}",
+                    channel,
+                )
+
+                self.assertIn(expected_url, description)
+                self.assertNotIn("{playlist_url}", description)
+
+    def test_challenge_description_playlist_placeholder_is_not_replaced_with_master_playlist(self):
+        description = manual_run._description_with_playlist_url(
+            "Day 1 description\n\n📺 Watch the playlist here: {playlist_url}",
+            "english-challenge",
+        )
+
+        self.assertIn("{playlist_url}", description)
+        self.assertNotIn("PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD", description)
+        self.assertNotIn("PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd", description)
+        self.assertNotIn("PLQcVuzsH3e2I", description)
+
+    def test_upload_video_injects_english_quiz_playlist_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            assets = tmp_path / "assets"
+            assets.mkdir()
+            (assets / "yt_credentials_english.json").write_text("{}", encoding="utf-8")
+            video = tmp_path / "video.mp4"
+            video.write_bytes(b"fake video")
+
+            with patch.object(manual_run, "ASSETS_DIR", assets):
+                with patch("youtube_uploader.youtube_upload") as upload:
+                    upload.return_value = {"youtube_id": "abc123"}
+
+                    with redirect_stdout(StringIO()):
+                        manual_run._upload_video(
+                            str(video),
+                            "Title",
+                            "Description with {playlist_url}",
+                            ["tag"],
+                            "english",
+                            command_channel="english-quiz",
+                        )
+
+                    self.assertIn(
+                        "https://www.youtube.com/playlist?list=PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD",
+                        upload.call_args.kwargs["description"],
+                    )
+
     def test_upload_video_uses_shared_uploader_directly(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
