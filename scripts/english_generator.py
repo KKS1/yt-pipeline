@@ -19,28 +19,67 @@ METADATA RULES:
 - Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
 - Keep titles natural for YouTube search; front-load keywords like English Listening Practice, English Speaking Practice, English Quiz, or Learn English.
 - Descriptions must start with 2 SEO-heavy lines, then include a timeline when the video is long-form.
-- Descriptions must include a comment prompt, a subscribe CTA, relevant hashtags, and a playlist placeholder line: Watch the playlist here: {playlist_url}
+- Descriptions must use readable spacing with blank lines between sections.
+- Descriptions must include a comment prompt, a subscribe CTA, relevant hashtags, and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Use tasteful CTA icons such as 📺, 💬, and 🔔 in the description.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
 - Pinned comments must ask a specific question that viewers can answer quickly.
 """
+
+_PLAYLIST_LINE_RE = re.compile(
+    r"""
+    ^\s*
+    (?:[-*•▶️🎬📺🎧📚🔥✨]\s*)?
+    (?:
+        watch|see|view|check\s+out|listen\s+to|catch
+    )\s+
+    (?:
+        the\s+|this\s+|our\s+
+    )?
+    (?:
+        full\s+|complete\s+|entire\s+
+    )?
+    (?:
+        playlist|series
+    )
+    (?:
+        \s+here|\s+playlist
+    )?
+    \s*:?
+    \s*
+    (?:
+        \{playlist_url\}|https?://\S+|\[[^\]]+\]
+    )?
+    \s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 def ensure_english_description_cta(description: str, *, include_timeline: bool = False) -> str:
     """Guarantee core YouTube metadata CTAs even if the model skips them."""
     text = str(description or "").strip()
+    lines = []
+    for line in text.splitlines():
+        if _PLAYLIST_LINE_RE.match(line):
+            continue
+        lines.append(line.rstrip())
+    text = "\n".join(lines).strip()
+
     additions = []
 
     if include_timeline and not re.search(r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE):
         additions.append("Timeline:\n0:00 - Start the lesson\n5:00 - Practice examples\n10:00 - Review and next steps")
     if "{playlist_url}" not in text:
-        additions.append("Watch the playlist here: {playlist_url}")
+        additions.append("📺 Watch the playlist here: {playlist_url}")
     if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
-        additions.append("Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+        additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
     if not re.search(r"\bcomment\b", text, re.IGNORECASE):
-        additions.append("Comment below: Which phrase will you practice today?")
+        additions.append("💬 Comment below: Which phrase will you practice today?")
 
     if additions:
-        text = (text + "\n\n" if text else "") + "\n".join(additions)
+        text = (text + "\n\n" if text else "") + "\n\n".join(additions)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
 def get_published_topics() -> dict:
@@ -784,7 +823,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR, curiosity-based, searchable title using title case and selective ALL CAPS for hook words, e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
   "title_options": ["string"],
-  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, a specific comment question, a subscribe CTA, playlist placeholder line 'Watch the playlist here: {{playlist_url}}', and relevant hashtags mirroring the 'tags' list below)",
+  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, a specific comment question, a subscribe CTA, playlist placeholder line '📺 Watch the playlist here: {{playlist_url}}', and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "dialogue": [

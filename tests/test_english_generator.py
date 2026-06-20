@@ -1,6 +1,7 @@
 from scripts.english_generator import (
     _clean_challenge_dialogue,
     combine_english_parts,
+    ensure_english_description_cta,
     is_outro_line,
     sanitize_dialogue_part,
 )
@@ -88,3 +89,28 @@ def test_clean_challenge_dialogue_keeps_day_7_final_outro():
     }
     cleaned = _clean_challenge_dialogue(script, day_number=7)
     assert is_outro_line(cleaned["dialogue"][-1]["text"])
+
+
+def test_ensure_english_description_cta_dedupes_playlist_variants():
+    description = """English quiz for beginners: learn the idiom fast.
+Practice English vocabulary with Emma and Liam.
+
+Watch playlist here: {playlist_url}
+Watch the playlist here: {playlist_url}
+
+#Shorts #EnglishQuiz"""
+
+    cleaned = ensure_english_description_cta(description)
+
+    assert cleaned.count("{playlist_url}") == 1
+    assert cleaned.count("📺 Watch the playlist here: {playlist_url}") == 1
+    assert "Watch playlist here:" not in cleaned
+
+
+def test_ensure_english_description_cta_adds_spaced_icon_block():
+    cleaned = ensure_english_description_cta(
+        "English listening practice for daily conversation.\nLearn useful phrases today."
+    )
+
+    assert "\n\n📺 Watch the playlist here: {playlist_url}\n\n🔔 Subscribe" in cleaned
+    assert "\n\n💬 Comment below:" in cleaned
