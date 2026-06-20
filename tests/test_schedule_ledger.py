@@ -42,13 +42,13 @@ class TestScheduleLedger(unittest.TestCase):
         self.ledger.record_upload("english-quiz", dt2.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Quiz 2")
         
         # 3rd run: should select 9 PM today
-        # dt3, slot3 = self.ledger.get_next_slot("english-quiz", now_dt)
-        # self.assertEqual(slot3, "quiz_night")
-        # self.assertEqual(dt3.hour, 21)
-        # self.assertEqual(dt3.date(), now_dt.date())
+        dt3, slot3 = self.ledger.get_next_slot("english-quiz", now_dt)
+        self.assertEqual(slot3, "quiz_night")
+        self.assertEqual(dt3.hour, 21)
+        self.assertEqual(dt3.date(), now_dt.date())
         
         # Record this run
-        # self.ledger.record_upload("english-quiz", dt3.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Quiz 3")
+        self.ledger.record_upload("english-quiz", dt3.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"), "Quiz 3")
         
         # 4th run: should roll to tomorrow 12 PM
         dt4, slot4 = self.ledger.get_next_slot("english-quiz", now_dt)

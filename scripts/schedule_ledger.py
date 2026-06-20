@@ -25,8 +25,8 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
             return "quiz_lunch"
         elif h == 15 and m == 0:
             return "quiz_afternoon"
-        # elif h == 21 and m == 0:
-        #     return "quiz_night"
+        elif h == 21 and m == 0:
+            return "quiz_night"
     elif channel == "english-shorts": # english-slow will add later
         if h == 19 and m == 0:
             return "tip_7pm"
@@ -70,7 +70,7 @@ class ScheduleLedger:
         slots = [
             ("quiz_lunch", 12, 0),
             ("quiz_afternoon", 15, 0),
-            # ("quiz_night", 21, 0)
+            ("quiz_night", 21, 0)
         ]
         current_dt = now_dt.astimezone(self.tz)
         day_offset = 0
