@@ -895,7 +895,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                         thumbnail_text=f"QUIZ: DAY {day_number}",
                         pinned_comment=comment_text,
                         related_video_id=long_form_id,
-                        notify_subscribers=False,  # Don't send a separate notification for the quiz
+                        notify_subscribers=notify_subscribers if notify_subscribers is not None else True,
                         command_channel="english-challenge",
                         slot="challenge_quiz_9am"
                     )
@@ -911,7 +911,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     print("\nWeekly challenge pipeline done!\n")
 
-def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=False):
+def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=None):
     """
     Specialized runner to generate and upload ONLY the quiz shorts 
     from an existing weekly challenge JSON package.
