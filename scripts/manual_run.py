@@ -1279,7 +1279,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         slot_name = None
 
     if notify_subscribers is None:
-        notify_subscribers = False # TODO: Check if we want to notify subscribers
+        notify_subscribers = True
         # if schedule_time:
         #     from schedule_ledger import is_weekday_in_regina
         #     notify_subscribers = is_weekday_in_regina(schedule_time)
@@ -1386,10 +1386,11 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         slot_name = None
 
     if notify_subscribers is None:
-        if slot_name == "quiz_lunch":
-            notify_subscribers = True
-        else:
-            notify_subscribers = False
+        notify_subscribers = True
+        # if slot_name == "quiz_lunch":
+        #     notify_subscribers = True
+        # else:
+        #     notify_subscribers = False
 
         # if schedule_time:
         #     from schedule_ledger import is_weekday_in_regina
