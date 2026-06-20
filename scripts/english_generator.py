@@ -82,6 +82,43 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
+
+def ensure_english_quiz_shorts_hashtags(description: str) -> str:
+    """Keep quiz Shorts hashtags in a predictable first hashtag line."""
+    target_line = "#Shorts #EnglishQuiz #LearnEnglish"
+    text = str(description or "").strip()
+    if not text:
+        return target_line
+
+    hashtag_re = re.compile(r"#\w+")
+    target_re = re.compile(
+        r"\s*(?:#Shorts|#EnglishQuiz|#LearnEnglish)\b",
+        re.IGNORECASE,
+    )
+
+    cleaned_lines = []
+    first_hashtag_index = None
+    for line in text.splitlines():
+        if not line.strip():
+            cleaned_lines.append("")
+            continue
+        cleaned = target_re.sub("", line).strip()
+        cleaned = re.sub(r" {2,}", " ", cleaned)
+        if not cleaned:
+            continue
+        if first_hashtag_index is None and hashtag_re.search(cleaned):
+            first_hashtag_index = len(cleaned_lines)
+        cleaned_lines.append(cleaned)
+
+    if first_hashtag_index is None:
+        cleaned_lines.append(target_line)
+    else:
+        cleaned_lines.insert(first_hashtag_index, target_line)
+
+    text = "\n".join(cleaned_lines).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
 def get_published_topics() -> dict:
     if PUBLISHED_TOPICS_FILE.exists():
         try:
@@ -610,7 +647,9 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
-    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
+    script_data["description"] = ensure_english_quiz_shorts_hashtags(
+        ensure_english_description_cta(script_data.get("description", ""))
+    )
     return script_data
 
 def generate_english_community_content(topic: str = None, content_type: str = "quiz") -> dict:
@@ -1242,5 +1281,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
-    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
+    script_data["description"] = ensure_english_quiz_shorts_hashtags(
+        ensure_english_description_cta(script_data.get("description", ""))
+    )
     return script_data

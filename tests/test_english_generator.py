@@ -2,6 +2,7 @@ from scripts.english_generator import (
     _clean_challenge_dialogue,
     combine_english_parts,
     ensure_english_description_cta,
+    ensure_english_quiz_shorts_hashtags,
     is_outro_line,
     sanitize_dialogue_part,
 )
@@ -114,3 +115,29 @@ def test_ensure_english_description_cta_adds_spaced_icon_block():
 
     assert "\n\n📺 Watch the playlist here: {playlist_url}\n\n🔔 Subscribe" in cleaned
     assert "\n\n💬 Comment below:" in cleaned
+
+
+def test_ensure_english_quiz_shorts_hashtags_promotes_required_line():
+    description = """English quiz for beginners.
+Practice today's idiom with Emma and Liam.
+
+#Grammar #Shorts #EnglishQuiz
+
+🔔 Subscribe for more lessons.
+#LearnEnglish #Vocabulary"""
+
+    cleaned = ensure_english_quiz_shorts_hashtags(description)
+    hashtag_lines = [line for line in cleaned.splitlines() if "#" in line]
+
+    assert hashtag_lines[0] == "#Shorts #EnglishQuiz #LearnEnglish"
+    assert "#Grammar" in hashtag_lines[1]
+    assert "#Vocabulary" in hashtag_lines[2]
+    assert cleaned.count("#Shorts") == 1
+    assert cleaned.count("#EnglishQuiz") == 1
+    assert cleaned.count("#LearnEnglish") == 1
+
+
+def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
+    cleaned = ensure_english_quiz_shorts_hashtags("English quiz for beginners.")
+
+    assert cleaned.splitlines()[-1] == "#Shorts #EnglishQuiz #LearnEnglish"
