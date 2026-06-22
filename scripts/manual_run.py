@@ -2876,6 +2876,14 @@ def main():
         action="store_true",
         help="Prototype only: render english-shorts with dynamic Emma/Liam visuals. Requires --no-upload.",
     )
+    parser.add_argument(
+        "--review-visuals",
+        action="store_true",
+        help="Pause before assembly to review selected stock visuals. The pipeline prints "
+             "the matched loops, you can add/rename .mp4/.mov/.m4v files in the relevant "
+             "assets/<folder>/ directory, then press Enter to re-pick and continue. "
+             "Supported by: english, english-challenge, english-shorts, english-quiz.",
+    )
     parser.add_argument("--notify-subs", action="store_true", help="Force notify subscribers")
     parser.add_argument("--no-notify-subs", action="store_true", help="Force do NOT notify subscribers")
     # ── Manifest-based two-phase pipeline ──────────────────────
@@ -2999,7 +3007,13 @@ def main():
     elif args.channel == "family":
         run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
+        run_english(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+        )
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
@@ -3007,6 +3021,7 @@ def main():
             start_date=args.start_date,
             publish_hour=args.publish_hour,
             notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
         )
     elif args.channel == "english-shorts":
         run_english_shorts(
@@ -3015,6 +3030,7 @@ def main():
             schedule_time=effective_schedule_time,
             dynamic_visuals=args.dynamic_visuals,
             notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
         )
     elif args.channel == "english-slow":
         run_english_slow(
@@ -3027,7 +3043,13 @@ def main():
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
+        run_english_quiz_shorts(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+        )
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:
             if not args.related_ids or not args.video_ids:
