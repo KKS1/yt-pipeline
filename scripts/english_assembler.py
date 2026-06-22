@@ -1,6 +1,7 @@
 import os
 import subprocess
 import math
+import re
 from pathlib import Path
 
 # Fix absolute imports for modules in scripts/
@@ -25,6 +26,32 @@ ENGLISH_VOICES = {
     "Emma": "af_heart",
     "Liam": "am_echo"
 }
+
+PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
+
+
+def _pause_duration_seconds(text: str) -> float | None:
+    match = PAUSE_CUE_RE.match(str(text or ""))
+    if not match:
+        return None
+    if match.group(1):
+        return max(0.25, min(float(match.group(1)), 10.0))
+    return 1.0
+
+
+def _generate_silence_audio(output_path: str, duration_seconds: float) -> str:
+    subprocess.run([
+        FFMPEG, "-y",
+        "-f", "lavfi",
+        "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-t", str(duration_seconds),
+        "-c:a", "aac",
+        "-b:a", "192k",
+        output_path,
+        "-loglevel", "error",
+    ], check=True)
+    return output_path
+
 
 def prepare_face_badge(name: str, size: int) -> Optional[str]:
     """
@@ -158,7 +185,7 @@ def apply_face_badge_overlays(
     subprocess.run(cmd, check=True)
     return output_path
 
-def generate_podcast_audio(script_data: dict, return_turn_times: bool = False):
+def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98):
     """
     Generate TTS for each line of dialogue using the designated voices,
     then concatenate them into a single audio file.
@@ -168,6 +195,8 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False):
     return_turn_times : If True, returns (audio_path, per_turn_times) where
         per_turn_times is a list of (abs_start_sec, abs_end_sec) tuples,
         one per dialogue turn, needed for idiom overlay timestamp mapping.
+    speed : Kokoro speech speed. ESL videos should stay clear; use pacing in
+        the script/edits rather than speeding speech too much.
     """
     TEMP_DIR.mkdir(exist_ok=True)
     dialogue = script_data.get("dialogue", [])
@@ -184,9 +213,13 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False):
         out_path = str(TEMP_DIR / f"english_line_{i:03d}.m4a")
 
         try:
-            print(f"  [{speaker}] -> {out_path}")
-            # we use speed=1.0 for a more relaxed learning pace
-            synthesize(text, out_path, voice=voice, speed=1.05)  # Increased speed for shorts
+            pause_duration = _pause_duration_seconds(text)
+            if pause_duration is not None:
+                print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
+                _generate_silence_audio(out_path, pause_duration)
+            else:
+                print(f"  [{speaker}] -> {out_path}")
+                synthesize(text, out_path, voice=voice, speed=speed)
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
             per_turn_durations.append(dur)
@@ -377,10 +410,11 @@ def assemble_english_video(
     idiom_windows: list = None,
     per_turn_times: list = None,
     dialogue: list = None,
+    loop_visuals: list[str] = None,
 ) -> str:
     """
     Assemble the final English learning video:
-    - Loops the background visual
+    - Loops one or more background visuals
     - Mixes the podcast audio with subtle background music
     - Burns subtitles (.ass preferred for karaoke; .srt fallback)
     - Composites Idiom Card overlays if idiom_windows provided
@@ -388,17 +422,50 @@ def assemble_english_video(
     duration = get_audio_duration(podcast_audio)
     print(f"\nAssembling English video: {duration:.1f}s")
 
-    # 1. Normalize visual to correct size/fps first
-    norm_visual = str(TEMP_DIR / "english_norm.mp4")
+    visual_inputs = [str(v) for v in (loop_visuals or []) if v]
+    if not visual_inputs and loop_visual:
+        visual_inputs = [str(loop_visual)]
+    if not visual_inputs:
+        raise ValueError("assemble_english_video requires at least one visual loop.")
+
+    # 1. Normalize visuals to correct size/fps first
+    normalized_visuals = []
+    for index, visual in enumerate(visual_inputs):
+        norm_visual = str(TEMP_DIR / f"english_norm_{index:03d}.mp4")
+        subprocess.run([
+            FFMPEG, "-y", "-i", visual,
+            "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
+                   f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
+                   f"fps={VIDEO_FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-an", norm_visual, "-loglevel", "error"
+        ], check=True)
+        normalized_visuals.append(norm_visual)
+    print(f"  Visuals normalized: {len(normalized_visuals)}")
+
+    # 1b. Concatenate the normalized visuals, repeating them if needed.
+    total_visual_duration = sum(get_audio_duration(v) for v in normalized_visuals)
+    if total_visual_duration <= 0:
+        raise RuntimeError("Selected English visual loops have no readable duration.")
+    visual_sequence = list(normalized_visuals)
+    if total_visual_duration < duration:
+        loops_needed = math.ceil(duration / total_visual_duration)
+        visual_sequence = visual_sequence * loops_needed
+
+    list_path = str(TEMP_DIR / "english_visuals.txt")
+    with open(list_path, "w", encoding="utf-8") as handle:
+        for visual in visual_sequence:
+            handle.write(f"file '{os.path.abspath(visual)}'\n")
+
+    visual_track = str(TEMP_DIR / "english_visual_track.mp4")
     subprocess.run([
-        FFMPEG, "-y", "-i", loop_visual,
-        "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
-               f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
-               f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
-        "-an", norm_visual, "-loglevel", "error"
+        FFMPEG, "-y",
+        "-f", "concat", "-safe", "0", "-i", list_path,
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-an", visual_track, "-loglevel", "error"
     ], check=True)
-    print("  Visual normalized")
+    print("  Visual track assembled")
 
     # 2. Mix podcast audio with background music
     if background_music and Path(background_music).exists():
@@ -444,11 +511,10 @@ def assemble_english_video(
 
         cmd = [
             FFMPEG, "-y",
-            "-stream_loop", "-1", "-i", norm_visual,
+            "-i", visual_track,
             "-i", final_audio,
             "-vf", vf_filter,
             "-map", "0:v", "-map", "1:a",
-            "-t", str(duration),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy",
             "-movflags", "+faststart",
@@ -461,10 +527,9 @@ def assemble_english_video(
         # Fallback without captions
         cmd = [
             FFMPEG, "-y",
-            "-stream_loop", "-1", "-i", norm_visual,
+            "-i", visual_track,
             "-i", final_audio,
             "-map", "0:v", "-map", "1:a",
-            "-t", str(duration),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-c:a", "copy",
             "-movflags", "+faststart",
@@ -536,8 +601,13 @@ def generate_slow_podcast_audio(script_data: dict, return_turn_times: bool = Fal
         out_path = str(TEMP_DIR / f"english_slow_line_{i:03d}.m4a")
 
         try:
-            print(f"  [{speaker}] -> {out_path}")
-            synthesize(text, out_path, voice=voice, speed=0.80)
+            pause_duration = _pause_duration_seconds(text)
+            if pause_duration is not None:
+                print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
+                _generate_silence_audio(out_path, pause_duration)
+            else:
+                print(f"  [{speaker}] -> {out_path}")
+                synthesize(text, out_path, voice=voice, speed=0.80)
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
             per_turn_durations.append(dur)

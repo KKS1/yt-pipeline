@@ -30,6 +30,7 @@ import pstats
 import requests
 import time
 import random
+import re
 
 
 # Add parent dirs to path
@@ -62,6 +63,10 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
     channel: url.rsplit("list=", 1)[-1]
     for channel, url in ENGLISH_DESCRIPTION_PLAYLIST_URLS.items()
 }
+
+ENGLISH_LONG_TTS_SPEED = 0.98
+ENGLISH_SHORTS_TTS_SPEED = 1.00
+ENGLISH_QUIZ_TTS_SPEED = 0.98
 
 def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
@@ -552,7 +557,13 @@ def _english_video_assets(subfolder="english_visuals"):
     """Fetch visuals from a specific subfolder in assets."""
     visuals_dir = ASSETS_DIR / subfolder
     visuals_dir.mkdir(exist_ok=True)
-    visual_files = sorted(visuals_dir.glob("*.mp4"))
+    visual_files = sorted(
+        [
+            *visuals_dir.glob("*.mp4"),
+            *visuals_dir.glob("*.mov"),
+            *visuals_dir.glob("*.m4v"),
+        ]
+    )
 
     if not visual_files:
         print(f"\nNo video files in {visuals_dir}")
@@ -567,7 +578,123 @@ def _english_video_assets(subfolder="english_visuals"):
     return visual_files, bg_music_str
 
 
-def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
+VISUAL_KEYWORD_ALIASES = {
+    "airport": {"travel", "mountains", "city", "talk"},
+    "bakery": {"bakery", "cafe", "coffee"},
+    "book": {"library", "reading", "write"},
+    "cafe": {"cafe", "coffee", "drink", "bakery", "glimmer"},
+    "coffee": {"cafe", "coffee", "drink", "bakery", "glimmer"},
+    "conversation": {"talk", "life", "rooftop", "tea"},
+    "daily": {"life", "talk", "rooftop"},
+    "food": {"bakery", "icecream", "cafe", "coffee"},
+    "hotel": {"travel", "city", "rooftop"},
+    "interview": {"talk", "write", "library"},
+    "meeting": {"talk", "write", "library"},
+    "office": {"write", "talk", "library"},
+    "phone": {"talk", "life"},
+    "reading": {"library", "reading", "write"},
+    "restaurant": {"cafe", "coffee", "bakery", "icecream"},
+    "school": {"library", "reading", "kids"},
+    "shopping": {"city", "life", "icecream"},
+    "small": {"talk", "life"},
+    "study": {"library", "reading", "write"},
+    "travel": {"beach", "mountains", "city", "rooftop"},
+    "work": {"write", "talk", "library"},
+}
+
+
+def _tokenize_visual_text(value) -> set[str]:
+    text = " ".join(value) if isinstance(value, list) else str(value or "")
+    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if len(t) >= 3}
+
+
+def _visual_terms_for_script(script: dict, fallback_topic: str = "") -> set[str]:
+    terms = set()
+    for key in ("title", "topic", "focus", "search_keyword", "thumbnail_concept"):
+        terms.update(_tokenize_visual_text(script.get(key, "")))
+    for key in ("visual_keywords", "visual_cues", "keywords"):
+        terms.update(_tokenize_visual_text(script.get(key, [])))
+    if fallback_topic:
+        terms.update(_tokenize_visual_text(fallback_topic))
+
+    expanded = set(terms)
+    for term in list(terms):
+        expanded.update(VISUAL_KEYWORD_ALIASES.get(term, set()))
+    return expanded
+
+
+def _select_english_visuals(script: dict, visual_files: list[Path], max_count: int = 5, fallback_topic: str = "") -> list[Path]:
+    """Pick several local loops that best match the script's topic/visual keywords."""
+    if not visual_files:
+        return []
+
+    terms = _visual_terms_for_script(script, fallback_topic=fallback_topic)
+    scored = []
+    for visual in visual_files:
+        file_terms = _tokenize_visual_text(visual.stem)
+        score = len(terms & file_terms)
+        scored.append((score, random.random(), visual))
+
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    matched = [visual for score, _, visual in scored if score > 0]
+    if matched:
+        return matched[:max_count]
+
+    sample_size = min(max_count, len(visual_files))
+    return random.sample(visual_files, sample_size)
+
+
+def _format_visual_list(visual_paths) -> str:
+    paths = visual_paths if isinstance(visual_paths, list) else [visual_paths]
+    return ", ".join(Path(p).name for p in paths if p)
+
+
+def _print_visual_review_context(label: str, script: dict, visual_paths: list[Path], subfolder: str):
+    keywords = script.get("visual_keywords") or script.get("keywords") or []
+    print("\n" + "-" * 50)
+    print(f"Visual review: {label}")
+    print("-" * 50)
+    print(f"Title: {script.get('title') or script.get('series_title') or label}")
+    if keywords:
+        print(f"Visual keywords: {', '.join(map(str, keywords))}")
+    print(f"Assets folder: assets/{subfolder}")
+    print(f"Currently selected: {_format_visual_list(visual_paths)}")
+    print("Add or rename relevant .mp4/.mov/.m4v loops now, then press Enter to continue.")
+
+
+def _review_visuals_if_requested(
+    *,
+    review_visuals: bool,
+    label: str,
+    script: dict,
+    subfolder: str,
+    max_count: int = 5,
+    fallback_topic: str = "",
+):
+    visual_files, bg_music_str = _english_video_assets(subfolder)
+    selected_visuals = _select_english_visuals(
+        script,
+        visual_files,
+        max_count=max_count,
+        fallback_topic=fallback_topic,
+    )
+
+    if review_visuals:
+        _print_visual_review_context(label, script, selected_visuals, subfolder)
+        input()
+        visual_files, bg_music_str = _english_video_assets(subfolder)
+        selected_visuals = _select_english_visuals(
+            script,
+            visual_files,
+            max_count=max_count,
+            fallback_topic=fallback_topic,
+        )
+        print(f"Updated visual loops: {_format_visual_list(selected_visuals)}")
+
+    return visual_files, bg_music_str, selected_visuals
+
+
+def _assemble_english_script(script, out_slug, visual_path, bg_music_str, tts_speed=ENGLISH_LONG_TTS_SPEED):
     from english_assembler import generate_podcast_audio, assemble_english_video, cleanup_english_temp
     from ffmpeg_assembler import generate_captions
     from english_generator import annotate_script_with_idiom_windows
@@ -575,7 +702,7 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     cleanup_english_temp()
 
     # Generate audio AND collect per-turn timestamps for idiom overlay timing
-    res = generate_podcast_audio(script, return_turn_times=True)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -607,12 +734,14 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
         print(f"  .ass captions skipped: {e}")
         ass_path = None
 
-    print(f"\n  Visual loop  : {visual_path.name}")
+    visual_paths = visual_path if isinstance(visual_path, list) else [visual_path]
+    print(f"\n  Visual loops : {_format_visual_list(visual_paths)}")
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
     assemble_english_video(
         podcast_audio=audio_path,
-        loop_visual=str(visual_path),
+        loop_visual=str(visual_paths[0]),
+        loop_visuals=[str(path) for path in visual_paths],
         output_path=out_path,
         captions_srt=srt_path,
         ass_captions=ass_path,
@@ -648,7 +777,7 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True):
+def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
     
@@ -681,9 +810,20 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
     title = script["title"]
     out_slug = slug(title)
 
-    visual_files, bg_music_str = _english_video_assets("english_visuals")
-    selected_visual = random.choice(visual_files)
-    out_path = _assemble_english_script(script, out_slug, selected_visual, bg_music_str)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English podcast",
+        script=script,
+        subfolder="english_visuals",
+        fallback_topic=topic or title,
+    )
+    out_path = _assemble_english_script(
+        script,
+        out_slug,
+        selected_visuals,
+        bg_music_str,
+        tts_speed=ENGLISH_LONG_TTS_SPEED,
+    )
 
     if not schedule_time:
         from schedule_ledger import ScheduleLedger
@@ -735,7 +875,7 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
     print("\nDone!\n")
 
 
-def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6, notify_subscribers=None):
+def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6, notify_subscribers=None, review_visuals=False):
     from english_generator import generate_weekly_challenge_scripts, save_published_topic
 
     print("\n" + "=" * 50)
@@ -808,9 +948,21 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     # Use a specific folder for weekly challenges to keep branding consistent
     visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
-    # Pick ONE visual to use for the entire 7-day challenge
-    weekly_visual = random.choice(visual_files)
     quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
+
+    if review_visuals:
+        print("\n" + "-" * 50)
+        print("Visual review: English weekly challenge package")
+        print("-" * 50)
+        print(f"Series: {package.get('series_title')}")
+        for script in package.get("scripts", []):
+            keywords = script.get("visual_keywords") or script.get("keywords") or []
+            print(f"Day {script.get('day')}: {script.get('title')} | {', '.join(map(str, keywords))}")
+        print("Assets folders: assets/weekly_challenge_visuals and assets/english_shorts_visuals")
+        print("Add or rename relevant loops now, then press Enter to continue.")
+        input()
+        visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
+        quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
 
     for index, script in enumerate(package["scripts"]):
         day_number = script.get("day", index + 1)
@@ -823,7 +975,14 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         print("-" * 50)
 
         # 1. Assemble and Upload Long-Form Video
-        out_path = _assemble_english_script(script, out_slug, weekly_visual, bg_music_str)
+        weekly_visuals = _select_english_visuals(script, visual_files, fallback_topic=title)
+        out_path = _assemble_english_script(
+            script,
+            out_slug,
+            weekly_visuals,
+            bg_music_str,
+            tts_speed=ENGLISH_LONG_TTS_SPEED,
+        )
 
         long_form_id = None
 
@@ -866,7 +1025,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
             cleanup_english_temp()
-            res = generate_podcast_audio(quiz_script, return_turn_times=True)
+            res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
             if isinstance(res, tuple):
                 quiz_audio, quiz_turn_times = res
             else:
@@ -892,9 +1051,11 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 quiz_ass = None
 
             quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+            selected_quiz_visuals = _select_english_visuals(quiz_script, quiz_visual_files, max_count=4, fallback_topic=quiz_script["title"])
+            print(f"\n  Visual loops : {_format_visual_list(selected_quiz_visuals)}")
             assemble_shorts_video(
                 narration_audio=quiz_audio,
-                stock_clips=[str(random.choice(quiz_visual_files))],
+                stock_clips=[str(path) for path in selected_quiz_visuals],
                 background_music=bg_music_str,
                 captions_srt=quiz_srt,
                 ass_captions=quiz_ass,
@@ -998,7 +1159,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
         cleanup_english_temp()
-        res = generate_podcast_audio(quiz_script, return_turn_times=True)
+        res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
         if isinstance(res, tuple):
             quiz_audio, quiz_turn_times = res
         else:
@@ -1008,9 +1169,11 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
         generate_captions(quiz_audio, quiz_srt, max_line_width=20)
         
         quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+        selected_quiz_visuals = _select_english_visuals(quiz_script, quiz_visual_files, max_count=4, fallback_topic=quiz_script["title"])
+        print(f"\n  Visual loops : {_format_visual_list(selected_quiz_visuals)}")
         assemble_shorts_video(
             narration_audio=quiz_audio,
-            stock_clips=[str(random.choice(quiz_visual_files))],
+            stock_clips=[str(path) for path in selected_quiz_visuals],
             background_music=bg_music_str,
             captions_srt=quiz_srt,
             output_path=quiz_out_path,
@@ -1163,7 +1326,7 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
                 if quiz_pinned:
                     set_pinned_comment(short_id, quiz_pinned, channel)
 
-def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None):
+def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None, review_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
@@ -1230,26 +1393,18 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         print("\nDone!\n")
         return
 
-    visuals_dir = ASSETS_DIR / "english_shorts_visuals"
-    if not visuals_dir.exists():
-        visuals_dir.mkdir(parents=True)
-        print(f"\nCreated directory: {visuals_dir}")
-        print("Falling back to english_visuals since shorts visuals are not yet provided.")
-        visual_files, bg_music_str = _english_video_assets("english_visuals")
-    else:
-        visual_files = sorted(visuals_dir.glob("*.mp4"))
-        if not visual_files:
-            print(f"\nNo video files in {visuals_dir}, falling back to english_visuals.")
-            visual_files, bg_music_str = _english_video_assets("english_visuals")
-        else:
-            bg_music = ASSETS_DIR / "background_music.mp3"
-            bg_music_str = str(bg_music) if bg_music.exists() else None
-
-    selected_visual = random.choice(visual_files)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English Short",
+        script=script,
+        subfolder="english_shorts_visuals",
+        max_count=4,
+        fallback_topic=topic or title,
+    )
 
     # Audio + per-turn timestamps
     cleanup_english_temp()
-    res = generate_podcast_audio(script, return_turn_times=True)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_SHORTS_TTS_SPEED)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -1285,12 +1440,12 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         print(f"  .ass captions skipped: {e}")
         ass_path = None
 
-    print(f"\n  Visual loop  : {selected_visual.name}")
+    print(f"\n  Visual loops : {_format_visual_list(selected_visuals)}")
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
     assemble_shorts_video(
         narration_audio=audio_path,
-        stock_clips=[str(selected_visual)],
+        stock_clips=[str(path) for path in selected_visuals],
         background_music=bg_music_str,
         captions_srt=srt_path,
         ass_captions=ass_path,
@@ -1354,7 +1509,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
     
     print("\nDone!\n")
 
-def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None):
+def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False):
     """Manual runner for the new Quiz Shorts strategy."""
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_quiz_shorts_script, save_published_topic
@@ -1372,10 +1527,16 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
     title = script["title"]
     out_slug = slug(title)
 
-    visual_files, bg_music_str = _english_video_assets("english_shorts_visuals")
-    selected_visual = random.choice(visual_files)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English Quiz Short",
+        script=script,
+        subfolder="english_shorts_visuals",
+        max_count=4,
+        fallback_topic=topic or title,
+    )
     
-    res = generate_podcast_audio(script, return_turn_times=True)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -1405,9 +1566,10 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         ass_path = None
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    print(f"\n  Visual loops : {_format_visual_list(selected_visuals)}")
     assemble_shorts_video(
         narration_audio=audio_path,
-        stock_clips=[str(selected_visual)],
+        stock_clips=[str(path) for path in selected_visuals],
         background_music=bg_music_str,
         captions_srt=srt_path,
         ass_captions=ass_path,

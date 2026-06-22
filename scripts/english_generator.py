@@ -390,6 +390,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
         "description": description,
         "pinned_comment": part1_data.get("pinned_comment", ""),
         "tags": tags,
+        "visual_keywords": part1_data.get("visual_keywords", []),
         "dialogue": [],
     }
 
@@ -848,15 +849,19 @@ CRITICAL RULES:
 - The last turn of Part 1 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 1):
-1. **Intro**: MUST start by welcoming the audience to "EnglishVibesHub" (@EnglishVibesHub-s6w) and introducing the topic of the day.
-2. **High CTR & Searchability & SEO**: High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'The #1 Way To...', 'DON'T Say This', or 'Why Native Speakers Say...'. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
-3. **Setup**: Begin the deep dive discussion into the topic.
-4. Use and carefully explain 3-4 phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
+1. **15-second hook**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic.
+2. **Retention structure**: Frame the lesson as "5 Levels of {topic}" or an equivalent countdown/progression from basic to advanced so viewers feel progress and want to reach the final level.
+3. **Levels 1-2**: Cover the basic and lower-intermediate levels in this part. Make each level clear in the spoken dialogue, for example "Level 1..." and "Level 2...".
+4. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
+5. **High CTR & Searchability & SEO**: High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'The #1 Way To...', 'DON'T Say This', or 'Why Native Speakers Say...'. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
+6. Use and carefully explain 3-4 natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
-- Conversational, friendly, and natural.
+- Conversational, friendly, natural, and fast-paced.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Ensure back-and-forth banter is highly detailed. Avoid short 1-sentence replies; instead, each turn should be a few sentences long to build up the word count.
+- Keep speaker turns short: maximum 2 sentences per turn.
+- Avoid filler, generic motivation, and long personal stories that do not teach a phrase.
+- Use culturally natural phrases only. Do not invent awkward expressions.
 
 JSON SCHEMA:
 {{
@@ -865,6 +870,7 @@ JSON SCHEMA:
   "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, a specific comment question, a subscribe CTA, playlist placeholder line '📺 Watch the playlist here: {{playlist_url}}', and relevant hashtags mirroring the 'tags' list below)",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
+  "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
@@ -895,14 +901,16 @@ CRITICAL RULES:
 - The last turn of Part 2 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 2):
-1. **Deep Dive**: Continue the extensive discussion of the topic.
-2. **Stories & Roleplay**: The hosts must share long personal stories or do a mock roleplay related to the topic to extend the conversation naturally and make it more engaging.
-3. Use and carefully explain 4-5 additional phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
+1. **Levels 3-4**: Continue the countdown/progression from Part 1. Make the level labels clear in the spoken dialogue.
+2. **Roleplay, not rambling**: Use fast practical roleplay related to the topic. Keep it directly useful for real conversations.
+3. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
+4. Use and carefully explain 4-5 additional natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
-- Conversational, friendly, and natural.
+- Conversational, friendly, natural, and fast-paced.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Ensure back-and-forth banter is highly detailed. Avoid short 1-sentence replies.
+- Keep speaker turns short: maximum 2 sentences per turn.
+- Avoid filler and generic praise. Every turn should teach, test, or move the roleplay forward.
 
 JSON SCHEMA:
 {{
@@ -935,14 +943,16 @@ CRITICAL RULES:
 - Do not mention "next episode", "stay tuned", "take a break", or "we'll be right back" anywhere in Part 3.
 
 STRUCTURE & CONTENT (PART 3):
-1. **Wrap-up**: Share final thoughts, tips, or examples (most of this part).
-2. Use and carefully explain 3-4 final phrasal verbs or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-3. **Outro (LAST 1-2 TURNS ONLY)**: The final 1-2 dialogue turns may thank listeners and ask them to like and subscribe to EnglishVibesHub (@EnglishVibesHub-s6w). Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
+1. **Level 5**: Deliver the most advanced and valuable part of the countdown/progression.
+2. **Interactive challenge**: Include exactly one final "Pause and Guess" moment. One dialogue turn should ask the viewer to guess the strongest phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
+3. Use and carefully explain 3-4 final natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
+4. **Loop hook and outro (LAST 1-2 TURNS ONLY)**: End with a pinned-comment question that connects back to the opening mistake or challenge. The final sentence should make viewers want to comment or replay. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
 
 STYLE:
-- Conversational, friendly, and natural.
+- Conversational, friendly, natural, and fast-paced.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Ensure back-and-forth banter is highly detailed. Avoid short 1-sentence replies.
+- Keep speaker turns short: maximum 2 sentences per turn.
+- Avoid filler and long recap. Preserve momentum through the end.
 
 JSON SCHEMA:
 {{
@@ -1197,6 +1207,7 @@ JSON SCHEMA:
   "description": "string (YouTube description. First 2 lines MUST be packed with SEO keywords for maximum reach. Include an engaging comment question, subscribe CTA, playlist placeholder, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
+  "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
   "video_format": "shorts",
   "dialogue": [
     {{
@@ -1273,6 +1284,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
+      "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
       "dialogue": [
         {{ "speaker": "Emma", "text": "..." }},
         {{ "speaker": "Liam", "text": "..." }}

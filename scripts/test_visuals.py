@@ -11,10 +11,13 @@ import english_generator
 
 dummy_script_base = {
     "title": "Visual Test",
+    "visual_keywords": ["coffee", "cafe", "conversation", "library"],
     "dialogue": [
-        {"speaker": "Emma", "text": "Hi Liam! Today we are testing the caption visuals. Do they look big enough?"},
-        {"speaker": "Liam", "text": "Hey Emma. I hope so. Let's throw an idiom under the bus and see."},
-        {"speaker": "Emma", "text": "Haha, nice one!"},
+        {"speaker": "Emma", "text": "Quick test. Which phrase sounds natural at a coffee shop?"},
+        {"speaker": "Liam", "text": "Pause and guess before Emma answers."},
+        {"speaker": "Emma", "text": "[PAUSE 3 SECONDS]"},
+        {"speaker": "Liam", "text": "Say, can I get this to go? That sounds natural."},
+        {"speaker": "Emma", "text": "Good. Now let's throw an idiom under the bus and see the card."},
         {"speaker": "Liam", "text": "Btw, how is the weather!"},
         {"speaker": "Emma", "text": "Its looking good so far, I think. Was cloudy earlier but the sun is out now."},
         {"speaker": "Liam", "text": "Good to hear that. I am also looking forward to the rest of the day."},
