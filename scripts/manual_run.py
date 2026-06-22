@@ -23,18 +23,34 @@ import subprocess
 import textwrap
 import shutil
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import cProfile
 import pstats
 import requests
 import time
 import random
+import re
 
 
 # Add parent dirs to path
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "prompts"))
+
+# ── Manifest-based two-phase pipeline ──────────────────────────
+MANIFEST_DIR = Path(__file__).parent.parent / "manifests"
+from manifest_runner import (
+    VisualManifest,
+    ManifestEntry,
+    write_manifest,
+    read_manifest,
+    resolve_manifest,
+    save_resolved_manifest,
+    scan_visuals,
+    select_top_visuals,
+    _tokenize as manifest_tokenize,
+    VISUAL_KEYWORD_ALIASES as MANIFEST_VISUAL_ALIASES,
+)
 
 # Load .env from project root
 _env_path = Path(__file__).parent.parent / ".env"
@@ -62,6 +78,10 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
     channel: url.rsplit("list=", 1)[-1]
     for channel, url in ENGLISH_DESCRIPTION_PLAYLIST_URLS.items()
 }
+
+ENGLISH_LONG_TTS_SPEED = 0.98
+ENGLISH_SHORTS_TTS_SPEED = 1.00
+ENGLISH_QUIZ_TTS_SPEED = 0.98
 
 def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
@@ -232,7 +252,7 @@ def _get_dynamic_family_topic() -> str:
     print("  Brainstorming a high-CTR topic for @FamilyFunZone-s9h...")
     history = get_family_history()
     recent = history[-50:] if history else []
-    
+
     prompt = f"""
     You are a viral YouTube strategist for @FamilyFunZone-s9h.
     Generate ONE single high-CTR topic for a 'Would You Rather' or 'This or That' game.
@@ -240,7 +260,7 @@ def _get_dynamic_family_topic() -> str:
     Recent topics to avoid: {json.dumps(recent)}
     Return ONLY a JSON object with a 'topic' key.
     """
-    
+
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     payload = {
@@ -248,7 +268,7 @@ def _get_dynamic_family_topic() -> str:
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"}
     }
-    
+
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
         data = resp.json()
@@ -452,7 +472,7 @@ def run_lofi(schedule_time=None):
         tags        = [t.strip() for t in tags_raw.split(",")]
 
     duration_hours = int(prompt_input("Duration in hours", "1"))
-    
+
     # Update title to reflect actual duration
     title = title.replace("1 Hour", f"{duration_hours} Hour{'s' if duration_hours != 1 else ''}")
 
@@ -552,7 +572,13 @@ def _english_video_assets(subfolder="english_visuals"):
     """Fetch visuals from a specific subfolder in assets."""
     visuals_dir = ASSETS_DIR / subfolder
     visuals_dir.mkdir(exist_ok=True)
-    visual_files = sorted(visuals_dir.glob("*.mp4"))
+    visual_files = sorted(
+        [
+            *visuals_dir.glob("*.mp4"),
+            *visuals_dir.glob("*.mov"),
+            *visuals_dir.glob("*.m4v"),
+        ]
+    )
 
     if not visual_files:
         print(f"\nNo video files in {visuals_dir}")
@@ -567,7 +593,123 @@ def _english_video_assets(subfolder="english_visuals"):
     return visual_files, bg_music_str
 
 
-def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
+VISUAL_KEYWORD_ALIASES = {
+    "airport": {"travel", "mountains", "city", "talk"},
+    "bakery": {"bakery", "cafe", "coffee"},
+    "book": {"library", "reading", "write"},
+    "cafe": {"cafe", "coffee", "drink", "bakery", "glimmer"},
+    "coffee": {"cafe", "coffee", "drink", "bakery", "glimmer"},
+    "conversation": {"talk", "life", "rooftop", "tea"},
+    "daily": {"life", "talk", "rooftop"},
+    "food": {"bakery", "icecream", "cafe", "coffee"},
+    "hotel": {"travel", "city", "rooftop"},
+    "interview": {"talk", "write", "library"},
+    "meeting": {"talk", "write", "library"},
+    "office": {"write", "talk", "library"},
+    "phone": {"talk", "life"},
+    "reading": {"library", "reading", "write"},
+    "restaurant": {"cafe", "coffee", "bakery", "icecream"},
+    "school": {"library", "reading", "kids"},
+    "shopping": {"city", "life", "icecream"},
+    "small": {"talk", "life"},
+    "study": {"library", "reading", "write"},
+    "travel": {"beach", "mountains", "city", "rooftop"},
+    "work": {"write", "talk", "library"},
+}
+
+
+def _tokenize_visual_text(value) -> set[str]:
+    text = " ".join(value) if isinstance(value, list) else str(value or "")
+    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if len(t) >= 3}
+
+
+def _visual_terms_for_script(script: dict, fallback_topic: str = "") -> set[str]:
+    terms = set()
+    for key in ("title", "topic", "focus", "search_keyword", "thumbnail_concept"):
+        terms.update(_tokenize_visual_text(script.get(key, "")))
+    for key in ("visual_keywords", "visual_cues", "keywords"):
+        terms.update(_tokenize_visual_text(script.get(key, [])))
+    if fallback_topic:
+        terms.update(_tokenize_visual_text(fallback_topic))
+
+    expanded = set(terms)
+    for term in list(terms):
+        expanded.update(VISUAL_KEYWORD_ALIASES.get(term, set()))
+    return expanded
+
+
+def _select_english_visuals(script: dict, visual_files: list[Path], max_count: int = 5, fallback_topic: str = "") -> list[Path]:
+    """Pick several local loops that best match the script's topic/visual keywords."""
+    if not visual_files:
+        return []
+
+    terms = _visual_terms_for_script(script, fallback_topic=fallback_topic)
+    scored = []
+    for visual in visual_files:
+        file_terms = _tokenize_visual_text(visual.stem)
+        score = len(terms & file_terms)
+        scored.append((score, random.random(), visual))
+
+    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    matched = [visual for score, _, visual in scored if score > 0]
+    if matched:
+        return matched[:max_count]
+
+    sample_size = min(max_count, len(visual_files))
+    return random.sample(visual_files, sample_size)
+
+
+def _format_visual_list(visual_paths) -> str:
+    paths = visual_paths if isinstance(visual_paths, list) else [visual_paths]
+    return ", ".join(Path(p).name for p in paths if p)
+
+
+def _print_visual_review_context(label: str, script: dict, visual_paths: list[Path], subfolder: str):
+    keywords = script.get("visual_keywords") or script.get("keywords") or []
+    print("\n" + "-" * 50)
+    print(f"Visual review: {label}")
+    print("-" * 50)
+    print(f"Title: {script.get('title') or script.get('series_title') or label}")
+    if keywords:
+        print(f"Visual keywords: {', '.join(map(str, keywords))}")
+    print(f"Assets folder: assets/{subfolder}")
+    print(f"Currently selected: {_format_visual_list(visual_paths)}")
+    print("Add or rename relevant .mp4/.mov/.m4v loops now, then press Enter to continue.")
+
+
+def _review_visuals_if_requested(
+    *,
+    review_visuals: bool,
+    label: str,
+    script: dict,
+    subfolder: str,
+    max_count: int = 5,
+    fallback_topic: str = "",
+):
+    visual_files, bg_music_str = _english_video_assets(subfolder)
+    selected_visuals = _select_english_visuals(
+        script,
+        visual_files,
+        max_count=max_count,
+        fallback_topic=fallback_topic,
+    )
+
+    if review_visuals:
+        _print_visual_review_context(label, script, selected_visuals, subfolder)
+        input()
+        visual_files, bg_music_str = _english_video_assets(subfolder)
+        selected_visuals = _select_english_visuals(
+            script,
+            visual_files,
+            max_count=max_count,
+            fallback_topic=fallback_topic,
+        )
+        print(f"Updated visual loops: {_format_visual_list(selected_visuals)}")
+
+    return visual_files, bg_music_str, selected_visuals
+
+
+def _assemble_english_script(script, out_slug, visual_path, bg_music_str, tts_speed=ENGLISH_LONG_TTS_SPEED):
     from english_assembler import generate_podcast_audio, assemble_english_video, cleanup_english_temp
     from ffmpeg_assembler import generate_captions
     from english_generator import annotate_script_with_idiom_windows
@@ -575,7 +717,7 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
     cleanup_english_temp()
 
     # Generate audio AND collect per-turn timestamps for idiom overlay timing
-    res = generate_podcast_audio(script, return_turn_times=True)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -607,12 +749,14 @@ def _assemble_english_script(script, out_slug, visual_path, bg_music_str):
         print(f"  .ass captions skipped: {e}")
         ass_path = None
 
-    print(f"\n  Visual loop  : {visual_path.name}")
+    visual_paths = visual_path if isinstance(visual_path, list) else [visual_path]
+    print(f"\n  Visual loops : {_format_visual_list(visual_paths)}")
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
     assemble_english_video(
         podcast_audio=audio_path,
-        loop_visual=str(visual_path),
+        loop_visual=str(visual_paths[0]),
+        loop_visuals=[str(path) for path in visual_paths],
         output_path=out_path,
         captions_srt=srt_path,
         ass_captions=ass_path,
@@ -648,42 +792,523 @@ def _challenge_schedule_time(start_date: str = None, day_offset: int = 0, publis
     return publish_at.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z")
 
 
-def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True):
+# ─────────────────────────────────────────────
+# MANIFEST-BASED TWO-PHASE PIPELINE
+# ─────────────────────────────────────────────
+
+def _get_visual_keywords(script: dict) -> list[str]:
+    """Extract visual keywords from a script dict, from any of several possible keys."""
+    for key in ("visual_keywords", "visual_cues", "keywords"):
+        val = script.get(key, [])
+        if isinstance(val, list) and val:
+            return [str(v) for v in val]
+    return []
+
+
+def _collect_keywords_from_script(script: dict, fallback_topic: str = "") -> list[str]:
+    """Build a comprehensive keyword list from a script for manifest generation."""
+    keywords = set(_get_visual_keywords(script))
+    for key in ("title", "topic", "focus", "search_keyword", "thumbnail_concept"):
+        val = script.get(key, "")
+        if val:
+            keywords.update(t for t in re.split(r"[^a-z0-9]+", str(val).lower()) if len(t) >= 3)
+    if fallback_topic:
+        keywords.update(t for t in re.split(r"[^a-z0-9]+", fallback_topic.lower()) if len(t) >= 3)
+    return sorted(keywords)
+
+
+# ── Manifest-only: generate scripts + write manifest, then exit ──────────────
+
+def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None):
+    """Phase 1 for English podcast: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
-    
+
+    print("\n" + "=" * 50)
+    print("ENGLISH — Manifest-Only Phase 1")
+    print("=" * 50)
+    # The unused parameters are accepted for signature compatibility with the
+    # normal pipeline call — they are intentionally not used in manifest mode.
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating script with Groq...\n")
+        script = generate_english_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_podcast.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    title = script.get("title", topic or "English Podcast")
+    keywords = _collect_keywords_from_script(script, fallback_topic=topic or "")
+    entry = ManifestEntry(
+        label="English Podcast",
+        script_path=script_path,
+        assets_folder="english_visuals",
+        visual_keywords=keywords,
+        topic=title,
+        orientation="landscape",
+    )
+    manifest = VisualManifest(
+        pipeline="english",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_{slug(title)}.manifest.json"
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    print(f"Keywords: {', '.join(keywords)}")
+    print(f"\nNext steps:")
+    print(f"  1. Add or rename .mp4 loops in assets/english_visuals/")
+    print(f"     to match these keywords.")
+    print(f"  2. Run: python manual_run.py --resume-from-manifest {manifest_path}")
+    print(f"{'=' * 50}\n")
+
+
+def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None):
+    """Phase 1 for English Shorts: generate script, write manifest, exit."""
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_english_shorts_script
+
+    print("\n" + "=" * 50)
+    print("ENGLISH SHORTS — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating Shorts script with Groq...\n")
+        script = generate_english_shorts_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english-shorts",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_shorts.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    title = script.get("title", topic or "English Short")
+    keywords = _collect_keywords_from_script(script, fallback_topic=topic or "")
+    entry = ManifestEntry(
+        label="English Short",
+        script_path=script_path,
+        assets_folder="english_shorts_visuals",
+        visual_keywords=keywords,
+        topic=title,
+        orientation="portrait",
+    )
+    manifest = VisualManifest(
+        pipeline="english-shorts",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_shorts_{slug(title)}.manifest.json"
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    print(f"Keywords: {', '.join(keywords)}")
+    print(f"\nNext steps:")
+    print(f"  1. Add or rename .mp4 loops in assets/english_shorts_visuals/")
+    print(f"  2. Run: python manual_run.py --resume-from-manifest {manifest_path}")
+    print(f"{'=' * 50}\n")
+
+
+def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None):
+    """Phase 1 for English Quiz Shorts: generate script, write manifest, exit."""
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_english_quiz_shorts_script
+
+    print("\n" + "=" * 50)
+    print("ENGLISH QUIZ SHORTS — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating Quiz Short script with Groq...\n")
+        script = generate_english_quiz_shorts_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english-quiz",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_quiz.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    title = script.get("title", topic or "English Quiz")
+    keywords = _collect_keywords_from_script(script, fallback_topic=topic or "")
+    entry = ManifestEntry(
+        label="English Quiz Short",
+        script_path=script_path,
+        assets_folder="english_shorts_visuals",
+        visual_keywords=keywords,
+        topic=title,
+        orientation="portrait",
+    )
+    manifest = VisualManifest(
+        pipeline="english-quiz",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_quiz_{slug(title)}.manifest.json"
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    print(f"Keywords: {', '.join(keywords)}")
+    print(f"\nNext steps:")
+    print(f"  1. Add or rename .mp4 loops in assets/english_shorts_visuals/")
+    print(f"  2. Run: python manual_run.py --resume-from-manifest {manifest_path}")
+    print(f"{'=' * 50}\n")
+
+
+def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None):
+    """Phase 1 for English Weekly Challenge: generate 7 scripts, write multi-entry manifest, exit."""
+    from english_generator import generate_weekly_challenge_scripts
+
+    print("\n" + "=" * 50)
+    print("ENGLISH WEEKLY CHALLENGE — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        print("\nGenerating 7-day weekly challenge with Groq...\n")
+        package = generate_weekly_challenge_scripts(topic=topic)
+        Path("scripts/output").mkdir(exist_ok=True)
+        pkg_path = "scripts/output/english_weekly_challenge.json"
+        Path(pkg_path).write_text(json.dumps(package, indent=2), encoding="utf-8")
+        print(f"\n  Package saved: {pkg_path}")
+    except Exception as e:
+        print(f"\nChallenge generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    series_title = package.get("series_title", "Weekly Challenge")
+    entries = []
+
+    for day_script in package.get("scripts", []):
+        day_num = day_script.get("day", 0)
+        day_title = day_script.get("title", f"Day {day_num}")
+        keywords = _collect_keywords_from_script(day_script, fallback_topic=day_title)
+        day_label = f"Day {day_num}: {day_title}"
+
+        # Save each day's script individually so the manifest can reference it
+        day_script_path = f"scripts/output/challenge_day_{day_num}.json"
+        Path(day_script_path).write_text(json.dumps(day_script, indent=2), encoding="utf-8")
+
+        entries.append(ManifestEntry(
+            label=day_label,
+            script_path=day_script_path,
+            assets_folder="weekly_challenge_visuals",
+            visual_keywords=keywords,
+            topic=day_title,
+            orientation="landscape",
+        ))
+
+        # Also add quiz short entry
+        quiz = day_script.get("quiz_script")
+        if quiz:
+            quiz_keywords = _collect_keywords_from_script(quiz, fallback_topic=quiz.get("title", ""))
+            quiz_label = f"Day {day_num} Quiz: {quiz.get('title', 'Quiz')}"
+            quiz_script_path = f"scripts/output/challenge_day_{day_num}_quiz.json"
+            Path(quiz_script_path).write_text(json.dumps(quiz, indent=2), encoding="utf-8")
+            entries.append(ManifestEntry(
+                label=quiz_label,
+                script_path=quiz_script_path,
+                assets_folder="english_shorts_visuals",
+                visual_keywords=quiz_keywords,
+                topic=quiz.get("title", f"Day {day_num} Quiz"),
+                orientation="portrait",
+            ))
+
+    manifest = VisualManifest(
+        pipeline="english-challenge",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        series_title=series_title,
+        entries=entries,
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"challenge_{slug(series_title)}.manifest.json"
+    write_manifest(manifest, manifest_path)
+
+    print(f"\n{'=' * 50}")
+    print(f"PHASE 1 COMPLETE — {len(entries)} entries in manifest.")
+    print(f"\nEntries will use these assets folders:")
+    folders = sorted(set(e.assets_folder for e in entries))
+    for f in folders:
+        count = sum(1 for e in entries if e.assets_folder == f)
+        print(f"  assets/{f}/  ({count} videos)")
+    print(f"\nNext steps:")
+    print(f"  1. Add or rename .mp4 loops in the asset folders above.")
+    print(f"  2. Run: python manual_run.py --resume-from-manifest {manifest_path}")
+    print(f"{'=' * 50}\n")
+
+
+# ── Resume from manifest: interactive visual selection → assembly → upload ──
+
+def run_resume_from_manifest(manifest_path_str: str):
+    """
+    Phase 2: Read manifest, resolve visuals interactively per entry,
+    then assemble and (optionally) upload each video.
+
+    Works for any pipeline type (english, english-shorts, english-quiz,
+    english-challenge).
+    """
+    manifest_path = Path(manifest_path_str).expanduser()
+    if not manifest_path.exists():
+        print(f"Manifest not found: {manifest_path}")
+        sys.exit(1)
+
+    manifest = read_manifest(manifest_path)
+    pipeline = manifest.pipeline
+    project_root = Path(__file__).parent.parent
+
+    print("\n" + "=" * 50)
+    print(f"PHASE 2 — Resume from Manifest: {manifest_path.name}")
+    print(f"Pipeline: {pipeline} ({len(manifest.entries)} entries)")
+    print("=" * 50)
+
+    # Resolve all entries interactively
+    manifest = resolve_manifest(manifest, project_root, max_loops=5, auto_confirm=False)
+    save_resolved_manifest(manifest, manifest_path)
+
+    # Check if any entries were skipped
+    unresolved = [e for e in manifest.entries if not e.resolved_visuals]
+    if unresolved:
+        print(f"\n⚠ {len(unresolved)} entry(s) were skipped. Continue with remaining?")
+        if input("[Y]es / [N]o: ").strip().lower() not in ("", "y", "yes"):
+            print("Aborting.")
+            sys.exit(0)
+
+    # Process each entry
+    for i, entry in enumerate(manifest.entries):
+        if not entry.resolved_visuals:
+            print(f"\n[{i+1}/{len(manifest.entries)}] Skipping '{entry.label}' (no visuals)")
+            continue
+
+        print(f"\n[{i+1}/{len(manifest.entries)}] Processing: {entry.label}")
+
+        # Load the script
+        script_path = Path(entry.script_path)
+        if not script_path.exists():
+            print(f"  Script not found: {script_path}, skipping.")
+            continue
+        script = json.loads(script_path.read_text(encoding="utf-8"))
+
+        # Determine TTS speed and orientation
+        is_shorts = "quiz" in entry.label.lower() or "shorts" in pipeline
+        tts_speed = ENGLISH_QUIZ_TTS_SPEED if is_shorts else ENGLISH_LONG_TTS_SPEED
+        bg_music = ASSETS_DIR / "background_music.mp3"
+        bg_music_str = str(bg_music) if bg_music.exists() else None
+
+        visual_paths = [Path(p) for p in entry.resolved_visuals]
+        out_slug = slug(entry.topic or entry.label)
+        out_slug = re.sub(r'[^a-z0-9_]+', '_', out_slug[:60])
+
+        if pipeline == "english-challenge" or pipeline == "english":
+            from english_assembler import cleanup_english_temp, generate_podcast_audio, assemble_english_video
+            from ffmpeg_assembler import generate_captions
+            from english_generator import annotate_script_with_idiom_windows
+
+            cleanup_english_temp()
+
+            # Annotate idiom windows
+            try:
+                annotate_script_with_idiom_windows(script)
+            except Exception as e:
+                print(f"  Idiom annotation skipped: {e}")
+
+            res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed)
+            if isinstance(res, tuple):
+                audio_path, per_turn_times = res
+            else:
+                audio_path, per_turn_times = res, []
+
+            # .srt
+            srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+            try:
+                generate_captions(audio_path, srt_path)
+            except Exception:
+                srt_path = None
+
+            # .ass
+            ass_path = str(OUTPUT_DIR / f"{out_slug}.ass")
+            try:
+                from ass_caption_writer import generate_ass_captions
+                generate_ass_captions(
+                    audio_path=audio_path, output_ass=ass_path,
+                    script_data=script,
+                    idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
+                    is_shorts=False,
+                    per_turn_times=per_turn_times,
+                )
+            except Exception as e:
+                print(f"  .ass captions skipped: {e}")
+                ass_path = None
+
+            out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+            assemble_english_video(
+                podcast_audio=audio_path,
+                loop_visual=str(visual_paths[0]),
+                loop_visuals=[str(v) for v in visual_paths],
+                output_path=out_path,
+                captions_srt=srt_path,
+                ass_captions=ass_path,
+                background_music=bg_music_str,
+                title=script.get("title", entry.topic),
+                channel="english",
+                idiom_windows=script.get("idiom_windows"),
+                per_turn_times=per_turn_times,
+                dialogue=script.get("dialogue", []),
+            )
+            cleanup_english_temp()
+
+            # Upload if not disabled
+            do_upload = input(f"\n  Upload '{entry.topic}' to YouTube? [Y/n]: ").strip().lower()
+            if do_upload in ("", "y", "yes"):
+                _upload_video(
+                    out_path,
+                    script.get("title", entry.topic),
+                    script.get("description", ""),
+                    script.get("tags", []),
+                    channel="english",
+                    thumbnail_text=script.get("thumbnail_text", entry.topic),
+                    pinned_comment=script.get("pinned_comment"),
+                    command_channel="english" if "quiz" not in entry.label.lower() else "english-quiz",
+                )
+
+        elif pipeline in ("english-shorts", "english-quiz"):
+            from english_assembler import cleanup_english_temp, generate_podcast_audio
+            from ffmpeg_assembler import assemble_shorts_video, generate_captions
+
+            cleanup_english_temp()
+            res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed)
+            if isinstance(res, tuple):
+                audio_path, per_turn_times = res
+            else:
+                audio_path, per_turn_times = res, []
+
+            srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
+            try:
+                import random
+                generate_captions(audio_path, srt_path, max_line_width=25)
+            except Exception:
+                srt_path = None
+
+            ass_path = str(OUTPUT_DIR / f"{out_slug}.ass")
+            try:
+                from ass_caption_writer import generate_ass_captions
+                generate_ass_captions(
+                    audio_path=audio_path, output_ass=ass_path,
+                    script_data=script, is_shorts=True,
+                    video_width=1080, video_height=1920,
+                    per_turn_times=per_turn_times,
+                )
+            except Exception:
+                ass_path = None
+
+            out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+            assemble_shorts_video(
+                narration_audio=audio_path,
+                stock_clips=[str(v) for v in visual_paths],
+                background_music=bg_music_str,
+                captions_srt=srt_path,
+                ass_captions=ass_path,
+                output_path=out_path,
+                title=script.get("title", entry.topic),
+                per_turn_times=per_turn_times,
+                dialogue=script.get("dialogue", []),
+            )
+            cleanup_english_temp()
+
+            do_upload = input(f"\n  Upload '{entry.topic}' to YouTube? [Y/n]: ").strip().lower()
+            if do_upload in ("", "y", "yes"):
+                _upload_video(
+                    out_path,
+                    script.get("title", entry.topic),
+                    script.get("description", ""),
+                    script.get("tags", []),
+                    channel="english",
+                    thumbnail_text=script.get("thumbnail_text", entry.topic),
+                    pinned_comment=script.get("pinned_comment"),
+                    command_channel=pipeline,
+                )
+
+        print(f"  ✓ Done: {entry.label}")
+
+    print(f"\n{'=' * 50}")
+    print(f"PHASE 2 COMPLETE — {len(manifest.entries)} entries processed.")
+    print(f"{'=' * 50}\n")
+
+
+# ── Pipeline mapping for manifest-only mode ──────────────────────────────────
+
+MANIFEST_ONLY_ROUTER = {
+    "english": run_manifest_only_english,
+    "english-shorts": run_manifest_only_shorts,
+    "english-quiz": run_manifest_only_quiz_shorts,
+    "english-challenge": run_manifest_only_challenge,
+}
+
+
+def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_english_script
+
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Podcast Generator")
     print("=" * 50)
-    
+
     try:
         cleanup_english_temp()
-        
+
         print("\nGenerating script with Groq...\n")
         script = generate_english_script(topic)
         script["description"] = _description_with_playlist_url(
             script.get("description", ""),
             "english",
         )
-        
+
         Path("scripts/output").mkdir(exist_ok=True)
         json_file = "scripts/output/english_podcast.json"
         Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
-        
+
         print(f"\nGenerated:\n  Title: {script.get('title')}")
-        
+
     except Exception as e:
         print(f"\nScript generation failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
-        
+
     title = script["title"]
     out_slug = slug(title)
 
-    visual_files, bg_music_str = _english_video_assets("english_visuals")
-    selected_visual = random.choice(visual_files)
-    out_path = _assemble_english_script(script, out_slug, selected_visual, bg_music_str)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English podcast",
+        script=script,
+        subfolder="english_visuals",
+        fallback_topic=topic or title,
+    )
+    out_path = _assemble_english_script(
+        script,
+        out_slug,
+        selected_visuals,
+        bg_music_str,
+        tts_speed=ENGLISH_LONG_TTS_SPEED,
+    )
 
     if not schedule_time:
         from schedule_ledger import ScheduleLedger
@@ -731,11 +1356,11 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
-    
+
     print("\nDone!\n")
 
 
-def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6, notify_subscribers=None):
+def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour=6, notify_subscribers=None, review_visuals=False):
     from english_generator import generate_weekly_challenge_scripts, save_published_topic
 
     print("\n" + "=" * 50)
@@ -777,7 +1402,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             f"Join Emma and Liam as they guide you through this journey!\n\n"
             f"#EnglishLearning #EnglishChallenge #EnglishVibesHub"
         )
-        
+
         quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
         quiz_playlist_description = (
             f"Quick quizzes to test your knowledge from the {package.get('series_title')}! "
@@ -794,7 +1419,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 channel="english",
             )
             playlist_id = playlist["playlist_id"]
-            
+
             print(f"Creating weekly challenge quiz playlist: {quiz_playlist_title}")
             quiz_playlist = create_playlist(
                 title=quiz_playlist_title,
@@ -808,9 +1433,21 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
     # Use a specific folder for weekly challenges to keep branding consistent
     visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
-    # Pick ONE visual to use for the entire 7-day challenge
-    weekly_visual = random.choice(visual_files)
     quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
+
+    if review_visuals:
+        print("\n" + "-" * 50)
+        print("Visual review: English weekly challenge package")
+        print("-" * 50)
+        print(f"Series: {package.get('series_title')}")
+        for script in package.get("scripts", []):
+            keywords = script.get("visual_keywords") or script.get("keywords") or []
+            print(f"Day {script.get('day')}: {script.get('title')} | {', '.join(map(str, keywords))}")
+        print("Assets folders: assets/weekly_challenge_visuals and assets/english_shorts_visuals")
+        print("Add or rename relevant loops now, then press Enter to continue.")
+        input()
+        visual_files, bg_music_str = _english_video_assets("weekly_challenge_visuals")
+        quiz_visual_files, _ = _english_video_assets("english_shorts_visuals")
 
     for index, script in enumerate(package["scripts"]):
         day_number = script.get("day", index + 1)
@@ -823,7 +1460,14 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
         print("-" * 50)
 
         # 1. Assemble and Upload Long-Form Video
-        out_path = _assemble_english_script(script, out_slug, weekly_visual, bg_music_str)
+        weekly_visuals = _select_english_visuals(script, visual_files, fallback_topic=title)
+        out_path = _assemble_english_script(
+            script,
+            out_slug,
+            weekly_visuals,
+            bg_music_str,
+            tts_speed=ENGLISH_LONG_TTS_SPEED,
+        )
 
         long_form_id = None
 
@@ -849,7 +1493,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 slot=f"challenge_{publish_hour}am"
             )
             long_form_id = (result or {}).get("youtube_id")
-            
+
             if playlist_id and long_form_id:
                 try:
                     from youtube_uploader import add_video_to_playlist
@@ -866,7 +1510,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
             cleanup_english_temp()
-            res = generate_podcast_audio(quiz_script, return_turn_times=True)
+            res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
             if isinstance(res, tuple):
                 quiz_audio, quiz_turn_times = res
             else:
@@ -892,9 +1536,11 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 quiz_ass = None
 
             quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+            selected_quiz_visuals = _select_english_visuals(quiz_script, quiz_visual_files, max_count=4, fallback_topic=quiz_script["title"])
+            print(f"\n  Visual loops : {_format_visual_list(selected_quiz_visuals)}")
             assemble_shorts_video(
                 narration_audio=quiz_audio,
-                stock_clips=[str(random.choice(quiz_visual_files))],
+                stock_clips=[str(path) for path in selected_quiz_visuals],
                 background_music=bg_music_str,
                 captions_srt=quiz_srt,
                 ass_captions=quiz_ass,
@@ -904,7 +1550,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                 per_turn_times=quiz_turn_times,
                 dialogue=quiz_script.get("dialogue", []),
             )
-            
+
             if upload:
                 # Quiz is published at 9:00 AM CST
                 quiz_schedule_time = _challenge_schedule_time(
@@ -938,14 +1584,14 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                     save_published_topic(quiz_script.get("title"), topic_type="quiz")
                 except Exception as e:
                     print(f"  Quiz upload failed for Day {day_number}: {e}")
-            
+
             cleanup_english_temp()
 
     print("\nWeekly challenge pipeline done!\n")
 
 def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=None):
     """
-    Specialized runner to generate and upload ONLY the quiz shorts 
+    Specialized runner to generate and upload ONLY the quiz shorts
     from an existing weekly challenge JSON package.
     """
     from english_assembler import cleanup_english_temp, generate_podcast_audio
@@ -991,14 +1637,14 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
     for index, script in enumerate(package["scripts"]):
         day_number = script.get("day", index + 1)
         quiz_script = script.get("quiz_script")
-        
+
         if not quiz_script:
             print(f"\nGenerating missing quiz script for Day {day_number} from challenge content...")
             quiz_script = generate_weekly_challenge_quiz_script(script)
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
         cleanup_english_temp()
-        res = generate_podcast_audio(quiz_script, return_turn_times=True)
+        res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
         if isinstance(res, tuple):
             quiz_audio, quiz_turn_times = res
         else:
@@ -1006,11 +1652,13 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
         quiz_slug = slug(f"quiz_day_{day_number}_{quiz_script['title']}")
         quiz_srt = str(OUTPUT_DIR / f"{quiz_slug}.srt")
         generate_captions(quiz_audio, quiz_srt, max_line_width=20)
-        
+
         quiz_out_path = str(OUTPUT_DIR / f"{quiz_slug}.mp4")
+        selected_quiz_visuals = _select_english_visuals(quiz_script, quiz_visual_files, max_count=4, fallback_topic=quiz_script["title"])
+        print(f"\n  Visual loops : {_format_visual_list(selected_quiz_visuals)}")
         assemble_shorts_video(
             narration_audio=quiz_audio,
-            stock_clips=[str(random.choice(quiz_visual_files))],
+            stock_clips=[str(path) for path in selected_quiz_visuals],
             background_music=bg_music_str,
             captions_srt=quiz_srt,
             output_path=quiz_out_path,
@@ -1019,7 +1667,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
             per_turn_times=quiz_turn_times,
             dialogue=quiz_script.get("dialogue", []),
         )
-        
+
         if upload:
             # Quiz is published at 10:00 AM CST
             quiz_schedule_time = _challenge_schedule_time(
@@ -1053,7 +1701,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                 save_published_topic(quiz_script.get("title"), topic_type="quiz")
             except Exception as e:
                 print(f"  Quiz upload failed for Day {day_number}: {e}")
-        
+
         cleanup_english_temp()
 
     print("\nQuiz Shorts pipeline done!\n")
@@ -1083,7 +1731,7 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
     print(f"\nRetrying pinned comments for {len(short_ids)} videos...")
     for index, script in enumerate(scripts):
         if index >= len(short_ids): break
-        
+
         quiz_script = script.get("quiz_script")
         if not quiz_script:
             print(f"  Day {index+1}: Missing quiz_script in JSON. Generating on the fly...")
@@ -1092,16 +1740,16 @@ def run_english_comments_retry(json_path, short_ids_str, related_ids_str, channe
         if quiz_script:
             comment_text = quiz_script.get("pinned_comment", "")
             rel_id = related_ids[index] if index < len(related_ids) else None
-            
+
             if rel_id and "youtu.be" not in comment_text:
                 comment_text += f"\n\nWatch the full lesson here: https://youtu.be/{rel_id}"
-            
+
             print(f"  Day {index+1}: Posting to https://youtu.be/{short_ids[index]}")
             set_pinned_comment(short_ids[index], comment_text, channel)
 
 def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel="english", related_only=False):
     """
-    Maintenance task: Updates descriptions (adding practice tasks) and 
+    Maintenance task: Updates descriptions (adding practice tasks) and
     posts pinned comments for both long-form videos and quiz shorts.
     """
     from youtube_uploader import update_video_description, set_pinned_comment, set_related_video
@@ -1122,31 +1770,31 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
 
     for i, script in enumerate(scripts):
         if i >= len(long_ids): break
-        
+
         long_id = long_ids[i]
         day_num = script.get("day", i + 1)
-        
+
         if not related_only:
             # 1. Update Long-form Video
             print(f"\n[Day {day_num}] Long Video: https://youtu.be/{long_id}")
-            
+
             # Get practice task from the original plan
             day_plan = days_info[i] if i < len(days_info) else {}
             task = day_plan.get("practice_task", "")
-            
+
             # Construct updated description including the practice task
             base_desc = script.get("description", "")
             if task and "PRACTICE TASK" not in base_desc.upper():
                 new_desc = f"📝 DAILY PRACTICE TASK: {task}\n\n" + base_desc
             else:
                 new_desc = base_desc
-            
+
             update_video_description(long_id, new_desc, channel)
-            
+
             pinned = script.get("pinned_comment")
             if pinned:
                 set_pinned_comment(long_id, pinned, channel)
-            
+
         # 2. Update Quiz Short
         if i < len(short_ids):
             short_id = short_ids[i]
@@ -1163,11 +1811,11 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
                 if quiz_pinned:
                     set_pinned_comment(short_id, quiz_pinned, channel)
 
-def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None):
+def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None, review_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
-    
+
     if dynamic_visuals and upload:
         raise RuntimeError(
             "Dynamic English visuals are prototype-only and must be run with --no-upload for manual review."
@@ -1182,29 +1830,29 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
     if dynamic_visuals:
         from dynamic_english_renderer import preflight_dynamic_english_assets
         preflight_dynamic_english_assets()
-    
+
     try:
         cleanup_english_temp()
-        
+
         print("\nGenerating Shorts script with Groq...\n")
         script = generate_english_shorts_script(topic)
         script["description"] = _description_with_playlist_url(
             script.get("description", ""),
             "english-shorts",
         )
-        
+
         Path("scripts/output").mkdir(exist_ok=True)
         json_file = "scripts/output/english_shorts.json"
         Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
-        
+
         print(f"\nGenerated:\n  Title: {script.get('title')}")
-        
+
     except Exception as e:
         print(f"\nScript generation failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
-        
+
     title = script["title"]
     out_slug = slug(title)
 
@@ -1230,26 +1878,18 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         print("\nDone!\n")
         return
 
-    visuals_dir = ASSETS_DIR / "english_shorts_visuals"
-    if not visuals_dir.exists():
-        visuals_dir.mkdir(parents=True)
-        print(f"\nCreated directory: {visuals_dir}")
-        print("Falling back to english_visuals since shorts visuals are not yet provided.")
-        visual_files, bg_music_str = _english_video_assets("english_visuals")
-    else:
-        visual_files = sorted(visuals_dir.glob("*.mp4"))
-        if not visual_files:
-            print(f"\nNo video files in {visuals_dir}, falling back to english_visuals.")
-            visual_files, bg_music_str = _english_video_assets("english_visuals")
-        else:
-            bg_music = ASSETS_DIR / "background_music.mp3"
-            bg_music_str = str(bg_music) if bg_music.exists() else None
-
-    selected_visual = random.choice(visual_files)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English Short",
+        script=script,
+        subfolder="english_shorts_visuals",
+        max_count=4,
+        fallback_topic=topic or title,
+    )
 
     # Audio + per-turn timestamps
     cleanup_english_temp()
-    res = generate_podcast_audio(script, return_turn_times=True)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_SHORTS_TTS_SPEED)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -1285,12 +1925,12 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
         print(f"  .ass captions skipped: {e}")
         ass_path = None
 
-    print(f"\n  Visual loop  : {selected_visual.name}")
+    print(f"\n  Visual loops : {_format_visual_list(selected_visuals)}")
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
     assemble_shorts_video(
         narration_audio=audio_path,
-        stock_clips=[str(selected_visual)],
+        stock_clips=[str(path) for path in selected_visuals],
         background_music=bg_music_str,
         captions_srt=srt_path,
         ass_captions=ass_path,
@@ -1351,19 +1991,19 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
                 print(f"  Could not add quiz to master playlist: {e}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
-    
+
     print("\nDone!\n")
 
-def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None):
+def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False):
     """Manual runner for the new Quiz Shorts strategy."""
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_quiz_shorts_script, save_published_topic
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
-    
+
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Quiz Shorts (Strategy 1)")
-    print("=" * 50) 
-    
+    print("=" * 50)
+
     script = generate_english_quiz_shorts_script(topic)
     script["description"] = _description_with_playlist_url(
         script.get("description", ""),
@@ -1372,10 +2012,16 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
     title = script["title"]
     out_slug = slug(title)
 
-    visual_files, bg_music_str = _english_video_assets("english_shorts_visuals")
-    selected_visual = random.choice(visual_files)
-    
-    res = generate_podcast_audio(script, return_turn_times=True)
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English Quiz Short",
+        script=script,
+        subfolder="english_shorts_visuals",
+        max_count=4,
+        fallback_topic=topic or title,
+    )
+
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -1392,7 +2038,7 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         # Annotate script with idiom windows before generating captions
         from english_generator import annotate_script_with_idiom_windows
         annotate_script_with_idiom_windows(script)
-        
+
         generate_ass_captions(
             audio_path=audio_path, output_ass=ass_path,
             script_data=script, is_shorts=True,
@@ -1405,9 +2051,10 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         ass_path = None
 
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
+    print(f"\n  Visual loops : {_format_visual_list(selected_visuals)}")
     assemble_shorts_video(
         narration_audio=audio_path,
-        stock_clips=[str(selected_visual)],
+        stock_clips=[str(path) for path in selected_visuals],
         background_music=bg_music_str,
         captions_srt=srt_path,
         ass_captions=ass_path,
@@ -1479,14 +2126,14 @@ def run_english_community(topic=None, content_type="quiz"):
     Uses Pexels for free stock images when creating Image Polls.
     """
     from english_generator import generate_english_community_content
-    
+
     print("\n" + "=" * 50)
     print(f"ENGLISH VIBES HUB — Community {content_type.upper()}")
     print("=" * 50)
-    
+
     # Now calls generate_dynamic_topic internally if topic is None
     data = generate_english_community_content(topic=topic, content_type=content_type)
-    
+
     print(f"\nQUESTION: {data['question']}")
     if content_type == "quiz":
         for i, opt in enumerate(data.get("options", [])):
@@ -1495,7 +2142,7 @@ def run_english_community(topic=None, content_type="quiz"):
     else:
         for i, opt in enumerate(data.get("options", [])):
             print(f"  Option {i+1}: {opt}")
-    
+
     print(f"\nEXPLANATION (for pinned comment or post body):")
     print(data.get("correct_explanation", "No explanation generated."))
 
@@ -1504,10 +2151,10 @@ def run_english_community(topic=None, content_type="quiz"):
     if data.get("image_prompts"):
         print("\nFetching free poll images from Pexels...")
         # Thumbnail overlay is currently disabled; images are downloaded as-is.
-        
+
         prompts = data.get("image_prompts", [])
         options = data.get("options", [])
-        
+
         api_key = os.getenv("PEXELS_API_KEY")
         if not api_key:
             print("  [ERROR] PEXELS_API_KEY not found. Stock images required for Image Polls.")
@@ -1526,12 +2173,12 @@ def run_english_community(topic=None, content_type="quiz"):
                 if not photos:
                     print(f"  No photo found for: {img_prompt}")
                     continue
-                
+
                 img_url = photos[0]["src"]["large2x"]
                 img_data = requests.get(img_url, timeout=15).content
                 img_path = OUTPUT_DIR / f"community_poll_{idx}.jpg"
                 img_path.write_bytes(img_data)
-                
+
                 # Thumbnail overlay disabled — skip create_thumbnail call.
                 image_paths.append(img_path)
                 print(f"  ✓ Image {idx+1} ready: {img_path}")
@@ -1540,7 +2187,7 @@ def run_english_community(topic=None, content_type="quiz"):
 
         if image_paths:
             print(f"\nSUCCESS! {len(image_paths)} images generated in {OUTPUT_DIR}")
-    
+
     print("\n" + "-" * 50)
     print("POSTING INSTRUCTIONS:")
     print("1. Go to YouTube Studio -> Content -> Community")
@@ -1773,13 +2420,13 @@ def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_ho
     print("\n" + "-" * 40)
     print("Uploading SLOW video...")
     print("-" * 40)
-    
+
     # Calculate staggered schedule for the slow video
     if schedule_time:
         base_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
     else:
         base_dt = datetime.now(ZoneInfo("UTC"))
-    
+
     slow_schedule = (base_dt + timedelta(hours=slow_offset_hours)).isoformat().replace("+00:00", "Z")
 
     desc_slow_final = desc_slow_template.format(
@@ -2110,7 +2757,7 @@ def _upload_video(
     if "youtube_id" in result:
         status = "Scheduled" if schedule_time else "Published"
         print(f"\n{status}: https://youtu.be/{result['youtube_id']}")
-        
+
         if schedule_time and command_channel:
             try:
                 from schedule_ledger import ScheduleLedger
@@ -2229,8 +2876,31 @@ def main():
         action="store_true",
         help="Prototype only: render english-shorts with dynamic Emma/Liam visuals. Requires --no-upload.",
     )
+    parser.add_argument(
+        "--review-visuals",
+        action="store_true",
+        help="Pause before assembly to review selected stock visuals. The pipeline prints "
+             "the matched loops, you can add/rename .mp4/.mov/.m4v files in the relevant "
+             "assets/<folder>/ directory, then press Enter to re-pick and continue. "
+             "Supported by: english, english-challenge, english-shorts, english-quiz.",
+    )
     parser.add_argument("--notify-subs", action="store_true", help="Force notify subscribers")
     parser.add_argument("--no-notify-subs", action="store_true", help="Force do NOT notify subscribers")
+    # ── Manifest-based two-phase pipeline ──────────────────────
+    parser.add_argument(
+        "--manifest-only", action="store_true",
+        help="Phase 1: generate scripts + manifest, then exit. "
+             "User adds/renames visuals in assets folders before Phase 2.",
+    )
+    parser.add_argument(
+        "--resume-from-manifest",
+        help="Phase 2: path to a manifest JSON. Resolve visuals interactively, "
+             "then assemble and upload each video. Skips script generation.",
+    )
+    parser.add_argument(
+        "--manifest",
+        help="Shortcut for --resume-from-manifest (accepts path to manifest JSON)",
+    )
     args = parser.parse_args()
 
     if args.publish_hour < 0 or args.publish_hour > 23:
@@ -2255,6 +2925,33 @@ def main():
         notify_override = True
     elif args.no_notify_subs:
         notify_override = False
+
+    # ── Manifest-based two-phase pipeline ─────────────────────────
+    # Handle --resume-from-manifest or --manifest (Phase 2)
+    manifest_path = args.resume_from_manifest or args.manifest
+    if manifest_path:
+        run_resume_from_manifest(manifest_path)
+        return
+
+    # Handle --manifest-only (Phase 1)
+    if args.manifest_only:
+        if not args.channel:
+            print("\n--manifest-only requires --channel. Specify which pipeline to generate scripts for.")
+            print("  Available channels for manifest mode:")
+            for ch in sorted(MANIFEST_ONLY_ROUTER.keys()):
+                print(f"    --channel {ch}")
+            sys.exit(1)
+        if args.channel not in MANIFEST_ONLY_ROUTER:
+            print(f"Channel '{args.channel}' does not support --manifest-only mode.")
+            print("  Supported channels: " + ", ".join(sorted(MANIFEST_ONLY_ROUTER.keys())))
+            sys.exit(1)
+        MANIFEST_ONLY_ROUTER[args.channel](
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+        )
+        return
 
     if args.upload_existing:
         if args.dynamic_visuals:
@@ -2310,7 +3007,13 @@ def main():
     elif args.channel == "family":
         run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
+        run_english(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+        )
     elif args.channel == "english-challenge":
         run_english_challenge(
             topic=args.topic,
@@ -2318,6 +3021,7 @@ def main():
             start_date=args.start_date,
             publish_hour=args.publish_hour,
             notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
         )
     elif args.channel == "english-shorts":
         run_english_shorts(
@@ -2326,11 +3030,12 @@ def main():
             schedule_time=effective_schedule_time,
             dynamic_visuals=args.dynamic_visuals,
             notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
         )
     elif args.channel == "english-slow":
         run_english_slow(
-            topic=args.topic, 
-            upload=not args.no_upload, 
+            topic=args.topic,
+            upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             slow_offset_hours=args.slow_offset_hours,
             notify_subscribers=notify_override,
@@ -2338,7 +3043,13 @@ def main():
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(topic=args.topic, upload=not args.no_upload, schedule_time=effective_schedule_time, notify_subscribers=notify_override)
+        run_english_quiz_shorts(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+        )
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:
             if not args.related_ids or not args.video_ids:
@@ -2400,7 +3111,7 @@ def profile_script():
             stats.print_stats()
 
 if __name__ == "__main__":
-    # Optimization: Only run profiler if explicitly requested. 
+    # Optimization: Only run profiler if explicitly requested.
     # Video processing is too heavy for standard profiling and causes massive slowdowns.
     if "--profile" in sys.argv:
         profile_script()
