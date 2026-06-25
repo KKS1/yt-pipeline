@@ -183,7 +183,7 @@ def scenes_assets_dir(project_root: Path, scenes_folder: str) -> Path:
 
 
 def scene_image_path(scenes_dir: Path, scene: dict) -> Path:
-    filename = scene.get("image_filename") or f"scene_{scene.get('scene_id', 0)}.jpg"
+    filename = scene.get("image_filename") or f"scene_{scene.get('scene_id', 0)}.png"
     return scenes_dir / filename
 
 

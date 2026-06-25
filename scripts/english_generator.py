@@ -134,7 +134,7 @@ def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
         end_turn = max(start_turn, min(end_turn, len(per_turn_times) - 1))
         start_sec = per_turn_times[start_turn][0]
         label = scene.get("scene_label") or scene.get("image_filename", f"Scene {scene.get('scene_id', '?')}")
-        label = re.sub(r"^scene_\d+_", "", str(label).replace(".jpg", "").replace("_", " ").title())
+        label = re.sub(r"^scene_\d+_", "", str(label).replace(".jpg", "").replace(".png", "").replace("_", " ").title())
         lines.append(f"{fmt_time(start_sec)} - {label}")
     return "\n".join(lines)
 
@@ -337,7 +337,7 @@ CRITICAL RULES:
 3. The background and character actions must match the literal words spoken in the dialogue text.
 4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
 5. Do not change the visual prompt unless the topic or physical location changes.
-6. Each scene needs a descriptive image_filename like scene_1_library_discussion.jpg (lowercase, underscores, .jpg extension).
+6. Each scene needs a descriptive image_filename like scene_1_library_discussion.jpg or scene_1_library_discussion.png (lowercase, underscores, .jpg or .png extension).
 
 Output ONLY valid JSON with this schema:
 {{
@@ -346,7 +346,7 @@ Output ONLY valid JSON with this schema:
     {{
       "scene_id": 1,
       "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
-      "image_filename": "scene_1_library_discussion.jpg",
+      "image_filename": "scene_1_library_discussion.jpg (or .png)",
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
       "dialogues": [
         {{"character": "Emma", "text": "exact dialogue text from script"}},
