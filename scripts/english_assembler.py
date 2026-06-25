@@ -473,21 +473,23 @@ def _kenburns_image_to_video(
     scale_h = height * 2
     
     if zoom_in:
-        # Smooth zoom in from 1.0 to 1.12
+        # Smooth zoom in from 1.0 to 1.12 with centered panning
         vf = (
             f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
             f"crop={scale_w}:{scale_h},"
             f"zoompan=z='min(zoom+0.0015,1.12)':"
-            f"x='if(eq(on,1),rand(0,iw-iw/zoom),x)':"
+            f"x='iw/2-(iw/zoom/2)':"
+            f"y='ih/2-(ih/zoom/2)':"
             f"d={total_frames}:s={width}x{height}:fps={fps}"
         )
     else:
-        # Smooth zoom out - start at 1.12 and zoom down to 1.0
+        # Smooth zoom out - start at 1.12 and zoom down to 1.0 with centered panning
         vf = (
             f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
             f"crop={scale_w}:{scale_h},"
             f"zoompan=z='max(1.0,zoom-0.0015)':"
-            f"x='if(eq(on,1),rand(0,iw-iw/zoom),x)':"
+            f"x='iw/2-(iw/zoom/2)':"
+            f"y='ih/2-(ih/zoom/2)':"
             f"d={total_frames}:s={width}x{height}:fps={fps}"
         )
     
