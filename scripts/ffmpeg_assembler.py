@@ -269,13 +269,19 @@ def _crossfade_video_pair(
     run_ffmpeg(cmd)
 
 
-def append_channel_bumpers(output_path: str, channel: Optional[str] = None) -> str:
+def append_channel_bumpers(output_path: str, channel: Optional[str] = None, portrait: bool = False) -> str:
     """
     Add optional channel intro/outro MP4 bumpers to a completed video.
 
     Bumpers live at assets/bumpers/<channel>/intro.mp4 and outro.mp4.
     Missing files are skipped; if neither exists, this is a no-op.
+    
+    For English vertical videos (portrait=True), bumpers are skipped.
     """
+    # Skip bumpers for English vertical videos (shorts, quiz, challenge-shorts)
+    if portrait and channel and channel.startswith("english"):
+        return output_path
+    
     bumpers = resolve_channel_bumper_paths(channel)
     if not bumpers:
         return output_path
@@ -846,7 +852,7 @@ def assemble_shorts_video(
         except Exception as e:
             print(f"  Face badge overlay skipped: {e}")
 
-    append_channel_bumpers(base_output, channel=channel)
+    append_channel_bumpers(base_output, channel=channel, portrait=True)
 
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024

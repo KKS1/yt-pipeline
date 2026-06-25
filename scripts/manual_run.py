@@ -991,6 +991,7 @@ def _assemble_english_video_from_script(
             idiom_windows=script.get("idiom_windows"),
             per_turn_times=per_turn_times,
             dialogue=script.get("dialogue", []),
+            portrait=False,
         )
 
     cleanup_english_temp()

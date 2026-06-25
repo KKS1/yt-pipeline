@@ -63,7 +63,8 @@ def main():
         output_path=out_path,
         captions_srt=srt_path,
         background_music=bg_music_str,
-        title=title
+        title=title,
+        portrait=False
     )
     
     cleanup_english_temp()

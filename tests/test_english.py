@@ -58,7 +58,8 @@ def test_pipeline():
         output_path=out_path,
         captions_srt=None,
         background_music="assets/background_music.mp3" if os.path.exists("assets/background_music.mp3") else None,
-        title=script["title"]
+        title=script["title"],
+        portrait=False
     )
     
     print("Done. Output at:", out_path)

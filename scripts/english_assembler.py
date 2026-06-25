@@ -551,6 +551,7 @@ def assemble_english_video(
     per_turn_times: list = None,
     dialogue: list = None,
     loop_visuals: list[str] = None,
+    portrait: bool = False,
 ) -> str:
     """
     Assemble the final English learning video:
@@ -696,7 +697,7 @@ def assemble_english_video(
         except Exception as e:
             print(f"  Face badge overlay skipped: {e}")
 
-    append_channel_bumpers(base_output, channel=channel)
+    append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
@@ -836,7 +837,7 @@ def assemble_english_scene_video(
         except Exception as e:
             print(f"  Idiom overlay skipped: {e}")
 
-    append_channel_bumpers(base_output, channel=channel)
+    append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
     print(f"  ✓ Scene-based English video assembled: {output_path} ({size_mb:.1f} MB)")
