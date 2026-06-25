@@ -387,6 +387,9 @@ def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict
         )
     return script
 
+
+def get_published_topics() -> dict:
+    """Load published English topics grouped by content type."""
     if PUBLISHED_TOPICS_FILE.exists():
         try:
             with open(PUBLISHED_TOPICS_FILE, "r", encoding="utf-8") as f:

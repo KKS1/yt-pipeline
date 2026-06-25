@@ -2700,7 +2700,7 @@ def main():
     parser.add_argument("--description", help="Description to use with --upload-existing")
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
-    parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for --channel english-challenge-shorts")
+    parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for english-challenge-shorts")
     parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
     parser.add_argument("--comments-only", action="store_true", help="Only post/update pinned comments")
@@ -2736,10 +2736,6 @@ def main():
     parser.add_argument(
         "--fetch-scenes-only",
         help="Retry Gemini scene image generation for an existing manifest JSON.",
-    )
-    parser.add_argument(
-        "--json-package",
-        help="Path to existing challenge JSON package (for english-challenge-shorts manifest).",
     )
     parser.add_argument(
         "--resume-from-manifest",
