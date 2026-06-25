@@ -222,7 +222,7 @@ def youtube_upload(
             "defaultLanguage": "en",
         },
         "status": {
-            "privacyStatus": "unlisted" if schedule_time else "public",
+            "privacyStatus": "unlisted",
             "selfDeclaredMadeForKids": channel == "kids",
         },
     }

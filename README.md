@@ -79,6 +79,31 @@ Experimental dynamic Emma/Liam visuals are available for English Shorts only and
 must be run with `--no-upload` while the prototype is being reviewed. See
 **[docs/DYNAMIC_ENGLISH_VISUALS.md](docs/DYNAMIC_ENGLISH_VISUALS.md)**.
 
+### English scene visuals (Pixar storyboards + Ken Burns)
+
+English channels now use a two-phase scene pipeline:
+
+```bash
+# Phase 1: Groq script + storyboard scenes + Gemini images (optional)
+python scripts/manual_run.py --manifest-only --channel english
+
+# Manual fallback: place scene images under assets/generated_scenes/<slug>/ then:
+python scripts/manual_run.py --resume-from-manifest manifests/english_<topic>.manifest.json
+
+# Skip Gemini and place images manually
+python scripts/manual_run.py --manifest-only --channel english --skip-gemini
+
+# Retry Gemini for missing scene images only
+python scripts/manual_run.py --fetch-scenes-only manifests/english_<topic>.manifest.json
+
+# Legacy MP4 loop matching (fallback)
+python scripts/manual_run.py --manifest-only --channel english --legacy-visuals
+```
+
+Supported manifest channels: `english`, `english-shorts`, `english-quiz`, `english-challenge`, `english-challenge-shorts`.
+
+Scene durations are driven by Kokoro TTS audio (not estimated). YouTube uploads are always **unlisted** until you manually publish in YouTube Studio. Set `GEMINI_API_KEY` in `.env` for automatic scene image generation via `gemini-2.5-flash-image`.
+
 ## Project structure
 
 ```
