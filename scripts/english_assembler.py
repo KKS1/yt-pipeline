@@ -464,25 +464,33 @@ def _kenburns_image_to_video(
     *,
     zoom_in: bool = True,
 ) -> None:
-    """Convert a still image to a Ken Burns video clip for exact duration."""
+    """Convert a still image to a Ken Burns video clip for exact duration using smooth zoompan."""
     fps = VIDEO_FPS
     total_frames = max(round(duration * fps), 2)
+    
+    # Scale up 2x first for smooth zoompan (like family_assembler)
+    scale_w = width * 2
+    scale_h = height * 2
+    
     if zoom_in:
+        # Smooth zoom in from 1.0 to 1.12
         vf = (
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
-            f"scale='{width}*(1+0.04*n/{total_frames})':-1:eval=frame,"
-            f"crop={width}:{height}:(iw-ow)/2:(ih-oh)/2,setsar=1,fps={fps}"
+            f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
+            f"crop={scale_w}:{scale_h},"
+            f"zoompan=z='min(zoom+0.0015,1.12)':"
+            f"x='if(eq(on,1),rand(0,iw-iw/zoom),x)':"
+            f"d={total_frames}:s={width}x{height}:fps={fps}"
         )
     else:
-        big_w = int(width * 1.05)
-        big_h = int(height * 1.05)
+        # Smooth zoom out - start at 1.12 and zoom down to 1.0
         vf = (
-            f"scale={big_w}:{big_h}:force_original_aspect_ratio=decrease,"
-            f"pad={big_w}:{big_h}:(ow-iw)/2:(oh-ih)/2,"
-            f"scale='{big_w}*(1-0.03*n/{total_frames})':-1:eval=frame,"
-            f"crop={width}:{height}:'(iw-ow)/2':'(ih-oh)/2',setsar=1,fps={fps}"
+            f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
+            f"crop={scale_w}:{scale_h},"
+            f"zoompan=z='max(1.0,zoom-0.0015)':"
+            f"x='if(eq(on,1),rand(0,iw-iw/zoom),x)':"
+            f"d={total_frames}:s={width}x{height}:fps={fps}"
         )
+    
     subprocess.run([
         FFMPEG, "-y",
         "-loop", "1", "-i", image_path,
