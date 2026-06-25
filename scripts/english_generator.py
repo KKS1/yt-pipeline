@@ -18,13 +18,36 @@ METADATA RULES:
 - Titles must be high-CTR, searchable, curiosity-driven, and punchy.
 - Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
 - Keep titles natural for YouTube search; front-load keywords like English Listening Practice, English Speaking Practice, English Quiz, or Learn English.
-- Descriptions must start with 2 SEO-heavy lines, then include a timeline when the video is long-form.
-- Descriptions must use readable spacing with blank lines between sections.
-- Descriptions must include a comment prompt, a subscribe CTA, relevant hashtags, and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
-- Use tasteful CTA icons such as 📺, 💬, and 🔔 in the description.
+- Descriptions MUST start with exactly 2 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
+- Place the comment question in lines 3-5 (immediately after the SEO opener, BEFORE timeline and CTAs) to encourage early engagement.
+- Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
+- For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
+- Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
 - Pinned comments must ask a specific question that viewers can answer quickly.
+
+DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline):
+Natural English for real conversations — Speak like a native!
+
+💬 Comment below: [specific question]
+
+{scene_timeline}
+
+🎯 In this video: [bullet summary]
+📚 [level or topic summary]
+
+🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
+📺 Watch the playlist here: {playlist_url}
+
+#EnglishVibesHub #LearnEnglish ...
 """
+
+ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
+    "3D Pixar animation style, Disney character design, cinematic lighting, 16:9 aspect ratio."
+)
+ENGLISH_STORYBOARD_STYLE_SUFFIX_PORTRAIT = (
+    "3D Pixar animation style, Disney character design, cinematic lighting, 9:16 aspect ratio."
+)
 
 _PLAYLIST_LINE_RE = re.compile(
     r"""
@@ -56,6 +79,113 @@ _PLAYLIST_LINE_RE = re.compile(
 )
 
 
+def ensure_english_vibes_hashtags(description: str) -> str:
+    """Ensure #EnglishVibesHub appears in the description hashtag block."""
+    text = str(description or "").strip()
+    if not text:
+        return "#EnglishVibesHub #LearnEnglish"
+    if re.search(r"#EnglishVibesHub\b", text, re.IGNORECASE):
+        return text
+    hashtag_lines = [i for i, line in enumerate(text.splitlines()) if "#" in line]
+    if hashtag_lines:
+        idx = hashtag_lines[-1]
+        lines = text.splitlines()
+        lines[idx] = lines[idx].rstrip() + " #EnglishVibesHub"
+        return "\n".join(lines)
+    return text + "\n\n#EnglishVibesHub #LearnEnglish"
+
+
+def ensure_english_seo_opener(description: str) -> str:
+    """Ensure first two lines use high-intent Natural English / Speak like a native keywords."""
+    text = str(description or "").strip()
+    if not text:
+        return (
+            "Natural English for real conversations — Speak like a native!\n"
+            "Improve your listening and speaking with Emma and Liam."
+        )
+    lines = text.splitlines()
+    opener = lines[0].lower() if lines else ""
+    if "natural english" in opener and any(
+        phrase in text.lower() for phrase in ("speak like a native", "speak like native")
+    ):
+        return text
+    seo_lines = [
+        "Natural English for real conversations — Speak like a native!",
+        lines[0] if lines else "Improve your listening and speaking with Emma and Liam.",
+    ]
+    rest = lines[1:] if len(lines) > 1 else []
+    return "\n".join(seo_lines + rest)
+
+
+def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
+    """Build a formatted timeline block from scene turn ranges and Kokoro audio timings."""
+    if not scenes or not per_turn_times:
+        return "📑 Timeline:\n0:00 - Start"
+
+    def fmt_time(seconds: float) -> str:
+        seconds = max(0, int(seconds))
+        return f"{seconds // 60}:{seconds % 60:02d}"
+
+    lines = ["📑 Timeline:"]
+    for scene in scenes:
+        start_turn = int(scene.get("start_turn", 0))
+        end_turn = int(scene.get("end_turn", start_turn))
+        start_turn = max(0, min(start_turn, len(per_turn_times) - 1))
+        end_turn = max(start_turn, min(end_turn, len(per_turn_times) - 1))
+        start_sec = per_turn_times[start_turn][0]
+        label = scene.get("scene_label") or scene.get("image_filename", f"Scene {scene.get('scene_id', '?')}")
+        label = re.sub(r"^scene_\d+_", "", str(label).replace(".jpg", "").replace("_", " ").title())
+        lines.append(f"{fmt_time(start_sec)} - {label}")
+    return "\n".join(lines)
+
+
+def inject_scene_timeline(description: str, timeline_block: str) -> str:
+    """Replace {scene_timeline} placeholder or upgrade an existing timeline section."""
+    text = str(description or "").strip()
+    if "{scene_timeline}" in text:
+        return text.replace("{scene_timeline}", timeline_block)
+    if re.search(r"📑\s*Timeline:", text, re.IGNORECASE):
+        return re.sub(
+            r"📑\s*Timeline:.*?(?=\n\n|\Z)",
+            timeline_block,
+            text,
+            count=1,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    if re.search(r"\bTimeline:\b", text, re.IGNORECASE):
+        return re.sub(
+            r"Timeline:.*?(?=\n\n|\Z)",
+            timeline_block.replace("📑 Timeline:", "Timeline:"),
+            text,
+            count=1,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    # Insert after comment block if present, else after opener
+    comment_match = re.search(r"💬[^\n]+\n?", text)
+    if comment_match:
+        insert_at = comment_match.end()
+        return text[:insert_at].rstrip() + "\n\n" + timeline_block + "\n\n" + text[insert_at:].lstrip()
+    lines = text.split("\n\n", 1)
+    if len(lines) == 2:
+        return lines[0] + "\n\n" + timeline_block + "\n\n" + lines[1]
+    return text + "\n\n" + timeline_block
+
+
+def finalize_english_description(
+    description: str,
+    *,
+    include_timeline: bool = False,
+    is_quiz: bool = False,
+) -> str:
+    """Apply all English description post-processors."""
+    text = ensure_english_seo_opener(description)
+    text = ensure_english_description_cta(text, include_timeline=include_timeline)
+    text = ensure_english_vibes_hashtags(text)
+    if is_quiz:
+        text = ensure_english_quiz_shorts_hashtags(text)
+    return text
+
+
 def ensure_english_description_cta(description: str, *, include_timeline: bool = False) -> str:
     """Guarantee core YouTube metadata CTAs even if the model skips them."""
     text = str(description or "").strip()
@@ -68,8 +198,10 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
 
     additions = []
 
-    if include_timeline and not re.search(r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE):
-        additions.append("Timeline:\n0:00 - Start the lesson\n5:00 - Practice examples\n10:00 - Review and next steps")
+    if include_timeline and "{scene_timeline}" not in text and not re.search(
+        r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
+    ):
+        additions.append("{scene_timeline}")
     if "{playlist_url}" not in text:
         additions.append("📺 Watch the playlist here: {playlist_url}")
     if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
@@ -85,7 +217,7 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
 
 def ensure_english_quiz_shorts_hashtags(description: str) -> str:
     """Keep quiz Shorts hashtags in a predictable first hashtag line."""
-    target_line = "#Shorts #EnglishQuiz #LearnEnglish"
+    target_line = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
     text = str(description or "").strip()
     if not text:
         return target_line
@@ -119,7 +251,145 @@ def ensure_english_quiz_shorts_hashtags(description: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
+
+def _normalize_dialogue_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip().lower())
+
+
+def _speaker_name(line: dict) -> str:
+    return str(line.get("speaker") or line.get("character") or "").strip()
+
+
+def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
+    """Attach start_turn/end_turn to each scene by sequential dialogue matching."""
+    if not scenes or not dialogue:
+        return scenes
+
+    turn_idx = 0
+    aligned = []
+    for scene in scenes:
+        scene = dict(scene)
+        dialogues = scene.get("dialogues") or scene.get("dialogue_list") or []
+        if not dialogues:
+            aligned.append(scene)
+            continue
+
+        start_turn = turn_idx
+        for d_line in dialogues:
+            if turn_idx >= len(dialogue):
+                print(f"  [warn] Scene {scene.get('scene_id')}: ran out of dialogue turns at index {turn_idx}")
+                break
+            expected_text = _normalize_dialogue_text(d_line.get("text", ""))
+            actual_text = _normalize_dialogue_text(dialogue[turn_idx].get("text", ""))
+            expected_speaker = _speaker_name(d_line).lower()
+            actual_speaker = _speaker_name(dialogue[turn_idx]).lower()
+            if expected_text and expected_text != actual_text:
+                print(
+                    f"  [warn] Scene {scene.get('scene_id')} turn {turn_idx}: "
+                    f"dialogue mismatch (expected '{d_line.get('text', '')[:40]}...')"
+                )
+            if expected_speaker and actual_speaker and expected_speaker != actual_speaker:
+                print(
+                    f"  [warn] Scene {scene.get('scene_id')} turn {turn_idx}: "
+                    f"speaker mismatch (expected {expected_speaker}, got {actual_speaker})"
+                )
+            turn_idx += 1
+
+        end_turn = max(start_turn, turn_idx - 1)
+        scene["start_turn"] = start_turn
+        scene["end_turn"] = end_turn
+        aligned.append(scene)
+
+    if turn_idx < len(dialogue):
+        print(f"  [warn] {len(dialogue) - turn_idx} dialogue turn(s) not assigned to any scene")
+    return aligned
+
+
+def generate_english_storyboard(script: dict, *, portrait: bool = False) -> dict:
+    """Post-dialogue Groq call: group dialogue into Pixar-style visual scenes."""
+    dialogue = script.get("dialogue", [])
+    if not dialogue:
+        script.setdefault("scenes", [])
+        return script
+
+    turns_summary = "\n".join(
+        f"{i}: [{line.get('speaker', '?')}] {line.get('text', '')[:150]}"
+        for i, line in enumerate(dialogue[:120])
+    )
+    style_suffix = (
+        ENGLISH_STORYBOARD_STYLE_SUFFIX_PORTRAIT
+        if portrait
+        else ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
+    )
+    theme = script.get("theme") or script.get("title", "English Lesson")
+
+    prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
+Analyze the input script. For each dialogue row, generate a highly descriptive visual prompt.
+
+TOPIC / THEME: {theme}
+
+DIALOGUE TURNS (index: [Speaker] text):
+{turns_summary}
+
+CRITICAL RULES:
+1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair.
+2. The style must ALWAYS be: "{style_suffix}"
+3. The background and character actions must match the literal words spoken in the dialogue text.
+4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
+5. Do not change the visual prompt unless the topic or physical location changes.
+6. Each scene needs a descriptive image_filename like scene_1_library_discussion.jpg (lowercase, underscores, .jpg extension).
+
+Output ONLY valid JSON with this schema:
+{{
+  "theme": "string",
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
+      "image_filename": "scene_1_library_discussion.jpg",
+      "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
+      "dialogues": [
+        {{"character": "Emma", "text": "exact dialogue text from script"}},
+        {{"character": "Liam", "text": "exact dialogue text from script"}}
+      ]
+    }}
+  ]
+}}
+"""
+    try:
+        res = call_groq_json(prompt)
+        scenes = res.get("scenes", [])
+        if not isinstance(scenes, list):
+            scenes = []
+        for scene in scenes:
+            vp = str(scene.get("visual_prompt", "")).strip()
+            if vp and style_suffix.lower() not in vp.lower():
+                scene["visual_prompt"] = f"{vp.rstrip('.')} {style_suffix}"
+        script["theme"] = res.get("theme") or theme
+        script["scenes"] = align_scenes_to_turns(scenes, dialogue)
+        print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")
+    except Exception as exc:
+        print(f"  Storyboard generation skipped (Groq error): {exc}")
+        script.setdefault("scenes", [])
+    return script
+
+
+def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict:
+    """Generate storyboard scenes and apply description post-processing."""
+    script = generate_english_storyboard(script, portrait=portrait)
+    is_quiz = script.get("video_format") in ("shorts_quiz", "shorts")
+    include_timeline = not portrait and script.get("video_format") not in ("shorts", "shorts_quiz")
+    if script.get("description"):
+        script["description"] = finalize_english_description(
+            script["description"],
+            include_timeline=include_timeline,
+            is_quiz=is_quiz,
+        )
+    return script
+
+
 def get_published_topics() -> dict:
+    """Load published English topics grouped by content type."""
     if PUBLISHED_TOPICS_FILE.exists():
         try:
             with open(PUBLISHED_TOPICS_FILE, "r", encoding="utf-8") as f:
@@ -379,7 +649,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
     description = part1_data.get("description")
     if not description:
         description = f"Learn English with this detailed conversation about {topic}."
-    description = ensure_english_description_cta(description, include_timeline=True)
+    description = finalize_english_description(description, include_timeline=True)
 
     tags = part1_data.get("tags")
     if not tags:
@@ -390,6 +660,7 @@ def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, 
         "description": description,
         "pinned_comment": part1_data.get("pinned_comment", ""),
         "tags": tags,
+        "theme": part1_data.get("theme", topic),
         "visual_keywords": part1_data.get("visual_keywords", []),
         "dialogue": [],
     }
@@ -636,7 +907,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (Searchable keyword-rich title, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
-      "description": "string (First 2 lines packed with SEO keywords. Include #Shorts, #EnglishChallenge, #EnglishVibesHub, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high CTR tags)",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {scene_timeline} placeholder for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
@@ -648,10 +919,10 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
-    script_data["description"] = ensure_english_quiz_shorts_hashtags(
-        ensure_english_description_cta(script_data.get("description", ""))
+    script_data["description"] = finalize_english_description(
+        script_data.get("description", ""), is_quiz=True
     )
-    return script_data
+    return attach_storyboard_to_script(script_data, portrait=True)
 
 def generate_english_community_content(topic: str = None, content_type: str = "quiz") -> dict:
     """
@@ -763,9 +1034,10 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR title using hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include Day {day_number} in the suffix. e.g., 'Day {day_number}: STOP Using Basic Words!')",
   "title_options": ["string"],
-  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high CTR tags)",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {scene_timeline} for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
+  "theme": "string (short topic label for storyboard, e.g. 'Phrasal Verbs at Work')",
   "day": {day_number},
   "series_title": "string",
   "dialogue": [
@@ -780,7 +1052,9 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
-    script["description"] = ensure_english_description_cta(script.get("description", ""), include_timeline=True)
+    script["description"] = finalize_english_description(
+        script.get("description", ""), include_timeline=True
+    )
 
     if not script.get("title"):
         title_options = script.get("title_options") or []
@@ -791,7 +1065,8 @@ JSON SCHEMA:
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
 
-    return _clean_challenge_dialogue(script, day_number)
+    script = _clean_challenge_dialogue(script, day_number)
+    return attach_storyboard_to_script(script, portrait=False)
 
 
 def generate_weekly_challenge_scripts(topic=None) -> dict:
@@ -867,10 +1142,11 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR, curiosity-based, searchable title using title case and selective ALL CAPS for hook words, e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
   "title_options": ["string"],
-  "description": "string (YouTube description. The first 2 lines MUST be packed with SEO keywords for maximum reach. Include a timeline, relevant keywords, a specific comment question, a subscribe CTA, playlist placeholder line '📺 Watch the playlist here: {{playlist_url}}', and relevant hashtags mirroring the 'tags' list below)",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {scene_timeline} placeholder, subscribe CTA, playlist placeholder '📺 Watch the playlist here: {{playlist_url}}', #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
-  "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
+  "theme": "string (short topic label for storyboard, e.g. 'Restaurant Ordering - Level 1')",
+  "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
@@ -973,7 +1249,7 @@ JSON SCHEMA:
     
     save_published_topic(script.get("title", topic), topic_type="podcast")
     
-    return script
+    return attach_storyboard_to_script(script, portrait=False)
 
 
 # ─────────────────────────────────────────────
@@ -1034,136 +1310,6 @@ SLOW_IDIOM_POOL = [
 ]
 
 
-def generate_english_slow_script(topic=None):
-    """Generate a short idiom-focused script for the slow English pipeline.
-
-    Returns a dict with keys:
-        title_normal, title_slow,
-        description_normal (template with {slow_url}),
-        description_slow   (template with {normal_url}),
-        tags, dialogue, idiom, thumbnail_text, thumbnail_concept
-    The dialogue contains 10-12 turns (≈60-90 s at 0.95x; ≈75-112 s at 0.80x).
-    """
-    topics_data = get_published_topics()
-    published_slow = topics_data.get("slow", [])
-
-    if not topic:
-        # Filter idioms by checking if they appear in any previously published titles
-        remaining = [
-            i for i in SLOW_IDIOM_POOL 
-            if not any(i.lower() in p.lower() for p in published_slow)
-        ]
-        if not remaining:
-            remaining = SLOW_IDIOM_POOL  # cycle back when all done
-        topic = random.choice(remaining)
-    elif is_already_published(topic, "slow"):
-        print(f"\n  [WARNING] Manual idiom '{topic}' was found in 'slow' history.")
-
-    print(f"\nSelected slow idiom: {topic}")
-
-    recent = published_slow[-50:] if published_slow else []
-    avoid_instruction = ""
-    if recent:
-        avoid_instruction = (
-            f"\nDo NOT use any of these already-published idioms or titles as the main focus or repeat their examples:\n"
-            + json.dumps(recent, indent=2)
-        )
-
-    prompt = f"""
-You are writing a high CTR short English learning podcast script for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-
-IDIOM / TOPIC: {topic}
-{avoid_instruction}
-{ENGLISH_METADATA_RULES}
-
-CRITICAL RULES:
-- Output ONLY valid JSON.
-- The `dialogue` array MUST contain exactly 10-12 turns total.
-- Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
-- Teach the idiom '{topic}' thoroughly: its meaning, origin (if interesting), and 2-3 real-life usage examples.
-- Each turn should be 2-3 sentences. No single-sentence turns.
-- The FINAL turn should gently invite viewers to try using the idiom in the comments.
-- Do NOT add like/subscribe CTAs mid-episode; only a brief mention is allowed in the last turn.
-- END-OF-VIDEO REVIEW: The last 3 turns MUST be a 'Test Your Understanding' segment. Emma asks a multiple choice question about the idiom, followed by a dialogue turn containing ONLY "[PAUSE]", then Liam reveals the answer.
-
-STYLE:
-- Warm, encouraging, crystal-clear pacing.
-- Perfect for ESL learners and absolute beginners.
-- Define every word that might be unfamiliar.
-
-SEARCHABLE TITLES REQUIRED:
-- title_normal: High-CTR, discovery-friendly, curiosity-based, no "slow" branding. Use hooks like 'STOP Saying...', 'The Real Meaning of...', or 'DON'T Use This Wrong'.
-  Example: "STOP Saying 'I Don't Know' — Use These Phrases Instead".
-- title_slow: beginner-targeted, slow-learning branding with the 🐢 emoji.
-  Example: "🐢 SLOW English: STOP Saying 'I Don't Know'".
-
-TWO DESCRIPTIONS REQUIRED — they must feel like DIFFERENT videos:
-- description_normal: 80-100 words. First 2 lines must be packed with SEO keywords. Focus on idiom mastery and conversational English. Include a comment CTA, subscribe CTA, playlist placeholder, and hashtags that mirror the 'tags' list below.
-- description_slow: 80-100 words. Emphasise the slow-learner benefit (0.8x speed, big captions).
-  Include a comment CTA, subscribe CTA, playlist placeholder, and hashtags that mirror the 'tags' list below.
-
-JSON SCHEMA:
-{{
-  "title_normal": "string",
-  "title_slow":   "string",
-  "description_normal": "string (Normal speed description. First 2 lines packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, and relevant hashtags mirroring the 'tags' list below)",
-  "description_slow":   "string (Slow speed description. First 2 lines packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, and relevant hashtags that mirror the 'tags' list below)",
-  "pinned_comment": "string (A specific 'How would you use this?' question)",
-  "tags": ["string (Provide 5-8 SEO-focused tags)"],
-  "idiom": "{topic}",
-  "dialogue": [
-    {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
-    }}
-  ]
-}}
-"""
-    script_data = call_groq_json(prompt)
-    script_data.setdefault("idiom", topic)
-    script_data.setdefault("video_format", "slow")
-
-    # ── Fallback titles ────────────────────────────────────────────
-    if not script_data.get("title_normal"):
-        script_data["title_normal"] = f"{topic} — What Does It Mean? | English Idioms"
-    if not script_data.get("title_slow"):
-        script_data["title_slow"] = f"{topic} 🐢 SLOW English | Idioms for Beginners"
-
-    # ── Thumbnail (based on normal title — the "main" video) ──────
-    thumbnail = generate_thumbnail_text(f"{topic} — English Idiom", is_challenge=False)
-    script_data["thumbnail_text"] = thumbnail.get("thumbnail_text") or topic
-    script_data["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
-
-    # ── Companion description templates (URLs injected by the pipeline) ──
-    idiom = script_data.get("idiom", topic)
-    base_normal = script_data.get("description_normal", "")
-    base_slow   = script_data.get("description_slow", "")
-
-    # Fallback if Groq returned only one description key
-    if not base_normal and not base_slow:
-        fallback = script_data.get("description", "")
-        base_normal = fallback
-        base_slow   = fallback
-    elif not base_normal:
-        base_normal = script_data.get("description", base_slow)
-    elif not base_slow:
-        base_slow = script_data.get("description", base_normal)
-
-    script_data["description_normal"] = (
-        ensure_english_description_cta(base_normal).rstrip()
-        + "\n\n🐢 Didn't catch that? Watch the Slow English version here:\n{slow_url}"
-    )
-    script_data["description_slow"] = (
-        f"🐢 SLOW English Learning Mode — \"{idiom}\" explained at 0.8x speed "
-        f"with large on-screen captions!\n\n"
-        + ensure_english_description_cta(base_slow).rstrip()
-        + "\n\n⚡ Ready for the real speed? Watch here:\n{normal_url}"
-    )
-
-    save_published_topic(script_data.get("title_normal", topic), topic_type="slow")
-
-    return script_data
-
 def generate_english_shorts_script(topic=None):
 
     if not topic:
@@ -1204,10 +1350,11 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR, curiosity-based Short title under 70 chars using hooks like 'STOP Saying...', 'DON'T Say This', or '1 Mistake All Learners Make')",
   "title_options": ["string"],
-  "description": "string (YouTube description. First 2 lines MUST be packed with SEO keywords for maximum reach. Include an engaging comment question, subscribe CTA, playlist placeholder, #Shorts, and relevant hashtags that mirror the 'tags' list below)",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
-  "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
+  "theme": "string (short topic label for storyboard)",
+  "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
   "video_format": "shorts",
   "dialogue": [
     {{
@@ -1219,7 +1366,7 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
-    script_data["description"] = ensure_english_description_cta(script_data.get("description", ""))
+    script_data["description"] = finalize_english_description(script_data.get("description", ""))
 
     if not script_data.get("title"):
         title_options = script_data.get("title_options") or []
@@ -1228,7 +1375,7 @@ JSON SCHEMA:
     
     save_published_topic(script_data.get("title", topic), topic_type="shorts")
     
-    return script_data
+    return attach_storyboard_to_script(script_data, portrait=True)
 
 def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """Strategy 1: Generate a MCQ Quiz Short."""
@@ -1280,11 +1427,12 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: STOP Making This Mistake!')",
-      "description": "string (High-intent description. First 2 lines MUST be packed with SEO keywords. Include comment CTA, subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #LearnEnglish, and hashtags mirroring the 'tags' list below)",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #EnglishVibesHub, and hashtags mirroring 'tags')",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
-      "visual_keywords": ["string (5-8 simple visual search words for selecting relevant local video loops, e.g. cafe, coffee, office, travel, library, conversation)"],
+      "theme": "string (short topic label for storyboard, e.g. 'Idiom Quiz - Break a Leg')",
+      "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
       "dialogue": [
         {{ "speaker": "Emma", "text": "..." }},
         {{ "speaker": "Liam", "text": "..." }}
@@ -1293,7 +1441,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
-    script_data["description"] = ensure_english_quiz_shorts_hashtags(
-        ensure_english_description_cta(script_data.get("description", ""))
+    script_data["description"] = finalize_english_description(
+        script_data.get("description", ""), is_quiz=True
     )
-    return script_data
+    save_published_topic(script_data.get("title", topic), topic_type="quiz")
+    return attach_storyboard_to_script(script_data, portrait=True)

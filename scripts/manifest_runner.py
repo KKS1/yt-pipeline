@@ -39,6 +39,10 @@ class ManifestEntry:
     orientation: str               # "landscape" or "portrait"
     estimated_duration_seconds: float = 0.0
     resolved_visuals: list[str] = field(default_factory=list)
+    scenes: list = field(default_factory=list)
+    scenes_folder: str = ""
+    scene_images_ready: bool = False
+    visual_mode: str = "scenes"    # "scenes" | "legacy_loops"
 
     def to_dict(self) -> dict:
         return {
@@ -50,17 +54,25 @@ class ManifestEntry:
             "orientation": self.orientation,
             "estimated_duration_seconds": self.estimated_duration_seconds,
             "resolved_visuals": self.resolved_visuals,
+            "scenes": self.scenes,
+            "scenes_folder": self.scenes_folder,
+            "scene_images_ready": self.scene_images_ready,
+            "visual_mode": self.visual_mode,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> ManifestEntry:
-        return cls(**d)
+        known = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in d.items() if k in known}
+        if "visual_mode" not in filtered and not filtered.get("scenes"):
+            filtered["visual_mode"] = "legacy_loops"
+        return cls(**filtered)
 
 
 @dataclass
 class VisualManifest:
     """Full manifest for one pipeline run."""
-    version: int = 1
+    version: int = 2
     pipeline: str = ""             # "english", "english-shorts", etc.
     generated_at: str = ""
     series_title: str = ""         # for challenges
@@ -163,7 +175,103 @@ def select_top_visuals(
     return (matched + unmatched)[:max_count]
 
 
-# ── Interactive resolution ────────────────────────────────────────────────────
+SCENE_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def scenes_assets_dir(project_root: Path, scenes_folder: str) -> Path:
+    return project_root / "assets" / scenes_folder
+
+
+def scene_image_path(scenes_dir: Path, scene: dict) -> Path:
+    filename = scene.get("image_filename") or f"scene_{scene.get('scene_id', 0)}.jpg"
+    return scenes_dir / filename
+
+
+def check_scene_images_ready(scenes_dir: Path, scenes: list) -> tuple[bool, list[str]]:
+    """Return (all_ready, missing_relative_paths)."""
+    if not scenes:
+        return False, []
+    missing = []
+    for scene in scenes:
+        path = scene_image_path(scenes_dir, scene)
+        if not path.exists():
+            missing.append(path.name)
+    return len(missing) == 0, missing
+
+
+def resolve_scene_image_paths(scenes_dir: Path, scenes: list) -> list[Path]:
+    """Return ordered scene image paths (must all exist)."""
+    paths = []
+    for scene in scenes:
+        path = scene_image_path(scenes_dir, scene)
+        if not path.exists():
+            raise FileNotFoundError(f"Missing scene image: {path}")
+        paths.append(path)
+    return paths
+
+
+def interactive_resolve_scenes(
+    entry: ManifestEntry,
+    project_root: Path,
+) -> bool:
+    """
+    Phase 2 scene-image resolution for one manifest entry.
+    Returns True when all scene images are present.
+    """
+    if entry.visual_mode != "scenes" or not entry.scenes:
+        return False
+
+    scenes_dir = scenes_assets_dir(project_root, entry.scenes_folder)
+    scenes_dir.mkdir(parents=True, exist_ok=True)
+
+    while True:
+        ready, missing = check_scene_images_ready(scenes_dir, entry.scenes)
+        entry.scene_images_ready = ready
+
+        print("\n" + "=" * 58)
+        print(f"  SCENE REVIEW: {entry.label}")
+        print("=" * 58)
+        print(f"  Topic / Title : {entry.topic}")
+        print(f"  Scenes folder : assets/{entry.scenes_folder}/")
+        print(f"  Scene count   : {len(entry.scenes)}")
+        print()
+
+        for scene in entry.scenes:
+            path = scene_image_path(scenes_dir, scene)
+            status = "✓" if path.exists() else "✗ MISSING"
+            label = scene.get("scene_label") or scene.get("image_filename", "")
+            print(f"  [{status}] {path.name} — {label}")
+
+        if ready:
+            print("\n  ✓ All scene images ready.")
+            return True
+
+        print(f"\n  ⚠ Missing {len(missing)} image(s). Place files in assets/{entry.scenes_folder}/")
+        for m in missing:
+            print(f"    - {m}")
+        print()
+
+        action = input(
+            "  [Y] Continue (all images placed)  [R] Re-scan  [S] Skip  [Q] Quit: "
+        ).strip().lower()
+
+        if action in ("", "y", "yes"):
+            ready, _ = check_scene_images_ready(scenes_dir, entry.scenes)
+            entry.scene_images_ready = ready
+            if ready:
+                return True
+            print("  Still missing images. Re-scan or skip.")
+            continue
+        if action in ("r", "refresh"):
+            input("  Press Enter after placing images...")
+            continue
+        if action in ("s", "skip"):
+            print(f"  ⏭ Skipping '{entry.label}'")
+            return False
+        if action in ("q", "quit"):
+            print("  Aborting pipeline.")
+            sys.exit(0)
+
 
 def interactive_resolve_entry(
     entry: ManifestEntry,
@@ -259,6 +367,15 @@ def resolve_manifest(
     """
     print(f"\n  Manifest has {len(manifest.entries)} video(s) to process")
     for i, entry in enumerate(manifest.entries, 1):
+        if entry.visual_mode == "scenes" and entry.scenes:
+            if entry.scene_images_ready:
+                print(f"\n  [{i}/{len(manifest.entries)}] Scene images already ready: {entry.label}")
+                act = input("    Re-check scene images? [y/N]: ").strip().lower()
+                if act not in ("y", "yes"):
+                    continue
+            interactive_resolve_scenes(entry, project_root)
+            continue
+
         if entry.resolved_visuals:
             print(f"\n  [{i}/{len(manifest.entries)}] Already resolved: {entry.label}")
             print(f"    Previous selection: {', '.join(Path(p).name for p in entry.resolved_visuals)}")

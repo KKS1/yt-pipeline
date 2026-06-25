@@ -27,7 +27,7 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
             return "quiz_afternoon"
         elif h == 21 and m == 0:
             return "quiz_night"
-    elif channel == "english-shorts": # english-slow will add later
+    elif channel == "english-shorts":
         if h == 19 and m == 0:
             return "tip_7pm"
     elif channel in ("english"):
@@ -148,7 +148,7 @@ class ScheduleLedger:
             return self.get_next_quiz_slot(now_dt)
         elif channel == "english-shorts":
             return self.get_next_shorts_slot(now_dt)
-        elif channel in ("english", "english-slow"):
+        elif channel == "english":
             return self.get_next_english_slot(now_dt)
         elif channel == "english-challenge":
             slot_dt = self.get_next_challenge_start_date(now_dt)

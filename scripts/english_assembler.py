@@ -18,6 +18,8 @@ from ffmpeg_assembler import (
     VIDEO_WIDTH,
     VIDEO_HEIGHT,
     VIDEO_FPS,
+    SHORTS_WIDTH,
+    SHORTS_HEIGHT,
 )
 from kokoro_tts import synthesize
 from typing import Optional, Tuple, List
@@ -37,6 +39,52 @@ def _pause_duration_seconds(text: str) -> float | None:
     if match.group(1):
         return max(0.25, min(float(match.group(1)), 10.0))
     return 1.0
+
+
+def _gate_idiom_windows_after_pause_reveals(
+    idiom_windows: list[dict] | None,
+    dialogue: list[dict] | None,
+) -> list[dict]:
+    """Delay idiom overlays that intersect a pause-and-guess sequence until reveal."""
+    if not idiom_windows or not dialogue:
+        return idiom_windows or []
+
+    reveal_windows: list[tuple[int, int, int]] = []
+    for idx, turn in enumerate(dialogue):
+        if _pause_duration_seconds(turn.get("text", "")) is None:
+            continue
+        prompt_idx = next(
+            (j for j in range(idx - 1, -1, -1) if _pause_duration_seconds(dialogue[j].get("text", "")) is None),
+            None,
+        )
+        reveal_idx = next(
+            (j for j in range(idx + 1, len(dialogue)) if _pause_duration_seconds(dialogue[j].get("text", "")) is None),
+            None,
+        )
+        if prompt_idx is not None and reveal_idx is not None:
+            reveal_windows.append((prompt_idx, idx, reveal_idx))
+
+    if not reveal_windows:
+        return idiom_windows
+
+    gated: list[dict] = []
+    for window in idiom_windows:
+        try:
+            st = int(window.get("start_turn", 0))
+            et = int(window.get("end_turn", st))
+        except (TypeError, ValueError):
+            gated.append(window)
+            continue
+
+        adjusted = dict(window)
+        for prompt_idx, pause_idx, reveal_idx in reveal_windows:
+            if st <= reveal_idx and et >= prompt_idx and st <= pause_idx:
+                st = max(st, reveal_idx)
+                et = max(et, st)
+                adjusted["start_turn"] = st
+                adjusted["end_turn"] = et
+        gated.append(adjusted)
+    return gated
 
 
 def _generate_silence_audio(output_path: str, duration_seconds: float) -> str:
@@ -398,6 +446,98 @@ def resolve_idiom_timestamps(
     return resolved
 
 
+def scene_duration_from_turns(scene: dict, per_turn_times: list) -> float:
+    """Compute scene duration from Kokoro audio turn timestamps."""
+    if not per_turn_times:
+        return 5.0
+    start_turn = max(0, min(int(scene.get("start_turn", 0)), len(per_turn_times) - 1))
+    end_turn = max(start_turn, min(int(scene.get("end_turn", start_turn)), len(per_turn_times) - 1))
+    return max(0.5, per_turn_times[end_turn][1] - per_turn_times[start_turn][0])
+
+
+def _kenburns_image_to_video(
+    image_path: str,
+    duration: float,
+    output_path: str,
+    width: int,
+    height: int,
+    *,
+    zoom_in: bool = True,
+) -> None:
+    """Convert a still image to a Ken Burns video clip for exact duration."""
+    fps = VIDEO_FPS
+    total_frames = max(round(duration * fps), 2)
+    if zoom_in:
+        vf = (
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
+            f"scale='{width}*(1+0.04*n/{total_frames})':-1:eval=frame,"
+            f"crop={width}:{height}:(iw-ow)/2:(ih-oh)/2,setsar=1,fps={fps}"
+        )
+    else:
+        big_w = int(width * 1.05)
+        big_h = int(height * 1.05)
+        vf = (
+            f"scale={big_w}:{big_h}:force_original_aspect_ratio=decrease,"
+            f"pad={big_w}:{big_h}:(ow-iw)/2:(oh-ih)/2,"
+            f"scale='{big_w}*(1-0.03*n/{total_frames})':-1:eval=frame,"
+            f"crop={width}:{height}:'(iw-ow)/2':'(ih-oh)/2',setsar=1,fps={fps}"
+        )
+    subprocess.run([
+        FFMPEG, "-y",
+        "-loop", "1", "-i", image_path,
+        "-t", str(duration),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an", output_path, "-loglevel", "error",
+    ], check=True)
+
+
+def build_scene_visual_track(
+    scenes: list,
+    scene_image_paths: list[str],
+    per_turn_times: list,
+    *,
+    portrait: bool = False,
+) -> str:
+    """Build concatenated Ken Burns visual track timed to scene dialogue durations."""
+    TEMP_DIR.mkdir(exist_ok=True)
+    width = SHORTS_WIDTH if portrait else VIDEO_WIDTH
+    height = SHORTS_HEIGHT if portrait else VIDEO_HEIGHT
+
+    clip_paths: list[str] = []
+    for idx, (scene, image_path) in enumerate(zip(scenes, scene_image_paths)):
+        duration = scene_duration_from_turns(scene, per_turn_times)
+        clip_path = str(TEMP_DIR / f"english_scene_clip_{idx:03d}.mp4")
+        print(f"  Scene {scene.get('scene_id', idx + 1)}: {duration:.1f}s — {Path(image_path).name}")
+        _kenburns_image_to_video(
+            str(image_path),
+            duration,
+            clip_path,
+            width,
+            height,
+            zoom_in=(idx % 2 == 0),
+        )
+        clip_paths.append(clip_path)
+
+    list_path = str(TEMP_DIR / "english_scene_clips.txt")
+    with open(list_path, "w", encoding="utf-8") as handle:
+        for clip in clip_paths:
+            handle.write(f"file '{os.path.abspath(clip)}'\n")
+
+    visual_track = str(TEMP_DIR / "english_scene_visual_track.mp4")
+    subprocess.run([
+        FFMPEG, "-y",
+        "-f", "concat", "-safe", "0", "-i", list_path,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an", visual_track, "-loglevel", "error",
+    ], check=True)
+    print(f"  Scene visual track assembled ({len(clip_paths)} scene(s))")
+    return visual_track
+
+
 def assemble_english_video(
     podcast_audio: str,
     loop_visual: str,
@@ -563,124 +703,49 @@ def assemble_english_video(
     print(f"  ✓ English video assembled: {output_path} ({size_mb:.1f} MB)")
     return output_path
 
-def cleanup_english_temp():
-    import shutil
-    if TEMP_DIR.exists():
-        shutil.rmtree(TEMP_DIR)
-        TEMP_DIR.mkdir()
-    print("  Temp files cleaned.")
 
-
-# ─────────────────────────────────────────────
-# SLOW ENGLISH MODE — 0.80x speed, bold captions
-# ─────────────────────────────────────────────
-
-def generate_slow_podcast_audio(script_data: dict, return_turn_times: bool = False):
-    """
-    Same as generate_podcast_audio but synthesises at 0.80x speed
-    and writes to differently-named temp files to avoid collision with the
-    normal render when both are generated in the same pipeline run.
-
-    Parameters
-    ----------
-    return_turn_times : If True, returns (audio_path, per_turn_times) where
-        per_turn_times is a list of (abs_start_sec, abs_end_sec) tuples.
-    """
-    TEMP_DIR.mkdir(exist_ok=True)
-    dialogue = script_data.get("dialogue", [])
-
-    audio_files = []
-    per_turn_durations: list[float] = []
-
-    print("\nGenerating SLOW podcast audio (0.80x speed)...")
-    for i, line in enumerate(dialogue):
-        speaker = line.get("speaker", "Emma")
-        text = line.get("text", "")
-        voice = ENGLISH_VOICES.get(speaker, "af_sarah")
-
-        out_path = str(TEMP_DIR / f"english_slow_line_{i:03d}.m4a")
-
-        try:
-            pause_duration = _pause_duration_seconds(text)
-            if pause_duration is not None:
-                print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
-                _generate_silence_audio(out_path, pause_duration)
-            else:
-                print(f"  [{speaker}] -> {out_path}")
-                synthesize(text, out_path, voice=voice, speed=0.80)
-            dur = get_audio_duration(out_path)
-            audio_files.append(out_path)
-            per_turn_durations.append(dur)
-        except Exception as e:
-            print(f"  Error generating slow audio for line {i}: {e}")
-            per_turn_durations.append(0.0)
-
-    concat_list_path = str(TEMP_DIR / "english_slow_audio_list.txt")
-    with open(concat_list_path, "w") as f:
-        for audio_file in audio_files:
-            f.write(f"file '{os.path.abspath(audio_file)}'\n")
-
-    final_audio_path = str(TEMP_DIR / "english_slow_podcast_full.m4a")
-
-    cmd = [
-        FFMPEG, "-y",
-        "-f", "concat", "-safe", "0", "-i", concat_list_path,
-        "-c:a", "aac", "-b:a", "192k",
-        final_audio_path
-    ]
-    subprocess.run(cmd, capture_output=True, check=True)
-
-    print(f"  ✓ Full slow podcast audio generated: {final_audio_path}")
-
-    if return_turn_times:
-        cursor = 0.0
-        turn_times: list[tuple[float, float]] = []
-        for dur in per_turn_durations:
-            turn_times.append((cursor, cursor + dur))
-            cursor += dur
-        return final_audio_path, turn_times
-
-    return final_audio_path
-
-
-def assemble_slow_english_video(
+def assemble_english_scene_video(
     podcast_audio: str,
-    loop_visual: str,
+    scenes: list,
+    scene_image_paths: list[str],
     output_path: str,
+    per_turn_times: list,
+    *,
+    portrait: bool = False,
     captions_srt: str = None,
     ass_captions: str = None,
     background_music: str = None,
     title: str = "",
     channel: str = None,
     idiom_windows: list = None,
-    per_turn_times: list = None,
     dialogue: list = None,
 ) -> str:
     """
-    Assemble the slow-mode English learning video:
-    - Same pipeline as assemble_english_video
-    - Larger, bolder, high-contrast captions (.ass karaoke preferred; .srt fallback)
-    - 🐢 SLOW MODE badge burned into the top-left corner via drawtext
-    - Idiom card overlays applied as final pass
+    Assemble English video using scene-based Ken Burns stills timed to Kokoro audio.
     """
     duration = get_audio_duration(podcast_audio)
-    print(f"\nAssembling SLOW English video: {duration:.1f}s")
+    print(f"\nAssembling scene-based English video: {duration:.1f}s ({len(scenes)} scenes)")
 
-    # 1. Normalize visual
-    norm_visual = str(TEMP_DIR / "english_slow_norm.mp4")
-    subprocess.run([
-        FFMPEG, "-y", "-i", loop_visual,
-        "-vf", f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
-               f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:black,"
-               f"fps={VIDEO_FPS}",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
-        "-an", norm_visual, "-loglevel", "error"
-    ], check=True)
-    print("  Visual normalized")
+    visual_track = build_scene_visual_track(
+        scenes,
+        scene_image_paths,
+        per_turn_times,
+        portrait=portrait,
+    )
 
-    # 2. Mix podcast audio with optional background music
+    visual_duration = get_audio_duration(visual_track)
+    if abs(visual_duration - duration) > 0.25:
+        trimmed = str(TEMP_DIR / "english_scene_visual_trimmed.mp4")
+        subprocess.run([
+            FFMPEG, "-y", "-i", visual_track,
+            "-t", str(duration),
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-an", trimmed, "-loglevel", "error",
+        ], check=True)
+        visual_track = trimmed
+
     if background_music and Path(background_music).exists():
-        mixed_audio_path = str(TEMP_DIR / "english_slow_mixed_audio.m4a")
+        mixed_audio_path = str(TEMP_DIR / "english_mixed_audio.m4a")
         cmd = [
             FFMPEG, "-y",
             "-i", podcast_audio,
@@ -690,88 +755,59 @@ def assemble_slow_english_video(
             "-map", "[out]",
             "-t", str(duration),
             "-c:a", "aac", "-b:a", "192k",
-            mixed_audio_path
+            mixed_audio_path,
         ]
         subprocess.run(cmd, capture_output=True, check=True)
-        print("  Audio mixed with background music")
         final_audio = mixed_audio_path
     else:
         final_audio = podcast_audio
 
-    # 3. Build video filter chain:
-    #    - Bold, large SRT captions (FontSize 32, centred, high contrast)
-    #    - 🐢 SLOW MODE text badge in top-left corner
-    slow_caption_style = (
-        "FontName=Arial,"
-        "FontSize=32,"
-        "PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00000000,"
-        "BackColour=&H99000000,"
-        "Bold=1,"
-        "BorderStyle=3,"
-        "Outline=2,"
-        "Shadow=0,"
-        "MarginV=50,"
-        "Alignment=2"
-    )
-
+    base_output = output_path
     has_ass = ass_captions and Path(ass_captions).exists()
     has_srt = captions_srt and Path(captions_srt).exists()
 
+    vf_filter_parts = []
     if has_ass:
         ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
-        vf_filter = (
-            f"ass={ass_escaped},"
-            f"drawtext=text='🐢 SLOW MODE':fontcolor=white:fontsize=20:"
-            f"box=1:boxcolor=black@0.55:boxborderw=6:x=16:y=16"
-        )
+        vf_filter_parts.append(f"ass={ass_escaped}")
     elif has_srt:
-        srt_escaped = captions_srt.replace("\\", "/").replace(":", "\\:")
-        vf_filter = (
-            f"subtitles={srt_escaped}:force_style='{slow_caption_style}',"
-            f"drawtext=text='🐢 SLOW MODE':fontcolor=white:fontsize=20:"
-            f"box=1:boxcolor=black@0.55:boxborderw=6:x=16:y=16"
+        caption_style = (
+            "FontName=Arial,FontSize=22,"
+            "PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,"
+            "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
         )
-    else:
-        vf_filter = (
-            f"drawtext=text='🐢 SLOW MODE':fontcolor=white:fontsize=20:"
-            f"box=1:boxcolor=black@0.55:boxborderw=6:x=16:y=16"
-        )
+        vf_filter_parts.append(f"subtitles={captions_srt}:force_style='{caption_style}'")
+    vf_filter = ",".join(vf_filter_parts) if vf_filter_parts else "null"
 
-    base_output = output_path if not (idiom_windows and per_turn_times) else str(
-        Path(output_path).with_stem(Path(output_path).stem + "_precards")
-    )
-
-    cmd = [
-        FFMPEG, "-y",
-        "-stream_loop", "-1", "-i", norm_visual,
-        "-i", final_audio,
-        "-vf", vf_filter,
-        "-map", "0:v", "-map", "1:a",
-        "-t", str(duration),
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-c:a", "copy",
-        "-movflags", "+faststart",
-        "-metadata", f"title={title} [Slow Mode]",
-        base_output, "-loglevel", "error"
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print("  Slow caption/badge burn failed — falling back to plain video...")
+    try:
         cmd = [
             FFMPEG, "-y",
-            "-stream_loop", "-1", "-i", norm_visual,
+            "-i", visual_track,
+            "-i", final_audio,
+            "-vf", vf_filter,
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
+            base_output, "-loglevel", "error",
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  Caption burn failed, assembling without captions... Error: {getattr(e, 'stderr', e)}")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", visual_track,
             "-i", final_audio,
             "-map", "0:v", "-map", "1:a",
-            "-t", str(duration),
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-            "-c:a", "copy", "-movflags", "+faststart",
-            base_output, "-loglevel", "error"
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
+            base_output, "-loglevel", "error",
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        subprocess.run(cmd, check=True, capture_output=True)
 
-    # Apply face overlays if .ass subtitles are used and face PNGs exist
     if has_ass and dialogue:
         temp_face = str(Path(base_output).with_suffix(".face.mp4"))
         try:
@@ -780,7 +816,7 @@ def assemble_slow_english_video(
                 dialogue=dialogue,
                 per_turn_times=per_turn_times or [],
                 output_path=temp_face,
-                is_shorts=False
+                is_shorts=portrait,
             )
             if Path(temp_face).exists():
                 Path(base_output).unlink()
@@ -789,32 +825,27 @@ def assemble_slow_english_video(
         except Exception as e:
             print(f"  Face badge overlay skipped: {e}")
 
-    append_channel_bumpers(base_output, channel=channel)
-
-    # Idiom card overlays (post-bumper composition)
-    if idiom_windows and per_turn_times:
+    gated_idiom_windows = _gate_idiom_windows_after_pause_reveals(idiom_windows, dialogue)
+    if gated_idiom_windows and per_turn_times:
         try:
-            from ffmpeg_assembler import get_media_duration
             from idiom_card_renderer import render_idiom_cards_batch
 
-            bumper_intro = Path(__file__).resolve().parent.parent / "assets" / "bumpers" / "english" / "intro.mp4"
-            bumper_pad = get_media_duration(str(bumper_intro)) if bumper_intro.exists() else 0.0
+            resolved = resolve_idiom_timestamps(gated_idiom_windows, per_turn_times)
+            card_pngs = render_idiom_cards_batch(gated_idiom_windows, output_dir=TEMP_DIR / "idiom_cards")
+            apply_idiom_overlays(base_output, resolved, card_pngs, output_path=base_output, is_shorts=portrait)
+        except Exception as e:
+            print(f"  Idiom overlay skipped: {e}")
 
-            resolved = resolve_idiom_timestamps(idiom_windows, per_turn_times, bumper_pad)
-            card_pngs = render_idiom_cards_batch(idiom_windows, output_dir=TEMP_DIR / "idiom_cards")
-            apply_idiom_overlays(base_output, resolved, card_pngs, output_path, is_shorts=False)
-            if base_output != output_path and Path(base_output).exists():
-                Path(base_output).unlink()
-        except Exception as exc:
-            print(f"  Idiom overlays skipped: {exc}")
-            if base_output != output_path:
-                import shutil
-                shutil.copy2(base_output, output_path)
-    else:
-        if base_output != output_path:
-            import shutil
-            shutil.copy2(base_output, output_path)
+    append_channel_bumpers(base_output, channel=channel)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
-    print(f"  ✓ Slow English video assembled: {output_path} ({size_mb:.1f} MB)")
+    print(f"  ✓ Scene-based English video assembled: {output_path} ({size_mb:.1f} MB)")
     return output_path
+
+
+def cleanup_english_temp():
+    import shutil
+    if TEMP_DIR.exists():
+        shutil.rmtree(TEMP_DIR)
+        TEMP_DIR.mkdir()
+    print("  Temp files cleaned.")

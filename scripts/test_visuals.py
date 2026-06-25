@@ -31,6 +31,7 @@ import english_generator
 dummy_script_base = {
     "title": "Visual Test",
     "visual_keywords": ["coffee", "cafe", "conversation", "library"],
+    "theme": "Coffee Shop English",
     "dialogue": [
         {"speaker": "Emma", "text": "Quick test. Which phrase sounds natural at a coffee shop?"},
         {"speaker": "Liam", "text": "Pause and guess before Emma answers."},
@@ -58,10 +59,26 @@ dummy_challenge_package = {
     "scripts": [],
 }
 
+
+def _with_scenes(script: dict) -> dict:
+    data = dict(script)
+    data["scenes"] = [
+        {
+            "scene_id": 1,
+            "scene_label": "Coffee Shop Scene",
+            "image_filename": "scene_1_coffee.jpg",
+            "visual_prompt": "Pixar 3D animation, Emma and Liam at a cozy coffee shop.",
+            "start_turn": 0,
+            "end_turn": max(0, len(data.get("dialogue", [])) - 1),
+        }
+    ]
+    return data
+
+
 # Build 2 days of scripts with quiz_script
 for d in dummy_challenge_package["days"]:
     day_num = d["day"]
-    day_script = {
+    day_script = _with_scenes({
         **dummy_script_base,
         "title": f"Day {day_num}: {d['title']}",
         "day": day_num,
@@ -69,15 +86,15 @@ for d in dummy_challenge_package["days"]:
         "focus": d["focus"],
         "practice_task": d["practice_task"],
         "visual_keywords": d["keywords"],
-        "quiz_script": {
+        "quiz_script": _with_scenes({
             "title": f"Quiz Day {day_num}",
             "visual_keywords": ["quiz", "test"],
             "dialogue": [
                 {"speaker": "Emma", "text": "Quick question!"},
                 {"speaker": "Liam", "text": "The answer is B."},
             ],
-        },
-    }
+        }),
+    })
     dummy_challenge_package["scripts"].append(day_script)
 
 
@@ -95,15 +112,15 @@ def mock_annotate(script):
 
 
 def mock_gen_english(topic=None):
-    return {**dummy_script_base, "title": "Mock English Podcast"}
+    return _with_scenes({**dummy_script_base, "title": "Mock English Podcast"})
 
 
 def mock_gen_shorts(topic=None):
-    return {**dummy_script_base, "title": "Mock English Short"}
+    return _with_scenes({**dummy_script_base, "title": "Mock English Short"})
 
 
 def mock_gen_quiz(topic=None):
-    return {**dummy_script_base, "title": "Mock English Quiz"}
+    return _with_scenes({**dummy_script_base, "title": "Mock English Quiz"})
 
 
 def mock_gen_challenge(topic=None):
@@ -116,6 +133,7 @@ english_generator.generate_english_shorts_script = mock_gen_shorts
 english_generator.generate_english_quiz_shorts_script = mock_gen_quiz
 english_generator.generate_weekly_challenge_scripts = mock_gen_challenge
 english_generator.annotate_script_with_idiom_windows = mock_annotate
+english_generator.attach_storyboard_to_script = lambda script, **kwargs: script
 
 from manual_run import (
     run_english,
@@ -179,7 +197,7 @@ def test_manifest_english():
     before = list(MANIFEST_DIR.glob("*.manifest.json"))
     print(f"  Manifests before: {len(before)}")
 
-    run_manifest_only_english(topic="test")
+    run_manifest_only_english(topic="test", skip_gemini=True)
 
     after = list(MANIFEST_DIR.glob("*.manifest.json"))
     print(f"  Manifests after:  {len(after)}")
@@ -198,10 +216,10 @@ def test_manifest_english():
     assert manifest.pipeline == "english"
     assert len(manifest.entries) == 1
     entry = manifest.entries[0]
-    assert "coffee" in entry.visual_keywords
-    assert entry.orientation == "landscape"
-    assert entry.assets_folder == "english_visuals"
-    print(f"  ✓ Entry: '{entry.label}' | keywords={entry.visual_keywords[:4]}... | folder={entry.assets_folder}")
+    assert entry.visual_mode == "scenes"
+    assert entry.scenes_folder.startswith("generated_scenes/")
+    assert len(entry.scenes) >= 1
+    print(f"  ✓ Entry: '{entry.label}' | scenes={len(entry.scenes)} | folder=assets/{entry.scenes_folder}/")
 
     # Cleanup
     manifest_path.unlink()
@@ -215,7 +233,7 @@ def test_manifest_shorts():
     print("[5/8] Manifest-Only: English Shorts")
     print("=" * 60)
 
-    run_manifest_only_shorts(topic="test")
+    run_manifest_only_shorts(topic="test", skip_gemini=True)
 
     new = sorted(MANIFEST_DIR.glob("*.manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:1]
     if not new:
@@ -227,9 +245,8 @@ def test_manifest_shorts():
     assert manifest.pipeline == "english-shorts"
     assert len(manifest.entries) == 1
     entry = manifest.entries[0]
-    assert entry.orientation == "portrait"
-    assert entry.assets_folder == "english_shorts_visuals"
-    print(f"  ✓ Entry: '{entry.label}' | keywords={entry.visual_keywords[:4]}... | folder={entry.assets_folder}")
+    assert entry.visual_mode == "scenes"
+    print(f"  ✓ Entry: '{entry.label}' | scenes={len(entry.scenes)} | folder=assets/{entry.scenes_folder}/")
 
     manifest_path.unlink()
     return True
@@ -241,7 +258,7 @@ def test_manifest_quiz():
     print("[6/8] Manifest-Only: English Quiz Shorts")
     print("=" * 60)
 
-    run_manifest_only_quiz_shorts(topic="test")
+    run_manifest_only_quiz_shorts(topic="test", skip_gemini=True)
 
     new = sorted(MANIFEST_DIR.glob("*.manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:1]
     if not new:
@@ -253,9 +270,8 @@ def test_manifest_quiz():
     assert manifest.pipeline == "english-quiz"
     assert len(manifest.entries) == 1
     entry = manifest.entries[0]
-    assert entry.orientation == "portrait"
-    assert entry.assets_folder == "english_shorts_visuals"
-    print(f"  ✓ Entry: '{entry.label}' | keywords={entry.visual_keywords[:4]}... | folder={entry.assets_folder}")
+    assert entry.visual_mode == "scenes"
+    print(f"  ✓ Entry: '{entry.label}' | scenes={len(entry.scenes)} | folder=assets/{entry.scenes_folder}/")
 
     manifest_path.unlink()
     return True
@@ -267,7 +283,7 @@ def test_manifest_challenge():
     print("[7/8] Manifest-Only: English Weekly Challenge")
     print("=" * 60)
 
-    run_manifest_only_challenge(topic="test")
+    run_manifest_only_challenge(topic="test", skip_gemini=True)
 
     new = sorted(MANIFEST_DIR.glob("*.manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:1]
     if not new:
@@ -307,6 +323,7 @@ def test_manifest_roundtrip():
     print("=" * 60)
 
     original = VisualManifest(
+        version=2,
         pipeline="test-roundtrip",
         generated_at="2026-06-22T12:00:00+00:00",
         series_title="Round Trip Test",
@@ -320,6 +337,10 @@ def test_manifest_roundtrip():
                 orientation="landscape",
                 estimated_duration_seconds=120.0,
                 resolved_visuals=["assets/english_visuals/coffee.mp4"],
+                scenes=[{"scene_id": 1, "image_filename": "scene_1.jpg"}],
+                scenes_folder="generated_scenes/morning_coffee",
+                scene_images_ready=False,
+                visual_mode="scenes",
             ),
             ManifestEntry(
                 label="Entry B",
@@ -349,6 +370,9 @@ def test_manifest_roundtrip():
             assert oe.orientation == re.orientation
             assert oe.estimated_duration_seconds == re.estimated_duration_seconds
             assert oe.resolved_visuals == re.resolved_visuals
+            assert oe.scenes == re.scenes
+            assert oe.scenes_folder == re.scenes_folder
+            assert oe.visual_mode == re.visual_mode
             print(f"  ✓ Entry {i+1}: '{re.label}' round-trips OK")
 
     print(f"  ✓ All fields survive serialization")

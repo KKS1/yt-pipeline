@@ -1,8 +1,13 @@
 from scripts.english_generator import (
     _clean_challenge_dialogue,
+    align_scenes_to_turns,
+    build_scene_timeline,
     combine_english_parts,
     ensure_english_description_cta,
     ensure_english_quiz_shorts_hashtags,
+    ensure_english_vibes_hashtags,
+    finalize_english_description,
+    inject_scene_timeline,
     is_outro_line,
     sanitize_dialogue_part,
 )
@@ -117,6 +122,72 @@ def test_ensure_english_description_cta_adds_spaced_icon_block():
     assert "\n\n💬 Comment below:" in cleaned
 
 
+def test_ensure_english_description_cta_adds_scene_timeline_placeholder():
+    cleaned = ensure_english_description_cta(
+        "Natural English for real conversations.\nSpeak like a native today.",
+        include_timeline=True,
+    )
+
+    assert "{scene_timeline}" in cleaned
+    assert "0:00 - Start the lesson" not in cleaned
+
+
+def test_ensure_english_vibes_hashtags():
+    cleaned = ensure_english_vibes_hashtags("Learn English today.\n\n#LearnEnglish")
+    assert "#EnglishVibesHub" in cleaned
+
+
+def test_finalize_english_description_includes_opener_and_hashtag():
+    cleaned = finalize_english_description("Practice phrasal verbs today.", is_quiz=True)
+    assert "Natural English" in cleaned.splitlines()[0]
+    assert "#EnglishVibesHub" in cleaned
+
+
+def test_build_scene_timeline_formats_timestamps():
+    scenes = [
+        {"scene_id": 1, "scene_label": "Library Intro", "start_turn": 0, "end_turn": 1},
+        {"scene_id": 2, "scene_label": "Cafe Scene", "start_turn": 2, "end_turn": 3},
+    ]
+    per_turn_times = [(0.0, 5.0), (5.0, 10.0), (10.0, 40.0), (40.0, 65.0)]
+    block = build_scene_timeline(scenes, per_turn_times)
+    assert "0:00 - Library Intro" in block
+    assert "0:10 - Cafe Scene" in block
+
+
+def test_inject_scene_timeline_replaces_placeholder():
+    description = "Intro\n\n{scene_timeline}\n\nMore text"
+    block = "📑 Timeline:\n0:00 - Start"
+    result = inject_scene_timeline(description, block)
+    assert "{scene_timeline}" not in result
+    assert "0:00 - Start" in result
+
+
+def test_align_scenes_to_turns():
+    dialogue = [
+        {"speaker": "Emma", "text": "Hello"},
+        {"speaker": "Liam", "text": "Hi there"},
+        {"speaker": "Emma", "text": "Let's begin"},
+    ]
+    scenes = [
+        {
+            "scene_id": 1,
+            "dialogues": [
+                {"character": "Emma", "text": "Hello"},
+                {"character": "Liam", "text": "Hi there"},
+            ],
+        },
+        {
+            "scene_id": 2,
+            "dialogues": [{"character": "Emma", "text": "Let's begin"}],
+        },
+    ]
+    aligned = align_scenes_to_turns(scenes, dialogue)
+    assert aligned[0]["start_turn"] == 0
+    assert aligned[0]["end_turn"] == 1
+    assert aligned[1]["start_turn"] == 2
+    assert aligned[1]["end_turn"] == 2
+
+
 def test_ensure_english_quiz_shorts_hashtags_promotes_required_line():
     description = """English quiz for beginners.
 Practice today's idiom with Emma and Liam.
@@ -129,7 +200,7 @@ Practice today's idiom with Emma and Liam.
     cleaned = ensure_english_quiz_shorts_hashtags(description)
     hashtag_lines = [line for line in cleaned.splitlines() if "#" in line]
 
-    assert hashtag_lines[0] == "#Shorts #EnglishQuiz #LearnEnglish"
+    assert hashtag_lines[0] == "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
     assert "#Grammar" in hashtag_lines[1]
     assert "#Vocabulary" in hashtag_lines[2]
     assert cleaned.count("#Shorts") == 1
@@ -140,4 +211,4 @@ Practice today's idiom with Emma and Liam.
 def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     cleaned = ensure_english_quiz_shorts_hashtags("English quiz for beginners.")
 
-    assert cleaned.splitlines()[-1] == "#Shorts #EnglishQuiz #LearnEnglish"
+    assert cleaned.splitlines()[-1] == "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
