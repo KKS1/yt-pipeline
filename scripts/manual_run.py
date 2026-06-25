@@ -1953,25 +1953,14 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
                 if quiz_pinned:
                     set_pinned_comment(short_id, quiz_pinned, channel)
 
-def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visuals=False, notify_subscribers=None, review_visuals=False):
+def run_english_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
     from english_generator import generate_english_shorts_script
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
-    if dynamic_visuals and upload:
-        raise RuntimeError(
-            "Dynamic English visuals are prototype-only and must be run with --no-upload for manual review."
-        )
-
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Shorts Generator")
-    if dynamic_visuals:
-        print("Dynamic Emma/Liam visuals: ON (prototype, no-upload only)")
     print("=" * 50)
-
-    if dynamic_visuals:
-        from dynamic_english_renderer import preflight_dynamic_english_assets
-        preflight_dynamic_english_assets()
 
     try:
         cleanup_english_temp()
@@ -1997,28 +1986,6 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, dynamic_visu
 
     title = script["title"]
     out_slug = slug(title)
-
-    if dynamic_visuals:
-        from dynamic_english_renderer import render_dynamic_english_short
-        bg_music = ASSETS_DIR / "background_music.mp3"
-        bg_music_str = str(bg_music) if bg_music.exists() else None
-        srt_path = str(OUTPUT_DIR / f"{out_slug}.srt")
-        out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
-
-        cleanup_english_temp()
-        render_dynamic_english_short(
-            script_data=script,
-            output_path=out_path,
-            captions_srt=srt_path,
-            background_music=bg_music_str,
-            title=title,
-        )
-        cleanup_english_temp()
-
-        print(f"\nDynamic video assembled without upload: {out_path}")
-        print("Review this MP4 manually before promoting dynamic visuals to publishing.")
-        print("\nDone!\n")
-        return
 
     _, bg_music_str, selected_visuals = _review_visuals_if_requested(
         review_visuals=review_visuals,
@@ -2337,278 +2304,6 @@ def run_english_community(topic=None, content_type="quiz"):
     if image_paths:
         print(f"3. Upload the {len(image_paths)} generated images from the output folder.")
     print("-" * 50)
-
-# ─────────────────────────────────────────────
-# SLOW ENGLISH PIPELINE — dual render + cross-pollination
-# ─────────────────────────────────────────────
-
-def _patch_video_description(channel: str, video_id: str, new_description: str) -> None:
-    """Update a live YouTube video description after upload.
-    Silently skips if no credentials are available (e.g. --no-upload mode)."""
-    if not video_id:
-        return
-    try:
-        from youtube_uploader import update_video_description
-        update_video_description(video_id, new_description, channel=channel)
-    except Exception as e:
-        print(f"  Warning: could not patch description for {video_id}: {e}")
-
-
-def run_english_slow(topic=None, upload=True, schedule_time=None, slow_offset_hours=24, notify_subscribers=None):
-    """Dual-render slow English pipeline:
-
-    1. Generate one idiom-focused script (8-12 turns)
-    2. Render Normal video  (0.95x TTS, standard captions)
-    3. Render Slow   video  (0.80x TTS, large captions + 🐢 badge)
-    4. Upload Normal → get normal_yt_id
-    5. Upload Slow with Normal's URL in description → get slow_yt_id
-    6. Patch Normal's description to add the Slow URL (cross-pollination)
-    """
-    from english_assembler import (
-        cleanup_english_temp,
-        generate_podcast_audio,
-        assemble_english_video,
-        generate_slow_podcast_audio,
-        assemble_slow_english_video,
-    )
-    from english_generator import generate_english_slow_script, annotate_script_with_idiom_windows
-    from ffmpeg_assembler import generate_captions
-
-    print("\n" + "=" * 50)
-    print("ENGLISH VIBES HUB — Slow English Dual Render")
-    print("=" * 50)
-
-    # ── 1. Generate script ────────────────────────────────
-    try:
-        cleanup_english_temp()
-        print("\nGenerating slow idiom script with Groq...\n")
-        script = generate_english_slow_script(topic)
-
-        Path("scripts/output").mkdir(exist_ok=True)
-        json_file = "scripts/output/english_slow.json"
-        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
-        print(f"\nGenerated:\n  Idiom: {script.get('idiom')}\n  Title: {script.get('title')}")
-    except Exception as e:
-        print(f"\nScript generation failed: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-    idiom        = script.get("idiom", topic or "English Idiom")
-    normal_title = script.get("title_normal", f"{idiom} — What Does It Mean? | English Idioms")
-    slow_title   = script.get("title_slow", f"{idiom} 🐢 SLOW English | Idioms for Beginners")
-
-    # Template descriptions (URLs injected after upload)
-    desc_normal_template = script.get("description_normal", script.get("description", ""))
-    desc_slow_template   = script.get("description_slow",   script.get("description", ""))
-    tags                 = script.get("tags", [])
-
-    visual_files, bg_music_str = _english_video_assets("english_visuals")
-    selected_visual = random.choice(visual_files)
-
-    normal_slug = slug(normal_title) + "_normal"
-    slow_slug   = slug(slow_title)   + "_slow"
-
-    # ── 2. Render Normal video ────────────────────────────
-    print("\n" + "-" * 40)
-    print("Rendering NORMAL video (0.95x speed)...")
-    print("-" * 40)
-    cleanup_english_temp()
-
-    # Annotate idiom windows once (shared between both renders)
-    try:
-        annotate_script_with_idiom_windows(script)
-    except Exception as e:
-        print(f"  Idiom annotation skipped: {e}")
-
-    res = generate_podcast_audio(script, return_turn_times=True)
-    if isinstance(res, tuple):
-        normal_audio, normal_turn_times = res
-    else:
-        normal_audio, normal_turn_times = res, []
-
-    normal_srt = str(OUTPUT_DIR / f"{normal_slug}.srt")
-    normal_ass = str(OUTPUT_DIR / f"{normal_slug}.ass")
-    try:
-        generate_captions(normal_audio, normal_srt)
-    except Exception as e:
-        print(f"  .srt captions skipped: {e}")
-        normal_srt = None
-    try:
-        from ass_caption_writer import generate_ass_captions
-        generate_ass_captions(
-            audio_path=normal_audio, output_ass=normal_ass,
-            script_data=script,
-            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
-            is_shorts=False,
-        )
-    except Exception as e:
-        print(f"  .ass captions skipped: {e}")
-        normal_ass = None
-
-    normal_path = str(OUTPUT_DIR / f"{normal_slug}.mp4")
-    assemble_english_video(
-        podcast_audio=normal_audio,
-        loop_visual=str(selected_visual),
-        output_path=normal_path,
-        captions_srt=normal_srt,
-        ass_captions=normal_ass,
-        background_music=bg_music_str,
-        title=normal_title,
-        channel="english",
-        idiom_windows=script.get("idiom_windows"),
-        per_turn_times=normal_turn_times,
-        dialogue=script.get("dialogue", []),
-    )
-
-    # ── 3. Render Slow video ──────────────────────────────
-    print("\n" + "-" * 40)
-    print("Rendering SLOW video (0.80x speed)...")
-    print("-" * 40)
-    cleanup_english_temp()
-    res = generate_slow_podcast_audio(script, return_turn_times=True)
-    if isinstance(res, tuple):
-        slow_audio, slow_turn_times = res
-    else:
-        slow_audio, slow_turn_times = res, []
-
-    slow_srt = str(OUTPUT_DIR / f"{slow_slug}.srt")
-    slow_ass = str(OUTPUT_DIR / f"{slow_slug}.ass")
-    try:
-        generate_captions(slow_audio, slow_srt)
-    except Exception as e:
-        print(f"  .srt captions skipped: {e}")
-        slow_srt = None
-    try:
-        from ass_caption_writer import generate_ass_captions
-        generate_ass_captions(
-            audio_path=slow_audio, output_ass=slow_ass,
-            script_data=script,
-            idiom_phrases=[w.get("idiom", "") for w in script.get("idiom_windows", [])],
-            is_shorts=False,
-            per_turn_times=slow_turn_times,
-        )
-    except Exception as e:
-        print(f"  .ass captions skipped: {e}")
-        slow_ass = None
-
-    slow_path = str(OUTPUT_DIR / f"{slow_slug}.mp4")
-    assemble_slow_english_video(
-        podcast_audio=slow_audio,
-        loop_visual=str(selected_visual),
-        output_path=slow_path,
-        captions_srt=slow_srt,
-        ass_captions=slow_ass,
-        background_music=bg_music_str,
-        title=slow_title,
-        channel="english",
-        idiom_windows=script.get("idiom_windows"),
-        per_turn_times=slow_turn_times,
-        dialogue=script.get("dialogue", []),
-    )
-
-    cleanup_english_temp()
-
-    if not schedule_time:
-        from schedule_ledger import ScheduleLedger
-        ledger = ScheduleLedger()
-        now_dt = datetime.now(ledger.tz)
-        slot_dt, slot_name = ledger.get_next_slot("english", now_dt)
-        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
-        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
-        print(f"  Selected default English slot for Slow Normal: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
-    else:
-        slot_name = None
-
-    if notify_subscribers is None:
-        if schedule_time:
-            from schedule_ledger import is_weekday_in_regina
-            notify_subscribers = is_weekday_in_regina(schedule_time)
-        else:
-            notify_subscribers = True
-
-    if not upload:
-        print(f"\nBoth videos assembled (upload skipped):")
-        print(f"  Normal : {normal_path}")
-        print(f"  Slow   : {slow_path}")
-        print("\nDone!\n")
-        return
-
-    # ── 4. Upload Normal (placeholder slow link in description) ──
-    print("\n" + "-" * 40)
-    print("Uploading NORMAL video...")
-    print("-" * 40)
-    desc_normal_placeholder = desc_normal_template.format(
-        slow_url="[Slow version uploading — link coming soon!]"
-    )
-    normal_result = _upload_video(
-        normal_path,
-        normal_title,
-        desc_normal_placeholder,
-        tags,
-        channel="english",
-        schedule_time=schedule_time,
-        thumbnail_text=script.get("thumbnail_text", normal_title),
-        pinned_comment=script.get("pinned_comment"),
-        thumbnail_concept=script.get("thumbnail_concept", None),
-        notify_subscribers=notify_subscribers,
-        command_channel="english",
-        slot=slot_name
-    )
-    normal_yt_id = (normal_result or {}).get("youtube_id", "")
-    normal_url   = f"https://youtu.be/{normal_yt_id}" if normal_yt_id else ""
-
-    # ── 5. Upload Slow (Normal URL already known in description) ──
-    print("\n" + "-" * 40)
-    print("Uploading SLOW video...")
-    print("-" * 40)
-
-    # Calculate staggered schedule for the slow video
-    if schedule_time:
-        base_dt = datetime.fromisoformat(schedule_time.replace("Z", "+00:00"))
-    else:
-        base_dt = datetime.now(ZoneInfo("UTC"))
-
-    slow_schedule = (base_dt + timedelta(hours=slow_offset_hours)).isoformat().replace("+00:00", "Z")
-
-    desc_slow_final = desc_slow_template.format(
-        normal_url=normal_url or "[see Normal version on EnglishVibesHub]"
-    )
-    slow_result = _upload_video(
-        slow_path,
-        slow_title,
-        desc_slow_final,
-        tags + ["slow english", "slow english learning", "english for beginners"],
-        channel="english",
-        schedule_time=slow_schedule,
-        thumbnail_text=f"🐢 {script.get('thumbnail_text', idiom)}",
-        pinned_comment=script.get("pinned_comment"),
-        thumbnail_concept=script.get("thumbnail_concept", None),
-        notify_subscribers=notify_subscribers,
-        command_channel="english",
-        slot="slow_stagger"
-    )
-    slow_yt_id = (slow_result or {}).get("youtube_id", "")
-    slow_url   = f"https://youtu.be/{slow_yt_id}" if slow_yt_id else ""
-    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
-
-    # ── 6. Cross-pollinate: patch Normal description with Slow URL ──
-    if normal_yt_id and slow_yt_id:
-        print("\nCross-pollinating Normal video description with Slow URL...")
-        desc_normal_final = desc_normal_template.format(slow_url=slow_url)
-        _patch_video_description("english", normal_yt_id, desc_normal_final)
-    elif normal_yt_id:
-        print("  Skipping cross-pollination patch (no slow_yt_id available)")
-
-    print("\n" + "=" * 50)
-    print("Slow English Dual Render — DONE!")
-    if normal_url:
-        print(f"  Normal : {normal_url}")
-    if slow_url:
-        print(f"  Slow   : {slow_url}")
-    print("=" * 50)
-    print()
-
 
 # ─────────────────────────────────────────────
 # TRENDING PIPELINE (free automated path)
@@ -2986,7 +2681,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-slow", "english-quiz", "english-challenge-shorts", "english-community"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -3005,7 +2700,6 @@ def main():
     parser.add_argument("--description", help="Description to use with --upload-existing")
     parser.add_argument("--tags", help="Comma-separated tags to use with --upload-existing")
     parser.add_argument("--schedule-time", help="UTC publish time for --upload-existing, e.g. 2026-06-03T15:00:00Z")
-    parser.add_argument("--slow-offset-hours", type=int, default=24, help="Hours to stagger the slow version (default 24)")
     parser.add_argument("--json-package", help="Path to a weekly challenge JSON package for --channel english-challenge-shorts")
     parser.add_argument("--related-ids", help="Comma-separated YouTube IDs to link shorts to (Day 1, Day 2, ...)")
     parser.add_argument("--video-ids", help="Comma-separated YouTube IDs for the Shorts (used with --comments-only)")
@@ -3013,11 +2707,6 @@ def main():
     parser.add_argument("--fix-challenge", action="store_true", help="Fix missing tasks and pinned comments for a challenge run")
     parser.add_argument("--profile", action="store_true", help="Enable cProfile for this run")
     parser.add_argument("--related-only", action="store_true", help="Only update the related video link for shorts during fixup")
-    parser.add_argument(
-        "--dynamic-visuals",
-        action="store_true",
-        help="Prototype only: render english-shorts with dynamic Emma/Liam visuals. Requires --no-upload.",
-    )
     parser.add_argument(
         "--review-visuals",
         action="store_true",
@@ -3123,8 +2812,6 @@ def main():
         return
 
     if args.upload_existing:
-        if args.dynamic_visuals:
-            parser.error("--dynamic-visuals cannot be used with --upload-existing")
         tags = None
         if args.tags is not None:
             tags = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
@@ -3147,11 +2834,10 @@ def main():
         print("  4. english           — english vibes hub podcast (free with dual local TTS)")
         print("  5. english-challenge — 7-day English weekly challenge playlist")
         print("  6. english-shorts    — English shorts using Emma and Liam")
-        print("  7. english-slow      — Slow English dual render (normal + 0.80x) with cross-pollination")
-        print("  8. english-quiz      — English Quiz Short (NEW)")
-        print("  9. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
-        print("  10. english-community — English Community Tab Quizzes & Polls")
-        choice = prompt_input("Enter 1-10", "10")
+        print("  7. english-quiz      — English Quiz Short")
+        print("  8. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
+        print("  9. english-community — English Community Tab Quizzes & Polls")
+        choice = prompt_input("Enter 1-9", "9")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -3159,17 +2845,10 @@ def main():
             "4": "english",
             "5": "english-challenge",
             "6": "english-shorts",
-            "7": "english-slow",
-            "8": "english-quiz",
-            "9": "english-challenge-shorts",
-            "10": "english-community"
+            "7": "english-quiz",
+            "8": "english-challenge-shorts",
+            "9": "english-community"
         }.get(choice, "lofi")
-
-    if args.dynamic_visuals:
-        if args.channel != "english-shorts":
-            parser.error("--dynamic-visuals is currently supported only with --channel english-shorts")
-        if not args.no_upload:
-            parser.error("--dynamic-visuals is prototype-only and requires --no-upload")
 
     if args.channel == "lofi":
         run_lofi(schedule_time=effective_schedule_time)
@@ -3197,17 +2876,8 @@ def main():
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
-            dynamic_visuals=args.dynamic_visuals,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
-        )
-    elif args.channel == "english-slow":
-        run_english_slow(
-            topic=args.topic,
-            upload=not args.no_upload,
-            schedule_time=effective_schedule_time,
-            slow_offset_hours=args.slow_offset_hours,
-            notify_subscribers=notify_override,
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)

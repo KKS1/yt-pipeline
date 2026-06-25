@@ -41,6 +41,7 @@ STYLE_EMMA   = "Emma"
 STYLE_LIAM   = "Liam"
 STYLE_IDIOM  = "Idiom"
 STYLE_IDIOM_CARD = "IdiomCard"
+STYLE_COUNTDOWN = "Countdown"
 
 # ASS colour format: &HBBGGRR  (alpha=00 = fully opaque)
 COLOUR_WHITE     = "&H00FFFFFF"
@@ -54,6 +55,8 @@ COLOUR_IDIOM_HL  = "&H00D7FF"     # gold (BGR) for idiom chunks
 # Badge colours drawn in the ASS vector path (ASS drawing primary colour)
 BADGE_EMMA_FILL  = "&H6666FF"     # coral
 BADGE_LIAM_FILL  = "&HFF9966"     # sky-blue
+
+PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
 # Regex patterns that identify idiom / phrasal-verb chunks in text
 _PHRASAL_VERB_PREFIXES = (
@@ -121,6 +124,74 @@ def _speaker_for_turn(dialogue: list[dict], turn_start_time: float, per_turn_tim
     return "Emma"
 
 
+def _is_pause_turn(text: str) -> bool:
+    return PAUSE_CUE_RE.match(str(text or "")) is not None
+
+
+def _plain_caption_line(text: str, speaker: str) -> str:
+    return _badge_override(speaker) + str(text or "").replace("\n", r"\N").strip()
+
+
+def _pause_guess_windows(
+    dialogue: list[dict],
+    per_turn_times: list[tuple[float, float]],
+) -> list[dict]:
+    """Return prompt/pause/reveal windows for [PAUSE] based challenges."""
+    if not dialogue or not per_turn_times or len(per_turn_times) != len(dialogue):
+        return []
+
+    windows: list[dict] = []
+    for i, turn in enumerate(dialogue):
+        if not _is_pause_turn(turn.get("text", "")):
+            continue
+
+        prompt_idx = next(
+            (j for j in range(i - 1, -1, -1) if not _is_pause_turn(dialogue[j].get("text", ""))),
+            None,
+        )
+        reveal_idx = next(
+            (j for j in range(i + 1, len(dialogue)) if not _is_pause_turn(dialogue[j].get("text", ""))),
+            None,
+        )
+        if prompt_idx is None or reveal_idx is None:
+            continue
+
+        windows.append({
+            "prompt_index": prompt_idx,
+            "pause_index": i,
+            "reveal_index": reveal_idx,
+            "pause_start": per_turn_times[i][0],
+            "pause_end": per_turn_times[i][1],
+            "reveal_start": per_turn_times[reveal_idx][0],
+        })
+    return windows
+
+
+def _gate_idiom_windows_for_reveals(idiom_windows: list[dict], reveal_windows: list[dict]) -> list[dict]:
+    """Delay idiom cards that overlap a pause-and-guess sequence until reveal."""
+    gated: list[dict] = []
+    for window in idiom_windows or []:
+        try:
+            st = int(window.get("start_turn", 0))
+            et = int(window.get("end_turn", st))
+        except (TypeError, ValueError):
+            gated.append(window)
+            continue
+
+        adjusted = dict(window)
+        for reveal in reveal_windows:
+            prompt_idx = reveal["prompt_index"]
+            pause_idx = reveal["pause_index"]
+            reveal_idx = reveal["reveal_index"]
+            if st <= reveal_idx and et >= prompt_idx and st <= pause_idx:
+                st = max(st, reveal_idx)
+                et = max(et, st)
+                adjusted["start_turn"] = st
+                adjusted["end_turn"] = et
+        gated.append(adjusted)
+    return gated
+
+
 def _load_face_badge(name: str, size: int = 44) -> Optional[str]:
     """
     Return the absolute path to the face PNG for `name` (Emma or Liam),
@@ -148,12 +219,14 @@ def _build_ass_header(
         margin_l = 80
         margin_r = 80
         card_font_size = 80
+        countdown_font_size = 120
     else:
         margin_v_bottom = 140
         margin_v_top = 100
         margin_l = 300
         margin_r = 300
         card_font_size = 60
+        countdown_font_size = 84
 
     # ASS colour: &HAABBGGRR  (AA=alpha, 00=opaque)
     header = f"""\
@@ -170,6 +243,7 @@ Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_
 Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
+Style: {STYLE_COUNTDOWN},{_eff_fontname()},{countdown_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&H88000000,1,0,0,0,100,100,0,0,1,5,1,5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -242,7 +316,14 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     return badge + "".join(parts).rstrip()
 
 
-def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: list[tuple[float, float]], video_width: int, margin_v: int):
+def _add_idiom_card_events(
+    events: list[str],
+    script_data: dict,
+    turn_times: list[tuple[float, float]],
+    video_width: int,
+    margin_v: int,
+    reveal_windows: Optional[list[dict]] = None,
+):
     """Add top-of-screen Idiom Box events based on script_data['idiom_windows']."""
     # Avoid showing idiom card captions in English quizzes, as it reveals the answer
     if script_data and script_data.get("video_format") == "shorts_quiz":
@@ -250,7 +331,10 @@ def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: lis
 
     if not script_data:
         return
-    windows = script_data.get("idiom_windows", [])
+    windows = _gate_idiom_windows_for_reveals(
+        script_data.get("idiom_windows", []),
+        reveal_windows or [],
+    )
     for w in windows:
         st_idx = w.get("start_turn", 0)
         et_idx = w.get("end_turn", st_idx)
@@ -264,6 +348,44 @@ def _add_idiom_card_events(events: list[str], script_data: dict, turn_times: lis
             text    = rf"{{\move({center_x},-150,{center_x},{margin_v},0,500)}}{idiom}\N{{\b0\i1\fs-15}}{defn}"
             # Layer 1 ensures it prints over Layer 0 dialogue if they ever overlapped
             events.append(f"Dialogue: 1,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},{STYLE_IDIOM_CARD},,0,0,0,,{text}")
+
+
+def _add_pause_guess_events(
+    events: list[str],
+    dialogue: list[dict],
+    per_turn_times: list[tuple[float, float]],
+    reveal_windows: list[dict],
+):
+    """Freeze the prompt during silence and burn a 3-2-1 countdown in ASS."""
+    for window in reveal_windows:
+        prompt_idx = window["prompt_index"]
+        pause_start = float(window["pause_start"])
+        pause_end = float(window["pause_end"])
+        if pause_end <= pause_start:
+            continue
+
+        prompt = dialogue[prompt_idx]
+        style = STYLE_EMMA if prompt.get("speaker", "Emma").lower() == "emma" else STYLE_LIAM
+        text = _plain_caption_line(prompt.get("text", ""), prompt.get("speaker", "Emma"))
+        events.append(
+            f"Dialogue: 0,{_ass_timestamp(pause_start)},{_ass_timestamp(pause_end)},"
+            f"{style},,0,0,0,,{text}"
+        )
+
+        duration = pause_end - pause_start
+        count = min(3, max(1, int(math.ceil(duration))))
+        slot = duration / count
+        labels = [str(n) for n in range(count, 0, -1)]
+        for idx, label in enumerate(labels):
+            start_t = pause_start + idx * slot
+            end_t = pause_end if idx == count - 1 else min(pause_end, pause_start + (idx + 1) * slot)
+            if end_t <= start_t:
+                continue
+            countdown_text = rf"{{\fad(80,120)\t(0,180,\fscx118\fscy118)}}{label}"
+            events.append(
+                f"Dialogue: 2,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
+                f"{STYLE_COUNTDOWN},,0,0,0,,{countdown_text}"
+            )
 
 
 # ─── Core grouping ────────────────────────────────────────────────────────────
@@ -296,6 +418,81 @@ def _group_words_into_chunks(
     if current:
         chunks.append(current)
     return chunks
+
+
+def _words_grouped_by_turn(
+    words: list[dict],
+    dialogue: list[dict],
+    per_turn_times: list[tuple[float, float]],
+) -> list[list[dict]]:
+    """Assign transcribed words to dialogue turns and clamp to turn bounds."""
+    grouped: list[list[dict]] = [[] for _ in dialogue]
+    if not dialogue or not per_turn_times or len(per_turn_times) != len(dialogue):
+        return grouped
+
+    for word in words:
+        start = float(word.get("start", 0.0))
+        end = float(word.get("end", start))
+        mid = (start + end) / 2.0
+        assigned_idx = None
+
+        for idx, (turn_start, turn_end) in enumerate(per_turn_times):
+            if _is_pause_turn(dialogue[idx].get("text", "")):
+                continue
+            if turn_start <= mid < turn_end:
+                assigned_idx = idx
+                break
+
+        # Whisper can occasionally place an edge word a few centiseconds outside
+        # the known TTS span. Keep it with the nearest spoken turn, never a pause.
+        if assigned_idx is None:
+            nearest: tuple[float, int] | None = None
+            for idx, (turn_start, turn_end) in enumerate(per_turn_times):
+                if _is_pause_turn(dialogue[idx].get("text", "")):
+                    continue
+                distance = min(abs(mid - turn_start), abs(mid - turn_end))
+                if distance <= 0.25 and (nearest is None or distance < nearest[0]):
+                    nearest = (distance, idx)
+            assigned_idx = nearest[1] if nearest else None
+
+        if assigned_idx is None:
+            continue
+
+        turn_start, turn_end = per_turn_times[assigned_idx]
+        clamped = dict(word)
+        clamped["start"] = max(start, turn_start)
+        clamped["end"] = min(max(end, clamped["start"] + 0.01), turn_end)
+        if clamped["end"] > clamped["start"]:
+            grouped[assigned_idx].append(clamped)
+
+    return grouped
+
+
+def _add_caption_events_from_turn_words(
+    events: list[str],
+    grouped_words: list[list[dict]],
+    dialogue: list[dict],
+    max_chars: int,
+    extra_idioms: list[str],
+):
+    for idx, turn_words in enumerate(grouped_words):
+        if not turn_words or idx >= len(dialogue):
+            continue
+        speaker = dialogue[idx].get("speaker", "Emma")
+        for chunk in _group_words_into_chunks(turn_words, max_chars):
+            if not chunk:
+                continue
+            start_t = chunk[0]["start"]
+            end_t = chunk[-1]["end"]
+            style = STYLE_IDIOM if _is_idiom_chunk(
+                " ".join(w["word"] for w in chunk), extra_idioms
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+
+            text = _karaoke_line(chunk, speaker, extra_idioms)
+            events.append(
+                f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
+                f"{style},,0,0,0,,{text}"
+            )
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -366,14 +563,15 @@ def generate_ass_captions(
     turn_speaker_map: list[tuple[float, float, str]] = []
     events: list[str] = []
 
-    if script_data and per_turn_times and len(per_turn_times) == len(script_data.get("dialogue", [])):
-        dialogue = script_data.get("dialogue", [])
+    dialogue = script_data.get("dialogue", []) if script_data else []
+    reveal_windows = _pause_guess_windows(dialogue, per_turn_times or [])
+
+    if script_data and per_turn_times and len(per_turn_times) == len(dialogue):
         for i, (s, e) in enumerate(per_turn_times):
             spk = dialogue[i].get("speaker", "Emma")
             turn_speaker_map.append((s, e, spk))
     elif script_data:
         # Fallback to estimation if precise times aren't available
-        dialogue = script_data.get("dialogue", [])
         total_dur = all_words[-1]["end"] if all_words else 0.0
         turn_dur = total_dur / max(len(dialogue), 1)
         for i, line in enumerate(dialogue):
@@ -381,7 +579,15 @@ def generate_ass_captions(
 
     # Add Idiom Box events (Top of screen)
     margin_v_top = 160 if is_shorts else 100
-    _add_idiom_card_events(events, script_data, [(s, e) for s, e, _ in turn_speaker_map], video_width, margin_v_top)
+    _add_idiom_card_events(
+        events,
+        script_data,
+        [(s, e) for s, e, _ in turn_speaker_map],
+        video_width,
+        margin_v_top,
+        reveal_windows,
+    )
+    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
@@ -389,25 +595,28 @@ def generate_ass_captions(
                 return spk
         return "Emma"
 
-    # Group words into caption chunks
-    chunks = _group_words_into_chunks(all_words, max_chars)
+    if dialogue and per_turn_times and len(per_turn_times) == len(dialogue):
+        grouped_words = _words_grouped_by_turn(all_words, dialogue, per_turn_times)
+        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms)
+    else:
+        chunks = _group_words_into_chunks(all_words, max_chars)
 
-    for chunk in chunks:
-        if not chunk:
-            continue
-        start_t = chunk[0]["start"]
-        end_t   = chunk[-1]["end"]
-        speaker = _speaker_at(start_t)
-        style   = STYLE_IDIOM if _is_idiom_chunk(
-            " ".join(w["word"] for w in chunk), extra_idioms
-        ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+        for chunk in chunks:
+            if not chunk:
+                continue
+            start_t = chunk[0]["start"]
+            end_t   = chunk[-1]["end"]
+            speaker = _speaker_at(start_t)
+            style   = STYLE_IDIOM if _is_idiom_chunk(
+                " ".join(w["word"] for w in chunk), extra_idioms
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
 
-        text = _karaoke_line(chunk, speaker, extra_idioms)
-        event = (
-            f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
-            f"{style},,0,0,0,,{text}"
-        )
-        events.append(event)
+            text = _karaoke_line(chunk, speaker, extra_idioms)
+            event = (
+                f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
+                f"{style},,0,0,0,,{text}"
+            )
+            events.append(event)
 
     header = _build_ass_header(video_width, video_height, font_size_normal, font_size_idiom, is_shorts=is_shorts)
 
@@ -452,13 +661,23 @@ def generate_ass_captions_from_words(
     turn_speaker_map: list[tuple[float, float, str]] = []
     events: list[str] = []
 
+    reveal_windows = _pause_guess_windows(dialogue, per_turn_times or [])
+
     for i, (s, e) in enumerate(per_turn_times):
         if i < len(dialogue):
             turn_speaker_map.append((s, e, dialogue[i].get("speaker", "Emma")))
 
     # Add Idiom Box events (Top of screen)
     margin_v_top = 160 if is_shorts else 100
-    _add_idiom_card_events(events, {"idiom_windows": dialogue[0].get("idiom_windows", []) if isinstance(dialogue, list) and dialogue and "idiom_windows" in dialogue[0] else []}, per_turn_times, video_width, margin_v_top)
+    _add_idiom_card_events(
+        events,
+        {"idiom_windows": dialogue[0].get("idiom_windows", []) if isinstance(dialogue, list) and dialogue and "idiom_windows" in dialogue[0] else []},
+        per_turn_times,
+        video_width,
+        margin_v_top,
+        reveal_windows,
+    )
+    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
@@ -466,24 +685,28 @@ def generate_ass_captions_from_words(
                 return spk
         return "Emma"
 
-    chunks = _group_words_into_chunks(words, max_chars)
+    if dialogue and per_turn_times and len(per_turn_times) == len(dialogue):
+        grouped_words = _words_grouped_by_turn(words, dialogue, per_turn_times)
+        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms)
+    else:
+        chunks = _group_words_into_chunks(words, max_chars)
 
-    for chunk in chunks:
-        if not chunk:
-            continue
-        start_t = chunk[0]["start"]
-        end_t   = chunk[-1]["end"]
-        speaker = _speaker_at(start_t)
-        style   = STYLE_IDIOM if _is_idiom_chunk(
-            " ".join(w["word"] for w in chunk), extra_idioms
-        ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+        for chunk in chunks:
+            if not chunk:
+                continue
+            start_t = chunk[0]["start"]
+            end_t   = chunk[-1]["end"]
+            speaker = _speaker_at(start_t)
+            style   = STYLE_IDIOM if _is_idiom_chunk(
+                " ".join(w["word"] for w in chunk), extra_idioms
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
 
-        text = _karaoke_line(chunk, speaker, extra_idioms)
-        event = (
-            f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
-            f"{style},,0,0,0,,{text}"
-        )
-        events.append(event)
+            text = _karaoke_line(chunk, speaker, extra_idioms)
+            event = (
+                f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
+                f"{style},,0,0,0,,{text}"
+            )
+            events.append(event)
 
     header = _build_ass_header(video_width, video_height, font_size_normal, font_size_idiom, is_shorts=is_shorts)
 

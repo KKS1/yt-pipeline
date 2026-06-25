@@ -40,7 +40,7 @@ def main():
             frame.paste(body_img, (pos["x"], pos["y"]), body_img)
 
             # Calculate mouth position relative to character body
-            # This matches the updated logic in dynamic_english_renderer.py
+            # Mouth coordinates are stored relative to the character body.
             abs_m_x = pos["x"] + mouth["x"]
             abs_m_y = pos["y"] + mouth["y"]
 
