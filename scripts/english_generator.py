@@ -506,6 +506,33 @@ _CTA_PATTERNS = [
     )
 ]
 
+# Motivational/preachy patterns that cause viewer drop-off
+_MOTIVATIONAL_PATTERNS = [
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\bremember\b.*\bkey\b",
+        r"\bkey\s+to\s+mastering\b",
+        r"\bpractice.*practice.*practice\b",
+        r"\bkeep\s+practicing\b",
+        r"\bmove\s+on\s+to\s+(?:more\s+)?advanced\b",
+        r"\bthe\s+key\s+is\b",
+        r"\bimportant\s+to\s+remember\b",
+        r"\bdon'?t\s+give\s+up\b",
+        r"\bkeep\s+going\b",
+        r"\byou\s+can\s+do\s+it\b",
+        r"\bstay\s+motivated\b",
+        r"\bnever\s+stop\s+learning\b",
+        r"\bconsistency\s+is\s+key\b",
+        r"\bpractice\s+makes\s+perfect\b",
+        r"\bthe\s+more\s+you\s+practice\b",
+        r"\bkeep\s+up\s+the\s+good\s+work\b",
+        r"\byou'?re\s+doing\s+great\b",
+        r"\bkeep\s+up\s+the\s+momentum\b",
+        r"\blet'?s\s+keep\s+practicing\b",
+        r"\bremember\s+to\s+practice\b",
+    )
+]
+
 _NOT_FINAL_PART_RULES = """
 CONTINUITY (THIS IS NOT THE FINAL PART OF THE VIDEO):
 - Treat this as one invisible chunk inside a single continuous long-form video, not as a standalone episode.
@@ -513,6 +540,7 @@ CONTINUITY (THIS IS NOT THE FINAL PART OF THE VIDEO):
 - Do NOT ask viewers to like, subscribe, or hit the bell.
 - Do NOT say "see you next time", "tune in next episode", "stay tuned", "let's take a break", "we'll be right back", "next episode", or similar closings.
 - Do NOT preview future videos, future episodes, or a later break.
+- Do NOT use motivational or preachy language like "remember the key to mastering", "practice practice practice", "keep practicing", "move on to advanced", "don't give up", "you can do it", "stay motivated", "never stop learning", "consistency is key", "practice makes perfect", "keep up the good work", "you're doing great", or similar encouragement phrases.
 - End on an open conversation beat or unfinished teaching moment so the next generated part continues naturally.
 """
 
@@ -523,6 +551,10 @@ def is_outro_line(text: str) -> bool:
 
 def is_cta_line(text: str) -> bool:
     return any(p.search(text) for p in _CTA_PATTERNS)
+
+
+def is_motivational_line(text: str) -> bool:
+    return any(p.search(text) for p in _MOTIVATIONAL_PATTERNS)
 
 
 def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
@@ -635,8 +667,8 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
         suffix = dialogue[-keep_suffix:]
         dialogue = dialogue[:-keep_suffix]
 
-    # Filter out mid-episode sign-off lines from the remaining body
-    body = [t for t in dialogue if not is_outro_line(t.get("text", ""))]
+    # Filter out mid-episode sign-off lines and motivational/preachy lines from the remaining body
+    body = [t for t in dialogue if not is_outro_line(t.get("text", "")) and not is_motivational_line(t.get("text", ""))]
     return prefix + body + suffix
 
 
@@ -692,7 +724,11 @@ def call_groq_json(user_prompt: str) -> dict:
                 "content": (
                     "You generate perfect JSON for educational English conversation podcasts. "
                     "Each multi-part episode has exactly ONE closing outro at the very end; "
-                    "never add subscribe or goodbye language in middle parts."
+                    "never add subscribe or goodbye language in middle parts. "
+                    "Never use motivational or preachy language like 'remember the key to mastering', "
+                    "'practice practice practice', 'keep practicing', 'move on to advanced', 'don't give up', "
+                    "'you can do it', 'stay motivated', 'never stop learning', 'consistency is key', "
+                    "'practice makes perfect', 'keep up the good work', 'you're doing great', or similar encouragement phrases."
                 ),
             },
             {"role": "user", "content": user_prompt},
