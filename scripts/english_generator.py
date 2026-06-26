@@ -281,12 +281,45 @@ def flatten_dialogue(dialogue_list: list) -> list:
 
 
 def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
-    """Attach start_turn/end_turn to each scene by sequential dialogue matching."""
+    """Attach start_turn/end_turn to each scene, prioritizing direct indices if present."""
     if not scenes or not dialogue:
         return scenes
 
     dialogue = flatten_dialogue(dialogue)
+    num_turns = len(dialogue)
 
+    # Check if all scenes have direct start_turn and end_turn indices
+    has_indices = all("start_turn" in s and "end_turn" in s for s in scenes)
+    if has_indices:
+        aligned = []
+        for scene in scenes:
+            scene = dict(scene)
+            # Remove repeated dialogues from scene to avoid duplication in JSON
+            scene.pop("dialogues", None)
+            scene.pop("dialogue_list", None)
+            try:
+                start = max(0, min(int(scene["start_turn"]), num_turns - 1))
+                end = max(start, min(int(scene["end_turn"]), num_turns - 1))
+            except (ValueError, TypeError):
+                start = 0
+                end = 0
+            scene["start_turn"] = start
+            scene["end_turn"] = end
+            aligned.append(scene)
+
+        # Enforce sequential continuity and complete dialogue coverage
+        if aligned:
+            aligned[0]["start_turn"] = 0
+        for i in range(1, len(aligned)):
+            aligned[i]["start_turn"] = aligned[i - 1]["end_turn"] + 1
+            if aligned[i]["end_turn"] < aligned[i]["start_turn"]:
+                aligned[i]["end_turn"] = aligned[i]["start_turn"]
+        if aligned:
+            aligned[-1]["end_turn"] = num_turns - 1
+
+        return aligned
+
+    # Legacy fallback: sequential dialogue matching based on dialogues list
     turn_idx = 0
     aligned = []
     for scene in scenes:
@@ -320,6 +353,8 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
         end_turn = max(start_turn, turn_idx - 1)
         scene["start_turn"] = start_turn
         scene["end_turn"] = end_turn
+        scene.pop("dialogues", None)
+        scene.pop("dialogue_list", None)
         aligned.append(scene)
 
     if turn_idx < len(dialogue):
@@ -360,6 +395,7 @@ CRITICAL RULES:
 4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
 5. Do not change the visual prompt unless the topic or physical location changes.
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.jpg or scene_1_library_discussion.png (lowercase, underscores, .jpg or .png extension).
+7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -370,10 +406,8 @@ Output ONLY valid JSON with this schema:
       "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
       "image_filename": "scene_1_library_discussion.jpg (or .png)",
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
-      "dialogues": [
-        {{"character": "Emma", "text": "exact dialogue text from script"}},
-        {{"character": "Liam", "text": "exact dialogue text from script"}}
-      ]
+      "start_turn": 0,
+      "end_turn": 12
     }}
   ]
 }}
