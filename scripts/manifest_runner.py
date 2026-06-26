@@ -45,6 +45,13 @@ class ManifestEntry:
     visual_mode: str = "scenes"    # "scenes" | "legacy_loops"
 
     def to_dict(self) -> dict:
+        # Strip dialogues from scenes to avoid staleness - only keep turn indices
+        scenes_without_dialogues = []
+        for scene in self.scenes:
+            scene_copy = dict(scene)
+            scene_copy.pop("dialogues", None)
+            scenes_without_dialogues.append(scene_copy)
+        
         return {
             "label": self.label,
             "script_path": self.script_path,
@@ -54,7 +61,7 @@ class ManifestEntry:
             "orientation": self.orientation,
             "estimated_duration_seconds": self.estimated_duration_seconds,
             "resolved_visuals": self.resolved_visuals,
-            "scenes": self.scenes,
+            "scenes": scenes_without_dialogues,
             "scenes_folder": self.scenes_folder,
             "scene_images_ready": self.scene_images_ready,
             "visual_mode": self.visual_mode,
