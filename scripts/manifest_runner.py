@@ -201,7 +201,18 @@ def check_scene_images_ready(scenes_dir: Path, scenes: list) -> tuple[bool, list
     missing = []
     for scene in scenes:
         path = scene_image_path(scenes_dir, scene)
-        if not path.exists():
+        if path.exists():
+            continue
+        
+        # Try alternative extensions
+        stem = path.stem
+        found = False
+        for ext in SCENE_IMAGE_EXTENSIONS:
+            alt_path = scenes_dir / f"{stem}{ext}"
+            if alt_path.exists():
+                found = True
+                break
+        if not found:
             missing.append(path.name)
     return len(missing) == 0, missing
 
@@ -211,9 +222,19 @@ def resolve_scene_image_paths(scenes_dir: Path, scenes: list) -> list[Path]:
     paths = []
     for scene in scenes:
         path = scene_image_path(scenes_dir, scene)
-        if not path.exists():
-            raise FileNotFoundError(f"Missing scene image: {path}")
-        paths.append(path)
+        if path.exists():
+            paths.append(path)
+            continue
+        
+        # Try alternative extensions if exact filename not found
+        stem = path.stem
+        for ext in SCENE_IMAGE_EXTENSIONS:
+            alt_path = scenes_dir / f"{stem}{ext}"
+            if alt_path.exists():
+                paths.append(alt_path)
+                break
+        else:
+            raise FileNotFoundError(f"Missing scene image: {path} (tried extensions: {SCENE_IMAGE_EXTENSIONS})")
     return paths
 
 
