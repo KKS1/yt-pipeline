@@ -237,3 +237,34 @@ def test_flatten_dialogue():
         {"speaker": "Liam", "text": "Goodbye"}
     ]
     assert flatten_dialogue(nested) == expected
+
+
+def test_align_scenes_to_turns_normalizes_extensions():
+    from scripts.english_generator import align_scenes_to_turns
+    scenes = [
+        {
+            "scene_id": 1,
+            "scene_label": "Intro",
+            "image_filename": "scene_1_intro.jpg",
+            "visual_prompt": "Intro scene",
+            "start_turn": 0,
+            "end_turn": 1
+        },
+        {
+            "scene_id": 2,
+            "scene_label": "Body",
+            "image_filename": "scene_2_body.png",
+            "visual_prompt": "Body scene",
+            "start_turn": 2,
+            "end_turn": 3
+        }
+    ]
+    dialogue = [
+        {"speaker": "Emma", "text": "Hello 1"},
+        {"speaker": "Liam", "text": "Hello 2"},
+        {"speaker": "Emma", "text": "Hello 3"},
+        {"speaker": "Liam", "text": "Hello 4"}
+    ]
+    aligned = align_scenes_to_turns(scenes, dialogue)
+    assert aligned[0]["image_filename"] == "scene_1_intro.png"
+    assert aligned[1]["image_filename"] == "scene_2_body.png"

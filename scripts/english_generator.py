@@ -285,6 +285,12 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
     if not scenes or not dialogue:
         return scenes
 
+    # Standardize image filenames to .png extension strictly
+    for scene in scenes:
+        if isinstance(scene, dict) and "image_filename" in scene and scene["image_filename"]:
+            base, _ = os.path.splitext(scene["image_filename"])
+            scene["image_filename"] = base + ".png"
+
     dialogue = flatten_dialogue(dialogue)
     num_turns = len(dialogue)
 
@@ -394,7 +400,7 @@ CRITICAL RULES:
 3. The background and character actions must match the literal words spoken in the dialogue text.
 4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
 5. Do not change the visual prompt unless the topic or physical location changes.
-6. Each scene needs a descriptive image_filename like scene_1_library_discussion.jpg or scene_1_library_discussion.png (lowercase, underscores, .jpg or .png extension).
+6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
 7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns.
 
 Output ONLY valid JSON with this schema:
@@ -404,7 +410,7 @@ Output ONLY valid JSON with this schema:
     {{
       "scene_id": 1,
       "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
-      "image_filename": "scene_1_library_discussion.jpg (or .png)",
+      "image_filename": "scene_1_library_discussion.png",
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
       "start_turn": 0,
       "end_turn": 12
