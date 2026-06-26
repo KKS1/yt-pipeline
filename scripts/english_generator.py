@@ -16,14 +16,16 @@ PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_top
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, searchable, curiosity-driven, and punchy.
+- CRITICAL: Keep titles under 60 characters to avoid being cut off on mobile devices.
 - Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
-- Keep titles natural for YouTube search; front-load keywords like English Listening Practice, English Speaking Practice, English Quiz, or Learn English.
+- Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
+- Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
 - Descriptions MUST start with exactly 2 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
 - Place the comment question in lines 3-5 (immediately after the SEO opener, BEFORE timeline and CTAs) to encourage early engagement.
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
-- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
+- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
 DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline):
@@ -660,10 +662,14 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     {avoid_instruction}
 
-    CRITICAL: For titles, prioritize searchable keywords like "Practice for Beginners", "Easy English Listening", or "Daily Conversation".
+    CRITICAL TITLE RULES:
+    - Keep topics under 60 characters to avoid mobile cutoff
+    - Front-load keywords: Start with "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
+    - Include topic-specific vocabulary immediately after the main keyword phrase
+    - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
 
     Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "Mastering Sarcasm and Irony", "search_keyword": "English Conversation Practice"}}
+    Example: {{"topic": "English Listening Practice: Hair Salon Guide", "search_keyword": "English Conversation Practice hairdresser stylist"}}
     """
     try:
         res = call_groq_json(prompt)
@@ -1006,7 +1012,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (Searchable keyword-rich title, e.g., 'English Quiz Day {day_num}: [Topic] | Test Your English')",
+      "title": "string (Searchable keyword-rich title under 60 characters. Front-load with 'English Quiz' or 'English listening practice'. Include topic first, then Day {day_num} in the suffix at the end. Use keyword variations. e.g., 'English Quiz: Hair Salon Vocabulary - Day {day_num}')",
       "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
@@ -1132,7 +1138,7 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR title using hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include Day {day_number} in the suffix. e.g., 'Day {day_number}: STOP Using Basic Words!')",
+  "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Restaurant Vocabulary - Day {day_number}')",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
