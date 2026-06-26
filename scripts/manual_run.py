@@ -882,10 +882,12 @@ def _assemble_english_video_from_script(
         assemble_english_video,
         assemble_english_scene_video,
     )
-    from ffmpeg_assembler import generate_captions, assemble_shorts_video
-    from english_generator import annotate_script_with_idiom_windows
+    from english_generator import annotate_script_with_idiom_windows, flatten_dialogue
 
     cleanup_english_temp()
+
+    if "dialogue" in script:
+        script["dialogue"] = flatten_dialogue(script["dialogue"])
 
     try:
         annotate_script_with_idiom_windows(script)

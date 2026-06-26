@@ -260,10 +260,32 @@ def _speaker_name(line: dict) -> str:
     return str(line.get("speaker") or line.get("character") or "").strip()
 
 
+def flatten_dialogue(dialogue_list: list) -> list:
+    """Recursively flattens nested lists or dictionaries containing dialogue keys."""
+    if not dialogue_list:
+        return []
+    flat = []
+    for item in dialogue_list:
+        if isinstance(item, dict):
+            if "dialogue" in item and isinstance(item["dialogue"], list):
+                flat.extend(flatten_dialogue(item["dialogue"]))
+            elif "dialogue_list" in item and isinstance(item["dialogue_list"], list):
+                flat.extend(flatten_dialogue(item["dialogue_list"]))
+            else:
+                flat.append(item)
+        elif isinstance(item, list):
+            flat.extend(flatten_dialogue(item))
+        else:
+            flat.append(item)
+    return flat
+
+
 def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
     """Attach start_turn/end_turn to each scene by sequential dialogue matching."""
     if not scenes or not dialogue:
         return scenes
+
+    dialogue = flatten_dialogue(dialogue)
 
     turn_idx = 0
     aligned = []
@@ -649,6 +671,8 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
     """Drop sign-off / CTA lines; Part 3 may keep them only in the last N turns."""
     if not dialogue:
         return []
+
+    dialogue = flatten_dialogue(dialogue)
 
     # If this is the very first part of the episode, we want to preserve the 
     # intro turns even if they contain "thanks for joining" language.

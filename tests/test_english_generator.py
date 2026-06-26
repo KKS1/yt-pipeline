@@ -212,3 +212,28 @@ def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     cleaned = ensure_english_quiz_shorts_hashtags("English quiz for beginners.")
 
     assert cleaned.splitlines()[-1] == "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+
+
+def test_flatten_dialogue():
+    from scripts.english_generator import flatten_dialogue
+    nested = [
+        {"speaker": "Emma", "text": "Hello"},
+        {
+            "dialogue": [
+                {"speaker": "Liam", "text": "Hi there"},
+                {
+                    "dialogue_list": [
+                        {"speaker": "Emma", "text": "Nested dialogue"}
+                    ]
+                }
+            ]
+        },
+        {"speaker": "Liam", "text": "Goodbye"}
+    ]
+    expected = [
+        {"speaker": "Emma", "text": "Hello"},
+        {"speaker": "Liam", "text": "Hi there"},
+        {"speaker": "Emma", "text": "Nested dialogue"},
+        {"speaker": "Liam", "text": "Goodbye"}
+    ]
+    assert flatten_dialogue(nested) == expected
