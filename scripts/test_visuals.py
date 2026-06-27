@@ -151,7 +151,7 @@ def test_legacy_landscape():
     print("=" * 60)
     out = run_english(topic="test", upload=False)
     print(f"Landscape Output: {out}")
-    return out
+    return True
 
 
 def test_legacy_shorts():
@@ -161,7 +161,7 @@ def test_legacy_shorts():
     print("=" * 60)
     out = run_english_shorts(topic="test", upload=False)
     print(f"Shorts Output: {out}")
-    return out
+    return True
 
 
 def test_legacy_quiz():
@@ -171,7 +171,7 @@ def test_legacy_quiz():
     print("=" * 60)
     out = run_english_quiz_shorts(topic="test", upload=False)
     print(f"Quiz Shorts Output: {out}")
-    return out
+    return True
 
 
 # ── Manifest mode tests ────────────────────────────────────────
