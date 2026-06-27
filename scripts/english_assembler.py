@@ -253,6 +253,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
     per_turn_durations: list[float] = []
 
     print("\nGenerating podcast audio...")
+    previous_speaker = None
     for i, line in enumerate(dialogue):
         speaker = line.get("speaker", "Emma")
         text = line.get("text", "")
@@ -266,11 +267,20 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                 print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
                 _generate_silence_audio(out_path, pause_duration)
             else:
+                # Insert 0.6s silence when speaker changes (for better comprehension)
+                if previous_speaker is not None and speaker != previous_speaker:
+                    silence_path = str(TEMP_DIR / f"english_silence_{i:03d}.m4a")
+                    _generate_silence_audio(silence_path, 0.6)
+                    audio_files.append(silence_path)
+                    per_turn_durations.append(0.6)
+                    print(f"  [speaker change silence 0.6s]")
+                
                 print(f"  [{speaker}] -> {out_path}")
                 synthesize(text, out_path, voice=voice, speed=speed)
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
             per_turn_durations.append(dur)
+            previous_speaker = speaker
         except Exception as e:
             print(f"  Error generating audio for line {i}: {e}")
             per_turn_durations.append(0.0)
