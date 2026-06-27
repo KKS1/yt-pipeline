@@ -1096,7 +1096,7 @@ STRUCTURE & CONTENT:
 5. The final 1-2 dialogue turns may thank listeners and invite them to keep learning with EnglishVibesHub.
 """
         outro_rule = "Do NOT use like/subscribe/goodbye language until the final 1-2 turns."
-        turn_count = "35-45"
+        turn_count = "20-25"
     else:
         structure = f"""
 STRUCTURE & CONTENT:
@@ -1108,7 +1108,7 @@ STRUCTURE & CONTENT:
 6. End by setting up tomorrow's challenge without saying goodbye.
 """
         outro_rule = _NOT_FINAL_PART_RULES
-        turn_count = "28-36"
+        turn_count = "18-22"
 
     prompt = f"""
 You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
@@ -1225,12 +1225,12 @@ TOPIC: {topic}
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 35-45 turns.
+- The `dialogue` array MUST contain around 20-25 turns.
 - Part 1 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
 - The last turn of Part 1 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 1):
-1. **15-second hook**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic.
+1. **8-10 second hook with value promise**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic, then immediately promise the solution. Example: "STOP saying [common mistake] - here are 3 better responses."
 2. **Retention structure**: Frame the lesson as "5 Levels of {topic}" or an equivalent countdown/progression from basic to advanced so viewers feel progress and want to reach the final level.
 3. **Levels 1-2**: Cover the basic and lower-intermediate levels in this part. Make each level clear in the spoken dialogue, for example "Level 1..." and "Level 2...".
 4. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
@@ -1238,9 +1238,9 @@ STRUCTURE & CONTENT (PART 1):
 6. Use and carefully explain 3-4 natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
-- Conversational, friendly, natural, and fast-paced.
+- Conversational, friendly, natural, and clear and deliberate.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns short: maximum 2 sentences per turn.
+- Keep speaker turns concise: 1-3 sentences per turn for variety.
 - Avoid filler, generic motivation, and long personal stories that do not teach a phrase.
 - Use culturally natural phrases only. Do not invent awkward expressions.
 
@@ -1277,7 +1277,7 @@ Pick up the conversation naturally from here.
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 35-45 turns.
+- The `dialogue` array MUST contain around 20-25 turns.
 - Part 2 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
 - The first turn must continue directly from the previous turn.
 - The last turn of Part 2 must feel like the conversation is still in progress.
@@ -1289,9 +1289,9 @@ STRUCTURE & CONTENT (PART 2):
 4. Use and carefully explain 4-5 additional natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
 {_NOT_FINAL_PART_RULES}
 STYLE:
-- Conversational, friendly, natural, and fast-paced.
+- Conversational, friendly, natural, and clear and deliberate.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns short: maximum 2 sentences per turn.
+- Keep speaker turns concise: 1-3 sentences per turn for variety.
 - Avoid filler and generic praise. Every turn should teach, test, or move the roleplay forward.
 
 JSON SCHEMA:
@@ -1320,7 +1320,7 @@ Pick up the conversation naturally from here.
 
 CRITICAL RULES:
 - Output ONLY valid JSON
-- The `dialogue` array MUST contain around 30-40 turns.
+- The `dialogue` array MUST contain around 20-25 turns.
 - Part 3 is the only place an ending is allowed, and only at the actual end of the final video.
 - Do not mention "next episode", "stay tuned", "take a break", or "we'll be right back" anywhere in Part 3.
 
@@ -1331,9 +1331,9 @@ STRUCTURE & CONTENT (PART 3):
 4. **Loop hook and outro (LAST 1-2 TURNS ONLY)**: End with a pinned-comment question that connects back to the opening mistake or challenge. The final sentence should make viewers want to comment or replay. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
 
 STYLE:
-- Conversational, friendly, natural, and fast-paced.
+- Conversational, friendly, natural, and clear and deliberate.
 - Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns short: maximum 2 sentences per turn.
+- Keep speaker turns concise: 1-3 sentences per turn for variety.
 - Avoid filler and long recap. Preserve momentum through the end.
 
 JSON SCHEMA:
