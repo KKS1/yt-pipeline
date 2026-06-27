@@ -274,7 +274,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                     silence_path = str(TEMP_DIR / f"english_silence_{i:03d}.m4a")
                     _generate_silence_audio(silence_path, 0.3)
                     audio_files.append(silence_path)
-                    per_turn_durations.append(0.3)
+                    # Don't add to per_turn_durations - it breaks turn-based timing alignment
                     print(f"  [speaker change silence 0.3s]")
                 
                 print(f"  [{speaker}] -> {out_path}")
