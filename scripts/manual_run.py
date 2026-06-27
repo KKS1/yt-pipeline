@@ -84,7 +84,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
     for channel, url in ENGLISH_DESCRIPTION_PLAYLIST_URLS.items()
 }
 
-ENGLISH_LONG_TTS_SPEED = 0.92
+ENGLISH_LONG_TTS_SPEED = 0.90
 ENGLISH_SHORTS_TTS_SPEED = 1.00
 ENGLISH_QUIZ_TTS_SPEED = 0.98
 
@@ -883,6 +883,7 @@ def _assemble_english_video_from_script(
         assemble_english_scene_video,
     )
     from english_generator import annotate_script_with_idiom_windows, flatten_dialogue
+    from ffmpeg_assembler import generate_captions
 
     cleanup_english_temp()
 
