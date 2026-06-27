@@ -84,7 +84,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
     for channel, url in ENGLISH_DESCRIPTION_PLAYLIST_URLS.items()
 }
 
-ENGLISH_LONG_TTS_SPEED = 0.90
+ENGLISH_LONG_TTS_SPEED = 0.92
 ENGLISH_SHORTS_TTS_SPEED = 1.00
 ENGLISH_QUIZ_TTS_SPEED = 0.98
 
@@ -1655,7 +1655,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
             cleanup_english_temp()
-            res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
+            res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED, add_speaker_silence=False)
             if isinstance(res, tuple):
                 quiz_audio, quiz_turn_times = res
             else:
@@ -1789,7 +1789,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
 
         print(f"\nAssembling Quiz Short for Day {day_number}...")
         cleanup_english_temp()
-        res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
+        res = generate_podcast_audio(quiz_script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED, add_speaker_silence=False)
         if isinstance(res, tuple):
             quiz_audio, quiz_turn_times = res
         else:
@@ -2001,7 +2001,7 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, notify_subsc
 
     # Audio + per-turn timestamps
     cleanup_english_temp()
-    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_SHORTS_TTS_SPEED)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_SHORTS_TTS_SPEED, add_speaker_silence=False)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:
@@ -2133,7 +2133,7 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
         fallback_topic=topic or title,
     )
 
-    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=ENGLISH_QUIZ_TTS_SPEED, add_speaker_silence=False)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:

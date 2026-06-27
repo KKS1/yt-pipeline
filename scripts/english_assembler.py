@@ -233,7 +233,7 @@ def apply_face_badge_overlays(
     subprocess.run(cmd, check=True)
     return output_path
 
-def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98):
+def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98, add_speaker_silence: bool = True):
     """
     Generate TTS for each line of dialogue using the designated voices,
     then concatenate them into a single audio file.
@@ -245,6 +245,8 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         one per dialogue turn, needed for idiom overlay timestamp mapping.
     speed : Kokoro speech speed. ESL videos should stay clear; use pacing in
         the script/edits rather than speeding speech too much.
+    add_speaker_silence : If True, insert 0.3s silence on speaker changes for
+        better comprehension. Set to False for vertical videos (shorts/quiz).
     """
     TEMP_DIR.mkdir(exist_ok=True)
     dialogue = script_data.get("dialogue", [])
@@ -267,13 +269,13 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                 print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
                 _generate_silence_audio(out_path, pause_duration)
             else:
-                # Insert 0.6s silence when speaker changes (for better comprehension)
-                if previous_speaker is not None and speaker != previous_speaker:
+                # Insert 0.3s silence when speaker changes (for better comprehension)
+                if add_speaker_silence and previous_speaker is not None and speaker != previous_speaker:
                     silence_path = str(TEMP_DIR / f"english_silence_{i:03d}.m4a")
-                    _generate_silence_audio(silence_path, 0.6)
+                    _generate_silence_audio(silence_path, 0.3)
                     audio_files.append(silence_path)
-                    per_turn_durations.append(0.6)
-                    print(f"  [speaker change silence 0.6s]")
+                    per_turn_durations.append(0.3)
+                    print(f"  [speaker change silence 0.3s]")
                 
                 print(f"  [{speaker}] -> {out_path}")
                 synthesize(text, out_path, voice=voice, speed=speed)
