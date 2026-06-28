@@ -1443,7 +1443,7 @@ CRITICAL RULES:
 - Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
 - Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
 - Use searchable keywords in the title: e.g., "English in 60 Seconds" or "Speak English Like a Native".
-- Do NOT use mid-episode sign-offs or long pauses.
+- Do NOT use mid-episode sign-offs or long pauses or one saying it was really helpful etc.
 - The script must start with a strong hook and end with a phrase that seamlessly loops back to the beginning.
 - The final turn should include a quick call to action that encourages re-watching (e.g., "Did you catch that? Let's try another one...").
 
