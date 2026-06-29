@@ -20,8 +20,10 @@ assets/characters/emma/body.png
 assets/characters/liam/body.png
 assets/characters/generated_mouths/
 assets/dynamic_backgrounds/
+assets/generated_scenes/
 scripts/this_or_that.json
 output_images/
+manifests/
 
 # Python
 __pycache__/
