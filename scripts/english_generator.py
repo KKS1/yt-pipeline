@@ -16,32 +16,33 @@ PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_top
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, searchable, curiosity-driven, and punchy.
-- CRITICAL: Keep titles under 60 characters to avoid being cut off on mobile devices.
 - Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
-- Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
-- Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
-- Descriptions MUST start with exactly 2 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
-- Place the comment question in lines 3-5 (immediately after the SEO opener, BEFORE timeline and CTAs) to encourage early engagement.
+- Title format: [Hook phrase] | [Level/Topic context]. Example: "DON'T Say 'Room Key' | 5 Levels of Hotel English"
+- Descriptions: Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
+- Descriptions: Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
+- Descriptions MUST start with exactly 2-3 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
+- Place the playlist and comment question CTAs (immediately after the SEO opener, BEFORE timeline and other CTAs) to encourage early engagement.
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
-DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline):
-Natural English for real conversations — Speak like a native!
+DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
+🎯 In this video, learn [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
+
+📺 Watch the full travel English playlist here: 
+https://www.youtube.com/playlist?list=PLQcVuzsH3e2I
 
 💬 Comment below: [specific question]
 
+📑 Timeline:
 {scene_timeline}
 
-🎯 In this video: [bullet summary]
-📚 [level or topic summary]
+🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice:
+https://www.youtube.com/channel/UCcebFzUKUN-bMXcYLBvx8Tg
 
-🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
-📺 Watch the playlist here: {playlist_url}
-
-#EnglishVibesHub #LearnEnglish ...
+#EnglishVibesHub #LearnEnglish #EnglishListeningPractice #EnglishForBeginners ...
 """
 
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
@@ -98,25 +99,19 @@ def ensure_english_vibes_hashtags(description: str) -> str:
 
 
 def ensure_english_seo_opener(description: str) -> str:
-    """Ensure first two lines use high-intent Natural English / Speak like a native keywords."""
+    """Ensure first line uses high-intent SEO opener with 🎯 icon."""
     text = str(description or "").strip()
     if not text:
         return (
-            "Natural English for real conversations — Speak like a native!\n"
-            "Improve your listening and speaking with Emma and Liam."
+            "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
         )
     lines = text.splitlines()
     opener = lines[0].lower() if lines else ""
-    if "natural english" in opener and any(
-        phrase in text.lower() for phrase in ("speak like a native", "speak like native")
-    ):
+    if "🎯" in opener or ("in this video, learn" in opener and "natural english" in text.lower()):
         return text
-    seo_lines = [
-        "Natural English for real conversations — Speak like a native!",
-        lines[0] if lines else "Improve your listening and speaking with Emma and Liam.",
-    ]
-    rest = lines[1:] if len(lines) > 1 else []
-    return "\n".join(seo_lines + rest)
+    seo_line = "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+    rest = lines if lines else []
+    return seo_line + "\n\n" + "\n".join(rest)
 
 
 def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
@@ -200,16 +195,16 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
 
     additions = []
 
+    if not re.search(r"\bcomment\b", text, re.IGNORECASE):
+        additions.append("💬 Comment below: Which phrase will you practice today?")
     if include_timeline and "{scene_timeline}" not in text and not re.search(
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
         additions.append("{scene_timeline}")
-    if "{playlist_url}" not in text:
-        additions.append("📺 Watch the playlist here: {playlist_url}")
     if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
         additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
-    if not re.search(r"\bcomment\b", text, re.IGNORECASE):
-        additions.append("💬 Comment below: Which phrase will you practice today?")
+    if "{playlist_url}" not in text:
+        additions.append("� Watch the playlist here: {playlist_url}")
 
     if additions:
         text = (text + "\n\n" if text else "") + "\n\n".join(additions)
@@ -663,13 +658,13 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     {avoid_instruction}
 
     CRITICAL TITLE RULES:
-    - Keep topics under 60 characters to avoid mobile cutoff
+    - Title format: [Hook phrase] | [Level/Topic context]. Example: "DON'T Say 'Room Key' | 5 Levels of Hotel English"
     - Front-load keywords: Start with "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
     - Include topic-specific vocabulary immediately after the main keyword phrase
     - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
 
     Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "English Listening Practice: Hair Salon Guide", "search_keyword": "English Conversation Practice hairdresser stylist"}}
+    Example: {{"topic": "DON'T Say 'Room Key' | 5 Levels of Hotel English", "search_keyword": "English Conversation Practice hotel reception check-in"}}
     """
     try:
         res = call_groq_json(prompt)
