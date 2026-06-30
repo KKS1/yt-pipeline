@@ -366,6 +366,9 @@ def apply_idiom_overlays(
         x_expr = f"W-{CARD_W + MARGIN}"
         y_expr = f"H-{CARD_H + MARGIN + 80}"  # above bottom captions area
 
+    # Sort windows by start time to ensure proper layering
+    valid_windows.sort(key=lambda x: x[0].get("abs_start_sec", 0.0))
+
     current_label = "[0:v]"
     for idx, (window, inp_idx) in enumerate(valid_windows):
         start = window.get("abs_start_sec", 0.0)
@@ -388,9 +391,17 @@ def apply_idiom_overlays(
             f"fade=t=out:st={fade_out_start:.3f}:d={FADE}:alpha=1"
             f"[{faded_label[1:-1]}]"
         )
+
+        # Build enable expression: show this card only when it's active AND no later card is active
+        # This prevents overlapping cards from appearing simultaneously
+        enable_expr = f"between(t,{start:.3f},{end:.3f})"
+        for later_idx in range(idx + 1, len(valid_windows)):
+            later_start = valid_windows[later_idx][0].get("abs_start_sec", 0.0)
+            enable_expr += f"*!between(t,{later_start:.3f},{later_start + 10:.3f})"
+
         filter_parts.append(
             f"{current_label}{faded_label}"
-            f"overlay={x_expr}:{y_expr}:enable='between(t,{start:.3f},{end:.3f})'"
+            f"overlay={x_expr}:{y_expr}:enable='{enable_expr}'"
             f"{out_label}"
         )
         current_label = out_label
