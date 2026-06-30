@@ -177,9 +177,9 @@ def finalize_english_description(
     """Apply all English description post-processors."""
     text = ensure_english_seo_opener(description)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
-    text = ensure_english_vibes_hashtags(text)
     if is_quiz:
         text = ensure_english_quiz_shorts_hashtags(text)
+    text = ensure_english_vibes_hashtags(text)
     return text
 
 
@@ -204,7 +204,7 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
         additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
     if "{playlist_url}" not in text:
-        additions.append("� Watch the playlist here: {playlist_url}")
+        additions.append("📺 Watch the playlist here: {playlist_url}")
 
     if additions:
         text = (text + "\n\n" if text else "") + "\n\n".join(additions)
@@ -230,6 +230,11 @@ def ensure_english_quiz_shorts_hashtags(description: str) -> str:
     for line in text.splitlines():
         if not line.strip():
             cleaned_lines.append("")
+            continue
+        # Only remove target hashtags from lines that contain hashtags
+        # Preserve lines without hashtags (like playlist, subscribe, etc.)
+        if not hashtag_re.search(line):
+            cleaned_lines.append(line)
             continue
         cleaned = target_re.sub("", line).strip()
         cleaned = re.sub(r" {2,}", " ", cleaned)
@@ -313,11 +318,19 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
         # Enforce sequential continuity and complete dialogue coverage
         if aligned:
             aligned[0]["start_turn"] = 0
-        for i in range(1, len(aligned)):
-            aligned[i]["start_turn"] = aligned[i - 1]["end_turn"] + 1
-            if aligned[i]["end_turn"] < aligned[i]["start_turn"]:
-                aligned[i]["end_turn"] = aligned[i]["start_turn"]
-        if aligned:
+        
+        # Redistribute turns evenly across scenes to ensure complete coverage
+        if len(aligned) > 0:
+            turns_per_scene = max(1, num_turns // len(aligned))
+            remainder = num_turns % len(aligned)
+            
+            for i in range(len(aligned)):
+                aligned[i]["start_turn"] = i * turns_per_scene + min(i, remainder)
+                aligned[i]["end_turn"] = aligned[i]["start_turn"] + turns_per_scene - 1
+                if i < remainder:
+                    aligned[i]["end_turn"] += 1
+            
+            # Ensure the last scene covers to the end
             aligned[-1]["end_turn"] = num_turns - 1
 
         return aligned
