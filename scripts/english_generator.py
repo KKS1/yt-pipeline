@@ -117,13 +117,13 @@ def ensure_english_seo_opener(description: str) -> str:
 def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
     """Build a formatted timeline block from scene turn ranges and Kokoro audio timings."""
     if not scenes or not per_turn_times:
-        return "📑 Timeline:\n0:00 - Start"
+        return "0:00 - Start"
 
     def fmt_time(seconds: float) -> str:
         seconds = max(0, int(seconds))
         return f"{seconds // 60}:{seconds % 60:02d}"
 
-    lines = ["📑 Timeline:"]
+    lines = []
     for scene in scenes:
         start_turn = int(scene.get("start_turn", 0))
         end_turn = int(scene.get("end_turn", start_turn))
@@ -1225,7 +1225,7 @@ CRITICAL RULES:
 - The last turn of Part 1 must feel like the conversation is still in progress.
 
 STRUCTURE & CONTENT (PART 1):
-1. **8-10 second hook with value promise**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic, then immediately promise the solution. Example: "STOP saying [common mistake] - here are 3 better responses."
+1. **8-10 second hook with value promise**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic, then immediately promise the solution. Example: "STOP saying [common mistake]. Here are 3 better responses."
 2. **Retention structure**: Frame the lesson as "5 Levels of {topic}" or an equivalent countdown/progression from basic to advanced so viewers feel progress and want to reach the final level.
 3. **Levels 1-2**: Cover the basic and lower-intermediate levels in this part. Make each level clear in the spoken dialogue, for example "Level 1..." and "Level 2...".
 4. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
