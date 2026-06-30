@@ -93,8 +93,11 @@ def ensure_english_vibes_hashtags(description: str) -> str:
     if hashtag_lines:
         idx = hashtag_lines[-1]
         lines = text.splitlines()
-        lines[idx] = lines[idx].rstrip() + " #EnglishVibesHub"
+        # Only add if not already present to avoid duplicates
+        if not re.search(r"#EnglishVibesHub\b", lines[idx], re.IGNORECASE):
+            lines[idx] = lines[idx].rstrip() + " #EnglishVibesHub"
         return "\n".join(lines)
+    # Ensure empty line before hashtag block
     return text + "\n\n#EnglishVibesHub #LearnEnglish"
 
 
@@ -195,16 +198,17 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
 
     additions = []
 
+    # Comment first, then playlist, then timeline, then subscribe
     if not re.search(r"\bcomment\b", text, re.IGNORECASE):
         additions.append("💬 Comment below: Which phrase will you practice today?")
+    if "{playlist_url}" not in text:
+        additions.append("📺 Watch the playlist here: {playlist_url}")
     if include_timeline and "{scene_timeline}" not in text and not re.search(
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
-        additions.append("{scene_timeline}")
+        additions.append("📑 Timeline:\n{scene_timeline}")
     if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
         additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
-    if "{playlist_url}" not in text:
-        additions.append("📺 Watch the playlist here: {playlist_url}")
 
     if additions:
         text = (text + "\n\n" if text else "") + "\n\n".join(additions)
@@ -221,7 +225,7 @@ def ensure_english_quiz_shorts_hashtags(description: str) -> str:
 
     hashtag_re = re.compile(r"#\w+")
     target_re = re.compile(
-        r"\s*(?:#Shorts|#EnglishQuiz|#LearnEnglish)\b",
+        r"\s*(?:#Shorts|#EnglishQuiz|#LearnEnglish|#EnglishVibesHub)\b",
         re.IGNORECASE,
     )
 
