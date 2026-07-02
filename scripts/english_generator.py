@@ -412,8 +412,8 @@ CRITICAL RULES:
 1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair.
 2. The style must ALWAYS be: "{style_suffix}"
 3. The background and character actions must match the literal words spoken in the dialogue text.
-4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
-5. Do not change the visual prompt unless the topic or physical location changes.
+4. Create 8-12 scenes total for visual variety (roughly 1-2 dialogue turns per scene).
+5. Change scenes frequently to maintain viewer engagement - every 15-20 seconds in the final video.
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
 7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns.
 
@@ -423,11 +423,11 @@ Output ONLY valid JSON with this schema:
   "scenes": [
     {{
       "scene_id": 1,
-      "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
+      "scene_label": "string (short chapter label for YouTube timeline, e.g. Crisis Hook)",
       "image_filename": "scene_1_library_discussion.png",
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
       "start_turn": 0,
-      "end_turn": 12
+      "end_turn": 2
     }}
   ]
 }}
@@ -506,17 +506,18 @@ def save_published_topic(topic: str, topic_type: str = "podcast"):
 
 
 ENGLISH_TOPIC_POOL = [
-    "Ordering Food at a Restaurant",
-    "Discussing Hobbies and Interests",
-    "Everyday Office Conversations",
-    "Describing People and Personalities",
-    "Shopping and Asking for Prices",
-    "Talking about Future Plans",
-    "Common Idioms for Happiness and Sadness",
-    "Discussing Favorite Movies and Books",
-    "Talking about Food and Cooking",
-    "Giving Advice to a Friend",
-    "Phrasal Verbs with 'Get'"
+    "Restaurant Disaster Story",
+    "Job Interview Gone Wrong",
+    "Travel Mishap at Airport",
+    "First Date Disaster",
+    "Lost in a Foreign City",
+    "Workplace Misunderstanding",
+    "Shopping Nightmare",
+    "Hotel Check-in Crisis",
+    "Phone Call Confusion",
+    "Meeting New People Mistake",
+    "Ordering Food Disaster",
+    "Public Transport Panic"
 ]
 
 COMMUNITY_POLL_POOL = [
@@ -671,17 +672,22 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
 
     prompt = f"""
     Generate a high-CTR single, highly engaging topic for an English learning {type_label}.
-    The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     {avoid_instruction}
 
+    STORYTELLING FOCUS (for podcast episodes):
+    - The topic MUST be story-driven: a real-world disaster, mistake, conflict, or crisis scenario
+    - Examples: Restaurant Disaster, Job Interview Gone Wrong, Travel Mishap, First Date Disaster, Lost in Foreign City
+    - Focus on high-stress moments where English mistakes cause problems
+    - The story should have a clear problem → solution narrative arc
+
     CRITICAL TITLE RULES:
-    - Title format: [Hook phrase] | [Level/Topic context]. Example: "DON'T Say 'Room Key' | 5 Levels of Hotel English"
-    - Front-load keywords: Start with "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
+    - Title format: [Hook phrase] | [Story context]. Example: "DON'T Say This at a Restaurant | Ordering Disaster Story"
+    - Front-load keywords: Start with "English listening practice", "English speaking practice", or "Learn English"
     - Include topic-specific vocabulary immediately after the main keyword phrase
     - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
 
     Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "DON'T Say 'Room Key' | 5 Levels of Hotel English", "search_keyword": "English Conversation Practice hotel reception check-in"}}
+    Example: {{"topic": "DON'T Say This at a Restaurant | Ordering Disaster Story", "search_keyword": "English Conversation Practice restaurant ordering mistakes"}}
     """
     try:
         res = call_groq_json(prompt)
@@ -754,49 +760,9 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
     return prefix + body + suffix
 
 
-def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
-    title = part1_data.get("title")
-    if not title:
-        title_options = part1_data.get("title_options") or []
-        title = title_options[0] if title_options else f"English Conversation: {topic}"
-
-    description = part1_data.get("description")
-    if not description:
-        description = f"Learn English with this detailed conversation about {topic}."
-    description = finalize_english_description(description, include_timeline=True)
-
-    tags = part1_data.get("tags")
-    if not tags:
-        tags = ["English", "Conversation", "Learning", "Phrasal Verbs"]
-
-    final_script = {
-        "title": title,
-        "description": description,
-        "pinned_comment": part1_data.get("pinned_comment", ""),
-        "tags": tags,
-        "theme": part1_data.get("theme", topic),
-        "visual_keywords": part1_data.get("visual_keywords", []),
-        "dialogue": [],
-    }
-
-    for i, (part_data, max_outro) in enumerate((
-        (part1_data, 0),
-        (part2_data, 0),
-        (part3_data, 3),
-    )):
-        cleaned = sanitize_dialogue_part(
-            part_data.get("dialogue", []), 
-            max_outro, 
-            is_intro=(i == 0),
-            is_outro=(i == 2)
-        )
-        removed = len(part_data.get("dialogue", [])) - len(cleaned)
-        if removed:
-            print(f"  Removed {removed} mid-episode sign-off line(s)")
-        final_script["dialogue"].extend(cleaned)
-
-    return final_script
-
+# DEPRECATED: combine_english_parts removed - replaced by single storytelling prompt
+# def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
+#     ... (removed as part of storytelling format migration)
 
 def call_groq_json(user_prompt: str) -> dict:
     res = groq_chat_json(
@@ -1227,140 +1193,45 @@ def generate_english_script(topic=None):
     avoid_instruction = f"\nAvoid repeating examples, idioms, or stories used in these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected topic: {topic}")
+    print("Generating storytelling script...")
 
-    print("Generating Part 1 (Intro & Setup)...")
-    prompt_1 = f"""
-You are writing PART 1 (of 3) for one continuous high-retention long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    prompt_short_story = f"""
+You are writing a complete, high-retention, short-form English Story video (2-3 minutes total runtime) for 'EnglishVibesHub'.
 TOPIC: {topic}
 {avoid_instruction}
 {ENGLISH_METADATA_RULES}
 
 CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 1 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
-- The last turn of Part 1 must feel like the conversation is still in progress.
+- Output ONLY valid JSON.
+- The `dialogue` array MUST contain exactly 12-15 highly dynamic turns (approx. 300 words total).
+- Absolutely NO greetings, channel introductions, or textbook meta-talk ("Let's look at Level 2").
 
-STRUCTURE & CONTENT (PART 1):
-1. **8-10 second hook with value promise**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic, then immediately promise the solution. Example: "STOP saying [common mistake]. Here are 3 better responses."
-2. **Retention structure**: Frame the lesson as "5 Levels of {topic}" or an equivalent countdown/progression from basic to advanced so viewers feel progress and want to reach the final level.
-3. **Levels 1-2**: Cover the basic and lower-intermediate levels in this part. Make each level clear in the spoken dialogue, for example "Level 1..." and "Level 2...".
-4. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-5. **High CTR & Searchability & SEO**: High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'The #1 Way To...', 'DON'T Say This', or 'Why Native Speakers Say...'. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
-6. Use and carefully explain 3-4 natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-{_NOT_FINAL_PART_RULES}
+STRUCTURE & CONTENT:
+1. **The 5-Second Crisis Hook (Turns 1-2)**: Start instantly in the middle of a high-stress English mistake. Emma narrates the panic, Liam acts it out.
+2. **The Fast Narrative (Turns 3-8)**: The main character tries to solve the issue using 3 crucial phrasal verbs or native expressions. Emma briefly explains the phrase *in context* as it happens.
+3. **The Active Test (Turns 9-11)**: Include exactly one "Pause and Guess" moment right before the story's climax to freeze the viewer on screen. Turn 9 asks the question, Turn 10 is "[PAUSE 3 SECONDS]", Turn 11 reveals the fix.
+4. **The Resolution & Loop Outro (Turns 12-15)**: The character succeeds. End immediately with a pinned-comment question prompting viewers to share a similar story. No goodbyes.
+
 STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler, generic motivation, and long personal stories that do not teach a phrase.
-- Use culturally natural phrases only. Do not invent awkward expressions.
+- Fast-paced, dramatic storytelling. Emma is the Narrator, Liam is the Character.
+- 1-2 short sentences per turn max. Keep the momentum fast.
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR, curiosity-based, searchable title using title case and selective ALL CAPS for hook words, e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
-  "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder, subscribe CTA, playlist placeholder '📺 Watch the playlist here: {{playlist_url}}', #EnglishVibesHub, and hashtags mirroring 'tags')",
-  "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
-  "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
-  "theme": "string (short topic label for storyboard, e.g. 'Restaurant Ordering - Level 1')",
-  "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
+  "title": "string (Curiosity-driven, short, punchy title)",
+  "description": "string",
+  "pinned_comment": "string",
+  "tags": ["string"],
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
+      "text": "string"
     }}
   ]
 }}
 """
-    part1_data = call_groq_json(prompt_1)
-    groq_part_cooldown("Part 2")
-
-    print("Generating Part 2 (Deep Dive & Stories)...")
-    d1 = part1_data.get("dialogue", [])
-    last_turn = d1[-1] if d1 else {"speaker": "Emma", "text": "Let's continue."}
-    prompt_2 = f"""
-You are writing PART 2 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-TOPIC: {topic}
-{avoid_instruction}
-
-The previous turn ended with {last_turn['speaker']} saying: "{last_turn['text']}"
-Pick up the conversation naturally from here.
-
-CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 2 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
-- The first turn must continue directly from the previous turn.
-- The last turn of Part 2 must feel like the conversation is still in progress.
-
-STRUCTURE & CONTENT (PART 2):
-1. **Levels 3-4**: Continue the countdown/progression from Part 1. Make the level labels clear in the spoken dialogue.
-2. **Roleplay, not rambling**: Use fast practical roleplay related to the topic. Keep it directly useful for real conversations.
-3. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-4. Use and carefully explain 4-5 additional natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-{_NOT_FINAL_PART_RULES}
-STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler and generic praise. Every turn should teach, test, or move the roleplay forward.
-
-JSON SCHEMA:
-{{
-  "dialogue": [
-    {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
-    }}
-  ]
-}}
-"""
-    part2_data = call_groq_json(prompt_2)
-    groq_part_cooldown("Part 3")
-
-    print("Generating Part 3 (Wrap-up & Outro)...")
-    d2 = part2_data.get("dialogue", [])
-    last_turn_2 = d2[-1] if d2 else {"speaker": "Emma", "text": "Let's wrap up."}
-    prompt_3 = f"""
-You are writing PART 3 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-TOPIC: {topic}
-{avoid_instruction}
-
-The previous turn ended with {last_turn_2['speaker']} saying: "{last_turn_2['text']}"
-Pick up the conversation naturally from here.
-
-CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 3 is the only place an ending is allowed, and only at the actual end of the final video.
-- Do not mention "next episode", "stay tuned", "take a break", or "we'll be right back" anywhere in Part 3.
-
-STRUCTURE & CONTENT (PART 3):
-1. **Level 5**: Deliver the most advanced and valuable part of the countdown/progression.
-2. **Interactive challenge**: Include exactly one final "Pause and Guess" moment. One dialogue turn should ask the viewer to guess the strongest phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-3. Use and carefully explain 3-4 final natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-4. **Loop hook and outro (LAST 1-2 TURNS ONLY)**: End with a pinned-comment question that connects back to the opening mistake or challenge. The final sentence should make viewers want to comment or replay. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
-
-STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler and long recap. Preserve momentum through the end.
-
-JSON SCHEMA:
-{{
-  "dialogue": [
-    {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
-    }}
-  ]
-}}
-"""
-    part3_data = call_groq_json(prompt_3)
-
-    script = combine_english_parts(part1_data, part2_data, part3_data, topic)
+    script = call_groq_json(prompt_short_story)
+    
     thumbnail = generate_thumbnail_text(topic, is_challenge=False)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
