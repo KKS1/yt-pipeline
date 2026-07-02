@@ -194,8 +194,8 @@ def apply_face_badge_overlays(
         x = 80  # Top-left with margin
         y = 80  # Top-left with margin
     else:
-        x = (1920 - size) // 2 # Center horizontally
-        y = 630 # Position above captions
+        x = 120  # Left with margin
+        y = 720  # Left of captions
 
     inputs = [FFMPEG, "-y", "-i", video_path]
     filter_parts = []
