@@ -101,6 +101,74 @@ def ensure_english_vibes_hashtags(description: str) -> str:
     return text + "\n\n#EnglishVibesHub #LearnEnglish"
 
 
+def validate_organic_english_script(raw_input):
+    """
+    Validation engine tailored for the Organic Multi-Character English Prompt layout.
+    Accepts raw JSON text string or a Python dictionary object.
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"❌ Structural Failure: Output is not valid parseable JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 12 to 18 range)
+    if turn_count < 12 or turn_count > 18:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 12 and 18.")
+        return script_data, False
+
+    # Track structural validation targets
+    has_pause = False
+    has_narrator = False
+    has_actors = False
+
+    for turn in dialogue:
+        turn_num = turn.get("turn_number")
+        speaker = turn.get("speaker")
+        text = turn.get("text", "")
+
+        # Check for speaker representation
+        if speaker == "Narrator":
+            has_narrator = True
+            # Narrator shouldn't slip into first person text accidentally
+            if text.startswith("I am ") or " my " in text.lower():
+                print(f"⚠️ Warning: Narrator might have slipped into first-person at turn {turn_num}")
+
+        if speaker in ["Emma", "Liam"]:
+            has_actors = True
+            # 2. ENFORCE CHARACTER PERSPECTIVE: Catch third-person character slip-ups
+            if text.startswith("He ran") or text.startswith("She said"):
+                print(f"❌ Perspective Failure: Character {speaker} is speaking in third-person at turn {turn_num}.")
+                return script_data, False
+
+            # 3. ENFORCE CHARACTER RETENTION WALL: Stop meta-talk leaking into actors
+            if "phrasal verb" in text.lower() or "expression means" in text.lower():
+                print(f"❌ Persona Failure: Actor {speaker} broke character to explain a lesson at turn {turn_num}.")
+                return script_data, False
+
+        # 4. CAPTURE THE SHIFTING PAUSE MARKER
+        if "[PAUSE 3 SECONDS]" in text:
+            has_pause = True
+
+    # Final logic balance check
+    if not has_narrator or not has_actors:
+        print("❌ Cast Failure: Script is missing either the Narrator or the Protag actors.")
+        return script_data, False
+
+    if not has_pause:
+        print("❌ Interactive Failure: Script did not include the [PAUSE 3 SECONDS] token.")
+        return script_data, False
+
+    print(f"✅ Organic Script Verification Passed! Verified {turn_count} turns successfully.")
+    return script_data, True
+
+
 def ensure_english_seo_opener(description: str) -> str:
     """Ensure first line uses high-intent SEO opener with 🎯 icon."""
     text = str(description or "").strip()
@@ -1196,48 +1264,84 @@ def generate_english_script(topic=None):
     print("Generating storytelling script...")
 
     prompt_short_story = f"""
-You are writing a complete, high-retention, short-form English Story video (2-3 minutes total runtime) for 'EnglishVibesHub'.
+You are an elite showrunner and scriptwriter for the multi-character storytelling channel EnglishVibesHub (@EnglishVibesHub-s6w). Write a highly engaging, non-linear, dramatic English audio-story script.
+
 TOPIC: {topic}
 {avoid_instruction}
-{ENGLISH_METADATA_RULES}
 
-CRITICAL RULES:
-- Output ONLY valid JSON.
-- The `dialogue` array MUST contain exactly 12-15 highly dynamic turns (approx. 300 words total).
-- Absolutely NO greetings, channel introductions, or textbook meta-talk ("Let's look at Level 2").
+{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-STRUCTURE & CONTENT:
-1. **The 5-Second Crisis Hook (Turns 1-2)**: Start instantly in the middle of a high-stress English mistake. Emma narrates the panic, Liam acts it out.
-2. **The Fast Narrative (Turns 3-8)**: The main character tries to solve the issue using 3 crucial phrasal verbs or native expressions. Emma briefly explains the phrase *in context* as it happens.
-3. **The Active Test (Turns 9-11)**: Include exactly one "Pause and Guess" moment right before the story's climax to freeze the viewer on screen. Turn 9 asks the question, Turn 10 is "[PAUSE 3 SECONDS]", Turn 11 reveals the fix.
-4. **The Resolution & Loop Outro (Turns 12-15)**: The character succeeds. End immediately with a pinned-comment question prompting viewers to share a similar story. No goodbyes.
+VOICE CAST & CHARACTER ASSIGNMENT ROLES:
+- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Sets scenes, creates dramatic transitions, and handles intermediate language definitions.
+- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
+- "Guest" (Voice Profile: af_sky): Optional bystander, antagonist, or clerk. Speaks naturally based on the scene setting requirements.
 
-STYLE:
-- Fast-paced, dramatic storytelling. Emma is the Narrator, Liam is the Character.
-- 1-2 short sentences per turn max. Keep the momentum fast.
+CRITICAL PIPELINE VALIDATION RULES:
+1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 12 and 18 turns maximum. To preserve a strict under-3-minute video runtime, individual dialogue turns must be tight and punchy (between 1 and 3 sentences maximum per turn).
+3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
+4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to break down a phrasal verb used naturally by a character. The lesson must feel like a tactical observation of the drama, not a school textbook interruption.
+5. INTERACTIVE BEAT PLACEMENT: Include exactly one organic fill-in-the-blank vocabulary query challenge right before the narrative climax beat. The answer reveal must happen naturally through the Narrator's tracking lines.
 
-JSON SCHEMA:
+STRUCTURAL MOVEMENT STAGES:
+- Stage 1: The Crisis Hook (In Media Res start, high stakes, emotional conflict).
+- Stage 2: Narrative Complications (The obstacle worsens, characters react, argue, or pivot strategies).
+- Stage 3: Organic Teaching Blocks (Narrator strategically breaks down expressions as they occur naturally in dialogue).
+- Stage 4: Climax & Challenge (The absolute peak of tension, followed by the viewer pause-and-guess beat).
+- Stage 5: Resolution & Seamless Engagement (The crisis resolves. The Narrator smoothly redirects the viewer directly to the pinned comment question without generic intros/outros).
+
+JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
-  "title": "string (Curiosity-driven, short, punchy title)",
-  "description": "string",
-  "pinned_comment": "string",
-  "tags": ["string"],
+  "title": "High-CTR Title matching METADATA RULES",
+  "description": "String matching DESCRIPTION TEMPLATE exactly",
+  "pinned_comment": "Narrative retention engagement question",
+  "tags": [ "Tag1", "Tag2" ],
   "dialogue": [
     {{
-      "speaker": "Emma or Liam",
-      "text": "string"
+      "turn_number": 1,
+      "speaker": "Narrator",
+      "text": "The wind howled against the terminal windows as the flight monitors began flipping to canceled."
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "Emma",
+      "text": "Are you seeing this, Liam? Our connection is totally gone and my phone has absolutely no cellular service!"
+    }}
+  ],
+  "thumbnail_text": "TEXT",
+  "thumbnail_concept": "CONCEPT",
+  "theme": "THEME",
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "The Storm Hits",
+      "image_filename": "scene_storm_hits.png",
+      "visual_prompt": "Cinematic shot of a crowded dark airport terminal during a storm.",
+      "start_turn": 1,
+      "end_turn": 2
     }}
   ]
 }}
 """
-    script = call_groq_json(prompt_short_story)
-    
+    is_valid = False
+    attempts = 0
+
+    while not is_valid and attempts < 3:
+        attempts += 1
+        print(f"🔄 Generation Attempt {attempts}...")
+
+        raw_script = call_groq_json(prompt_short_story)
+        script, is_valid = validate_organic_english_script(raw_script)
+
+    if not is_valid:
+        print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
+
     thumbnail = generate_thumbnail_text(topic, is_challenge=False)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
-    
+
     save_published_topic(script.get("title", topic), topic_type="podcast")
-    
+
     return attach_storyboard_to_script(script, portrait=False)
 
 

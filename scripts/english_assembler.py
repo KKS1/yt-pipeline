@@ -25,8 +25,10 @@ from kokoro_tts import synthesize
 from typing import Optional, Tuple, List
 
 ENGLISH_VOICES = {
+    "Narrator": "af_sarah",
     "Emma": "af_heart",
-    "Liam": "am_echo"
+    "Liam": "am_echo",
+    "Guest": "af_sky"
 }
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
