@@ -169,18 +169,28 @@ def validate_organic_english_script(raw_input):
     return script_data, True
 
 
-def ensure_english_seo_opener(description: str) -> str:
-    """Ensure first line uses high-intent SEO opener with 🎯 icon."""
+def ensure_english_seo_opener(description: str, theme: str = "") -> str:
+    """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic."""
     text = str(description or "").strip()
+    theme_clean = str(theme or "").strip()
+    
+    # Build customized opener with theme/topic
+    if theme_clean:
+        seo_line = f"🎯 In this video, learn {theme_clean}. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+    else:
+        seo_line = "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+    
     if not text:
-        return (
-            "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
-        )
+        return seo_line
+    
     lines = text.splitlines()
     opener = lines[0].lower() if lines else ""
     if "🎯" in opener or ("in this video, learn" in opener and "natural english" in text.lower()):
+        # If opener exists but lacks theme, update it
+        if theme_clean and theme_clean.lower() not in text.lower():
+            return seo_line + "\n\n" + "\n".join(lines[1:] if len(lines) > 1 else lines)
         return text
-    seo_line = "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+    
     rest = lines if lines else []
     return seo_line + "\n\n" + "\n".join(rest)
 
@@ -244,9 +254,13 @@ def finalize_english_description(
     *,
     include_timeline: bool = False,
     is_quiz: bool = False,
+    theme: str = "",
 ) -> str:
     """Apply all English description post-processors."""
-    text = ensure_english_seo_opener(description)
+    text = ensure_english_seo_opener(description, theme=theme)
+    # Remove timeline content from shorts (vertical videos shouldn't have timestamps)
+    if not include_timeline:
+        text = remove_timeline_from_shorts(text)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
     if is_quiz:
         text = ensure_english_quiz_shorts_hashtags(text)
@@ -282,6 +296,25 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
         text = (text + "\n\n" if text else "") + "\n\n".join(additions)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
+
+
+def remove_timeline_from_shorts(description: str) -> str:
+    """Remove timeline-like content from shorts descriptions (should not have timestamps)."""
+    text = str(description or "").strip()
+    lines = text.splitlines()
+    
+    # Remove lines that look like timestamps (e.g., "0:00 - Label")
+    filtered_lines = []
+    for line in lines:
+        # Match patterns like "0:00 - Label" or "1:23 - Label"
+        if re.match(r"^\s*\d+:\d{2}\s*-\s*", line.strip()):
+            continue
+        filtered_lines.append(line)
+    
+    # Clean up extra blank lines
+    result = "\n".join(filtered_lines)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 def ensure_english_quiz_shorts_hashtags(description: str) -> str:
@@ -467,6 +500,15 @@ def generate_english_storyboard(script: dict, *, portrait: bool = False) -> dict
         else ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
     )
     theme = script.get("theme") or script.get("title", "English Lesson")
+    
+    # Calculate appropriate scene count based on dialogue length
+    num_turns = len(dialogue)
+    if num_turns <= 6:
+        scene_count_range = f"{max(2, num_turns // 2)}-{num_turns}"
+    elif num_turns <= 12:
+        scene_count_range = f"{num_turns // 2}-{num_turns}"
+    else:
+        scene_count_range = "8-12"
 
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
 Analyze the input script. For each dialogue row, generate a highly descriptive visual prompt.
@@ -480,10 +522,10 @@ CRITICAL RULES:
 1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair.
 2. The style must ALWAYS be: "{style_suffix}"
 3. The background and character actions must match the literal words spoken in the dialogue text.
-4. Create 8-12 scenes total for visual variety (roughly 1-2 dialogue turns per scene).
+4. Create {scene_count_range} scenes total for visual variety (roughly 1-2 dialogue turns per scene). NEVER exceed the total number of dialogue turns ({num_turns}).
 5. Change scenes frequently to maintain viewer engagement - every 15-20 seconds in the final video.
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
-7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns.
+7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -523,11 +565,13 @@ def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict
     script = generate_english_storyboard(script, portrait=portrait)
     is_quiz = script.get("video_format") in ("shorts_quiz", "shorts")
     include_timeline = not portrait and script.get("video_format") not in ("shorts", "shorts_quiz")
+    theme = script.get("theme") or script.get("title", "")
     if script.get("description"):
         script["description"] = finalize_english_description(
             script["description"],
             include_timeline=include_timeline,
             is_quiz=is_quiz,
+            theme=theme,
         )
     return script
 
@@ -1071,8 +1115,9 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True
+        script_data.get("description", ""), is_quiz=True, theme=theme
     )
     return attach_storyboard_to_script(script_data, portrait=True)
 
@@ -1204,8 +1249,9 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+    theme = script.get("theme") or script.get("title", "")
     script["description"] = finalize_english_description(
-        script.get("description", ""), include_timeline=True
+        script.get("description", ""), include_timeline=True, theme=theme
     )
 
     if not script.get("title"):
@@ -1459,7 +1505,8 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
-    script_data["description"] = finalize_english_description(script_data.get("description", ""))
+    theme = script_data.get("theme") or script_data.get("title", "")
+    script_data["description"] = finalize_english_description(script_data.get("description", ""), theme=theme)
 
     if not script_data.get("title"):
         title_options = script_data.get("title_options") or []
@@ -1534,8 +1581,9 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True
+        script_data.get("description", ""), is_quiz=True, theme=theme
     )
     save_published_topic(script_data.get("title", topic), topic_type="quiz")
     return attach_storyboard_to_script(script_data, portrait=True)
