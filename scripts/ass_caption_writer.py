@@ -565,8 +565,16 @@ def generate_ass_captions(
     all_words: list[dict] = []
     for seg in segments:
         for w in (seg.words or []):
+            word_text = w.word
+            # Fix common Whisper transcription errors
+            word_text = re.sub(r'\bfrost\b', 'phrasal', word_text, flags=re.IGNORECASE)
+            word_text = re.sub(r'\balver\b', 'verb', word_text, flags=re.IGNORECASE)
+            word_text = re.sub(r'\bfrazal\b', 'phrasal', word_text, flags=re.IGNORECASE)
+            word_text = re.sub(r'\bfrazel\b', 'phrasal', word_text, flags=re.IGNORECASE)
+            # Convert "phrase" back to "phrasal" (TTS uses "phrase" for pronunciation)
+            word_text = re.sub(r'\bphrase verb\b', 'phrasal verb', word_text, flags=re.IGNORECASE)
             all_words.append({
-                "word":  w.word,
+                "word":  word_text,
                 "start": w.start,
                 "end":   w.end,
             })
@@ -669,6 +677,15 @@ def generate_ass_captions_from_words(
     else:
         font_size_normal = 95
         font_size_idiom  = 105
+
+    # Fix common Whisper transcription errors in word list
+    for w in words:
+        w["word"] = re.sub(r'\bfrost\b', 'phrasal', w["word"], flags=re.IGNORECASE)
+        w["word"] = re.sub(r'\balver\b', 'verb', w["word"], flags=re.IGNORECASE)
+        w["word"] = re.sub(r'\bfrazal\b', 'phrasal', w["word"], flags=re.IGNORECASE)
+        w["word"] = re.sub(r'\bfrazel\b', 'phrasal', w["word"], flags=re.IGNORECASE)
+        # Convert "phrase" back to "phrasal" (TTS uses "phrase" for pronunciation)
+        w["word"] = re.sub(r'\bphrase verb\b', 'phrasal verb', w["word"], flags=re.IGNORECASE)
 
     # Build per-turn speaker lookup
     turn_speaker_map: list[tuple[float, float, str]] = []

@@ -61,7 +61,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\[EMPHASIS\]', '', text)
     text = re.sub(r'\(.*?\)', '', text)
     text = re.sub(r'\*\*', '', text)
-    text = re.sub(r'\bphrasal\b', 'phra-sal', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bphrasal\b', 'phrase', text, flags=re.IGNORECASE)
     text = ' '.join(text.split())
     return text.strip()
 
