@@ -329,8 +329,8 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
 
         line_break = r"\N" if i == split_at else ""
 
-        # Capitalize if emphasized
-        display_word = _capitalize_if_emphasized(word_text, emphasized_phrases)
+        # Use original word without capitalization
+        display_word = word_text
 
         if _is_idiom_chunk(word_text, extra_idiom_phrases):
             # Golden accent style override for idiom words
