@@ -526,6 +526,7 @@ CRITICAL RULES:
 5. Change scenes frequently to maintain viewer engagement - every 15-20 seconds in the final video.
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
 7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
+8. NEVER include references to narrator in visual prompts.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -549,8 +550,16 @@ Output ONLY valid JSON with this schema:
             scenes = []
         for scene in scenes:
             vp = str(scene.get("visual_prompt", "")).strip()
+            # Remove any narrator, caption, or text references to prevent them from appearing in generated images
+            vp = re.sub(r"\bnarrator'?s?\b[^,.]*", '', vp, flags=re.IGNORECASE)
+            vp = re.sub(r'\s+,', ',', vp)  # Clean up commas after removals
+            vp = re.sub(r'\s{2,}', ' ', vp)  # Clean up extra spaces
+            vp = re.sub(r',\s*\.', '.', vp)  # Clean up dangling commas
+            vp = vp.strip()
             if vp and style_suffix.lower() not in vp.lower():
                 scene["visual_prompt"] = f"{vp.rstrip('.')} {style_suffix}"
+            elif vp:
+                scene["visual_prompt"] = vp
         script["theme"] = res.get("theme") or theme
         script["scenes"] = align_scenes_to_turns(scenes, dialogue)
         print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")

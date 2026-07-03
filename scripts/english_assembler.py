@@ -197,8 +197,10 @@ def apply_face_badge_overlays(
         "narrator": [],
         "guest": []
     }
+    print(f"  [DEBUG] Avatar overlay: dialogue={len(dialogue)}, per_turn_times={len(per_turn_times)}")
     for i, turn in enumerate(dialogue):
         if i >= len(per_turn_times):
+            print(f"  [DEBUG] Avatar overlay: skipping turn {i} (no timing)")
             break
         speaker = turn.get("speaker", "Emma").lower()
         start, end = per_turn_times[i]
@@ -206,6 +208,7 @@ def apply_face_badge_overlays(
             continue
         if speaker in intervals:
             intervals[speaker].append((start, end))
+            print(f"  [DEBUG] Avatar overlay: {speaker} at {start:.2f}-{end:.2f}s")
 
     # Build enable expressions for each character that has a badge
     enable_expressions = {}
@@ -272,8 +275,10 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
 
     audio_files = []
     per_turn_durations: list[float] = []
+    dialogue_only_durations: list[float] = []  # Track only spoken turn durations for caption timing
 
     print("\nGenerating podcast audio...")
+    previous_speaker = None
     for i, line in enumerate(dialogue):
         speaker = line.get("speaker", "Emma")
         text = line.get("text", "")
@@ -288,15 +293,39 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
             if pause_duration is not None:
                 print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
                 _generate_silence_audio(out_path, pause_duration)
+                dialogue_only_durations.append(pause_duration)
             else:
                 print(f"  [{speaker}] (speed={speaker_speed}) -> {out_path}")
                 synthesize(text, out_path, voice=voice, speed=speaker_speed)
+                dialogue_only_durations.append(get_audio_duration(out_path))
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
             per_turn_durations.append(dur)
         except Exception as e:
             print(f"  Error generating audio for line {i}: {e}")
             per_turn_durations.append(0.0)
+            dialogue_only_durations.append(0.0)
+
+        # Add natural pause after regular turns (not after explicit pause tokens)
+        if pause_duration is None and i < len(dialogue) - 1:
+            next_line = dialogue[i + 1]
+            next_pause_duration = _pause_duration_seconds(next_line.get("text", ""))
+            next_speaker = next_line.get("speaker", "Emma")
+            # Only add pause if next turn is not already a pause token
+            if next_pause_duration is None:
+                # Determine pause duration: 400ms for Narrator transitions (entering or exiting), 300ms otherwise
+                if speaker == "Narrator" or next_speaker == "Narrator":
+                    gap_duration = 0 #0.4
+                else:
+                    gap_duration = 0 #0.3
+                gap_path = str(TEMP_DIR / f"english_gap_{i:03d}.m4a")
+                _generate_silence_audio(gap_path, gap_duration)
+                gap_dur = get_audio_duration(gap_path)
+                audio_files.append(gap_path)
+                per_turn_durations.append(gap_dur)
+                print(f"  [gap] {gap_duration:.1f}s after {speaker}")
+
+        previous_speaker = speaker
 
     # Concatenate all generated dialogue lines
     concat_list_path = str(TEMP_DIR / "english_audio_list.txt")
@@ -319,7 +348,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
     if return_turn_times:
         cursor = 0.0
         turn_times: list[tuple[float, float]] = []
-        for dur in per_turn_durations:
+        for dur in dialogue_only_durations:
             turn_times.append((cursor, cursor + dur))
             cursor += dur
         return final_audio_path, turn_times
@@ -486,7 +515,9 @@ def scene_duration_from_turns(scene: dict, per_turn_times: list) -> float:
         return 5.0
     start_turn = max(0, min(int(scene.get("start_turn", 0)), len(per_turn_times) - 1))
     end_turn = max(start_turn, min(int(scene.get("end_turn", start_turn)), len(per_turn_times) - 1))
-    return max(0.5, per_turn_times[end_turn][1] - per_turn_times[start_turn][0])
+    duration = max(0.5, per_turn_times[end_turn][1] - per_turn_times[start_turn][0])
+    print(f"  [DEBUG] Scene {scene.get('scene_id', '?')}: start_turn={start_turn}, end_turn={end_turn}, duration={duration:.2f}s")
+    return duration
 
 
 def _kenburns_image_to_video(

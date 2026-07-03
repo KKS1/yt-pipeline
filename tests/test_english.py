@@ -74,6 +74,75 @@ def test_align_scenes_to_turns_handles_remainder():
     assert aligned[2]["start_turn"] == 8
     assert aligned[2]["end_turn"] == 10  # 3 turns
 
+def test_conversation_pauses_added_between_turns():
+    """Test that natural pauses are added between conversation turns."""
+    cleanup_english_temp()
+    
+    script = {
+        "title": "Test Pauses",
+        "dialogue": [
+            {"speaker": "Emma", "text": "Hello there."},
+            {"speaker": "Liam", "text": "Hi Emma."},
+            {"speaker": "Narrator", "text": "They greeted each other."},
+            {"speaker": "Emma", "text": "Thanks for explaining."},
+        ]
+    }
+    
+    audio_path, turn_times = generate_podcast_audio(script, return_turn_times=True)
+    
+    # Should have 4 dialogue turns + 3 gap pauses = 7 total segments
+    assert len(turn_times) == 7
+    
+    # Check that gaps exist between turns
+    # Emma -> Liam: 300ms gap (turn 1)
+    gap_1_duration = turn_times[1][1] - turn_times[1][0]
+    assert 0.29 < gap_1_duration < 0.31, f"Expected ~300ms gap, got {gap_1_duration}"
+    
+    # Liam -> Narrator: 400ms gap (turn 3) - entering Narrator
+    gap_2_duration = turn_times[3][1] - turn_times[3][0]
+    assert 0.39 < gap_2_duration < 0.41, f"Expected ~400ms gap, got {gap_2_duration}"
+    
+    # Narrator -> Emma: 400ms gap (turn 5) - exiting Narrator
+    gap_3_duration = turn_times[5][1] - turn_times[5][0]
+    assert 0.39 < gap_3_duration < 0.41, f"Expected ~400ms gap, got {gap_3_duration}"
+    
+    print("✓ Conversation pauses test passed")
+
+
+def test_no_additional_pause_before_explicit_pause_token():
+    """Test that no gap is added before an explicit [PAUSE X SECONDS] token."""
+    cleanup_english_temp()
+    
+    script = {
+        "title": "Test No Double Pause",
+        "dialogue": [
+            {"speaker": "Emma", "text": "What is the answer?"},
+            {"speaker": "Narrator", "text": "[PAUSE 3 SECONDS]"},
+            {"speaker": "Liam", "text": "The answer is forty-two."},
+        ]
+    }
+    
+    audio_path, turn_times = generate_podcast_audio(script, return_turn_times=True)
+    
+    # Should have 3 dialogue turns (no gap before pause token, no gap after pause token)
+    # Emma -> Pause -> Liam (no gaps added because pause token already provides silence)
+    assert len(turn_times) == 3
+    
+    # Emma turn should be first
+    assert turn_times[0][0] == 0.0
+    
+    # Pause should be 3 seconds
+    pause_duration = turn_times[1][1] - turn_times[1][0]
+    assert 2.9 < pause_duration < 3.1, f"Expected ~3s pause, got {pause_duration}"
+    
+    # Liam should come after pause with no additional gap
+    liam_start = turn_times[2][0]
+    pause_end = turn_times[1][1]
+    assert liam_start == pause_end, f"Liam should start immediately after pause, but gap is {liam_start - pause_end}s"
+    
+    print("✓ No double pause test passed")
+
+
 def test_pipeline():
     cleanup_english_temp()
     

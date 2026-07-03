@@ -138,12 +138,17 @@ def _pause_guess_windows(
 ) -> list[dict]:
     """Return prompt/pause/reveal windows for [PAUSE] based challenges."""
     if not dialogue or not per_turn_times or len(per_turn_times) != len(dialogue):
+        print(f"  [DEBUG] _pause_guess_windows: dialogue={len(dialogue)}, per_turn_times={len(per_turn_times)}, match={len(per_turn_times) == len(dialogue)}")
         return []
 
     windows: list[dict] = []
     for i, turn in enumerate(dialogue):
-        if not _is_pause_turn(turn.get("text", "")):
+        text = turn.get("text", "")
+        is_pause = _is_pause_turn(text)
+        if not is_pause:
             continue
+
+        print(f"  [DEBUG] Found pause turn at index {i}: '{text}'")
 
         prompt_idx = next(
             (j for j in range(i - 1, -1, -1) if not _is_pause_turn(dialogue[j].get("text", ""))),
@@ -154,8 +159,10 @@ def _pause_guess_windows(
             None,
         )
         if prompt_idx is None or reveal_idx is None:
+            print(f"  [DEBUG] Skipping pause at {i}: prompt_idx={prompt_idx}, reveal_idx={reveal_idx}")
             continue
 
+        print(f"  [DEBUG] Adding pause window: prompt={prompt_idx}, pause={i}, reveal={reveal_idx}")
         windows.append({
             "prompt_index": prompt_idx,
             "pause_index": i,
@@ -164,6 +171,7 @@ def _pause_guess_windows(
             "pause_end": per_turn_times[i][1],
             "reveal_start": per_turn_times[reveal_idx][0],
         })
+    print(f"  [DEBUG] Total pause windows found: {len(windows)}")
     return windows
 
 
@@ -357,11 +365,14 @@ def _add_pause_guess_events(
     reveal_windows: list[dict],
 ):
     """Freeze the prompt during silence and burn a 3-2-1 countdown in ASS."""
+    print(f"  [DEBUG] _add_pause_guess_events called with {len(reveal_windows)} windows")
     for window in reveal_windows:
         prompt_idx = window["prompt_index"]
         pause_start = float(window["pause_start"])
         pause_end = float(window["pause_end"])
+        print(f"  [DEBUG] Processing window: prompt_idx={prompt_idx}, pause_start={pause_start:.2f}, pause_end={pause_end:.2f}")
         if pause_end <= pause_start:
+            print(f"  [DEBUG] Skipping window: pause_end <= pause_start")
             continue
 
         prompt = dialogue[prompt_idx]
@@ -376,6 +387,7 @@ def _add_pause_guess_events(
         count = min(3, max(1, int(math.ceil(duration))))
         slot = duration / count
         labels = [str(n) for n in range(count, 0, -1)]
+        print(f"  [DEBUG] Adding countdown: duration={duration:.2f}s, count={count}, labels={labels}")
         for idx, label in enumerate(labels):
             start_t = pause_start + idx * slot
             end_t = pause_end if idx == count - 1 else min(pause_end, pause_start + (idx + 1) * slot)
@@ -386,6 +398,7 @@ def _add_pause_guess_events(
                 f"Dialogue: 2,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
                 f"{STYLE_COUNTDOWN},,0,0,0,,{countdown_text}"
             )
+    print(f"  [DEBUG] _add_pause_guess_events added {len(events)} total events")
 
 
 # ─── Core grouping ────────────────────────────────────────────────────────────
