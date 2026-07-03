@@ -128,6 +128,23 @@ def _is_pause_turn(text: str) -> bool:
     return PAUSE_CUE_RE.match(str(text or "")) is not None
 
 
+def _get_emphasized_phrases(text: str) -> list[str]:
+    """Extract emphasized phrases from text (marked with markdown bold **text**)."""
+    pattern = re.compile(r'\*\*(.*?)\*\*')
+    return [m.group(1).strip().lower() for m in pattern.finditer(text)]
+
+
+def _capitalize_if_emphasized(word: str, emphasized_phrases: list[str]) -> str:
+    """Capitalize word if it matches an emphasized phrase."""
+    if not emphasized_phrases:
+        return word
+    word_lower = word.lower()
+    for phrase in emphasized_phrases:
+        if word_lower in phrase.lower():
+            return word.upper()
+    return word
+
+
 def _plain_caption_line(text: str, speaker: str) -> str:
     return _badge_override(speaker) + str(text or "").replace("\n", r"\N").strip()
 
@@ -287,7 +304,7 @@ def _badge_override(speaker: str) -> str:
         return r"{\c&HFF9966&\bord0\shad0\p0}{\1c&HFF9966&}[L] {\r}"
 
 
-def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str]) -> str:
+def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str], emphasized_phrases: list[str] = None) -> str:
     """
     Build the ASS Text field for one dialogue caption chunk.
 
@@ -296,6 +313,7 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     """
     badge = _badge_override(speaker)
     parts = []
+    emphasized_phrases = emphasized_phrases or []
 
     # Heuristic for multiline: split at approx middle word if chunk is long enough
     total_chars = sum(len(w["word"]) for w in words)
@@ -311,15 +329,18 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
 
         line_break = r"\N" if i == split_at else ""
 
+        # Capitalize if emphasized
+        display_word = _capitalize_if_emphasized(word_text, emphasized_phrases)
+
         if _is_idiom_chunk(word_text, extra_idiom_phrases):
             # Golden accent style override for idiom words
             parts.append(
-                rf"{line_break}{{\k{dur_cs}\c{COLOUR_IDIOM_HL}&\b1\fs+2}}{word_text}{{\r}} "
+                rf"{line_break}{{\k{dur_cs}\c{COLOUR_IDIOM_HL}&\b1\fs+2}}{display_word}{{\r}} "
             )
         else:
             # Normal karaoke: word highlight in speaker colour when spoken
             highlight = COLOUR_EMMA_HL if speaker.lower() == "emma" else COLOUR_LIAM_HL
-            parts.append(rf"{line_break}{{\k{dur_cs}\2c{highlight}&}}{word_text} ")
+            parts.append(rf"{line_break}{{\k{dur_cs}\2c{highlight}&}}{display_word} ")
 
     return badge + "".join(parts).rstrip()
 
@@ -487,7 +508,9 @@ def _add_caption_events_from_turn_words(
     dialogue: list[dict],
     max_chars: int,
     extra_idioms: list[str],
+    emphasized_phrases: list[str] = None,
 ):
+    emphasized_phrases = emphasized_phrases or []
     for idx, turn_words in enumerate(grouped_words):
         if not turn_words or idx >= len(dialogue):
             continue
@@ -501,7 +524,7 @@ def _add_caption_events_from_turn_words(
                 " ".join(w["word"] for w in chunk), extra_idioms
             ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
 
-            text = _karaoke_line(chunk, speaker, extra_idioms)
+            text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             events.append(
                 f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
                 f"{style},,0,0,0,,{text}"
@@ -588,6 +611,13 @@ def generate_ass_captions(
     dialogue = script_data.get("dialogue", []) if script_data else []
     reveal_windows = _pause_guess_windows(dialogue, per_turn_times or [])
 
+    # Extract emphasized phrases from dialogue for caption capitalization
+    emphasized_phrases = []
+    for turn in dialogue:
+        text = turn.get("text", "")
+        emphasized_phrases.extend(_get_emphasized_phrases(text))
+    print(f"  [DEBUG] Found {len(emphasized_phrases)} emphasized phrases")
+
     if script_data and per_turn_times and len(per_turn_times) == len(dialogue):
         for i, (s, e) in enumerate(per_turn_times):
             spk = dialogue[i].get("speaker", "Emma")
@@ -619,7 +649,7 @@ def generate_ass_captions(
 
     if dialogue and per_turn_times and len(per_turn_times) == len(dialogue):
         grouped_words = _words_grouped_by_turn(all_words, dialogue, per_turn_times)
-        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms)
+        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms, emphasized_phrases)
     else:
         chunks = _group_words_into_chunks(all_words, max_chars)
 
@@ -633,7 +663,7 @@ def generate_ass_captions(
                 " ".join(w["word"] for w in chunk), extra_idioms
             ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
 
-            text = _karaoke_line(chunk, speaker, extra_idioms)
+            text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             event = (
                 f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
                 f"{style},,0,0,0,,{text}"
@@ -689,6 +719,13 @@ def generate_ass_captions_from_words(
         # Convert "phrase" back to "phrasal" (TTS uses "phrase" for pronunciation)
         w["word"] = re.sub(r'\bphrase verb\b', 'phrasal verb', w["word"], flags=re.IGNORECASE)
 
+    # Extract emphasized phrases from dialogue for caption capitalization
+    emphasized_phrases = []
+    for turn in dialogue:
+        text = turn.get("text", "")
+        emphasized_phrases.extend(_get_emphasized_phrases(text))
+    print(f"  [DEBUG] Found {len(emphasized_phrases)} emphasized phrases")
+
     # Build per-turn speaker lookup
     turn_speaker_map: list[tuple[float, float, str]] = []
     events: list[str] = []
@@ -719,7 +756,7 @@ def generate_ass_captions_from_words(
 
     if dialogue and per_turn_times and len(per_turn_times) == len(dialogue):
         grouped_words = _words_grouped_by_turn(words, dialogue, per_turn_times)
-        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms)
+        _add_caption_events_from_turn_words(events, grouped_words, dialogue, max_chars, extra_idioms, emphasized_phrases)
     else:
         chunks = _group_words_into_chunks(words, max_chars)
 
@@ -733,7 +770,7 @@ def generate_ass_captions_from_words(
                 " ".join(w["word"] for w in chunk), extra_idioms
             ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
 
-            text = _karaoke_line(chunk, speaker, extra_idioms)
+            text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             event = (
                 f"Dialogue: 0,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
                 f"{style},,0,0,0,,{text}"
