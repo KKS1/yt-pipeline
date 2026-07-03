@@ -32,7 +32,7 @@ ENGLISH_VOICES = {
 }
 
 ENGLISH_TTS_SPEEDS = {
-    "Narrator": 0.85,           # Slower for clear narration
+    "Narrator": 0.90,           # Slower for clear narration
     "Emma": 0.92,               # Normal pace for protagonist
     "Liam": 0.92,               # Normal pace for protagonist
     "Guest": 0.90               # Slightly slower for guest characters

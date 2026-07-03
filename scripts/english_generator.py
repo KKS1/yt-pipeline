@@ -99,23 +99,58 @@ _PLAYLIST_LINE_RE = re.compile(
 )
 
 
-def ensure_english_vibes_hashtags(description: str) -> str:
-    """Ensure #EnglishVibesHub appears in the description hashtag block."""
+def ensure_english_vibes_hashtags(description: str, theme: str = "") -> str:
+    """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
     text = str(description or "").strip()
     if not text:
-        return "#EnglishVibesHub #LearnEnglish"
-    if re.search(r"#EnglishVibesHub\b", text, re.IGNORECASE):
-        return text
-    hashtag_lines = [i for i, line in enumerate(text.splitlines()) if "#" in line]
-    if hashtag_lines:
-        idx = hashtag_lines[-1]
-        lines = text.splitlines()
-        # Only add if not already present to avoid duplicates
-        if not re.search(r"#EnglishVibesHub\b", lines[idx], re.IGNORECASE):
-            lines[idx] = lines[idx].rstrip() + " #EnglishVibesHub"
-        return "\n".join(lines)
-    # Ensure empty line before hashtag block
-    return text + "\n\n#EnglishVibesHub #LearnEnglish"
+        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice"
+    
+    hashtag_re = re.compile(r"#\w+")
+    
+    # Remove all existing hashtags from anywhere in the text to rebuild them properly
+    cleaned_lines = []
+    for line in text.splitlines():
+        if not line.strip():
+            cleaned_lines.append("")
+            continue
+        # Preserve lines without hashtags (like playlist, subscribe, etc.)
+        if not hashtag_re.search(line):
+            cleaned_lines.append(line)
+            continue
+        # Remove hashtags from hashtag lines
+        cleaned = hashtag_re.sub("", line).strip()
+        cleaned = re.sub(r" {2,}", " ", cleaned)
+        if cleaned:
+            cleaned_lines.append(cleaned)
+    
+    # Build optimized hashtag line with comprehensive tags
+    core_tags = "#LearnEnglish #EnglishVibesHub"
+    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary"
+    
+    # Extract topic-specific hashtag from theme if available
+    topic_tag = ""
+    if theme:
+        # Convert theme to hashtag format (remove spaces, special chars)
+        topic_clean = re.sub(r"[^\w\s]", "", str(theme).strip())
+        topic_words = topic_clean.split()
+        if topic_words:
+            # Use first meaningful word or phrase as topic tag
+            topic_tag = "#" + "".join(word.capitalize() for word in topic_words[:2])
+    
+    # SEO ordering: core tags → topic-specific → practice tags
+    hashtag_line = f"{core_tags} {topic_tag} {practice_tags}".strip()
+    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)  # Remove extra spaces
+    
+    # Append hashtags at the very end
+    cleaned_text = "\n".join(cleaned_lines).strip()
+    # Ensure blank line before hashtags
+    if cleaned_text and not cleaned_text.endswith("\n"):
+        cleaned_text += "\n\n"
+    cleaned_text += hashtag_line
+    
+    # Clean up excessive blank lines
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    return cleaned_text.strip()
 
 
 def validate_organic_english_script(raw_input):
@@ -322,7 +357,10 @@ def remove_duplicate_phrases(description: str) -> str:
     text = re.sub(r'🎯\s+-\s+[^.!?]*\.?\s*🎯', '', text)  # Remove fragmented emoji sections
     text = re.sub(r':\s+[^.!?]*\s+Learn\s+hidden\s+meanings', '', text)  # Remove fragmented idiom quiz text
     text = re.sub(r'🎯\s+-\s+[^.!?]*\.', '', text)  # Remove standalone fragmented emoji lines
-    text = re.sub(r'\s{2,}', ' ', text)  # Clean up extra spaces
+    text = re.sub(r',\s*!\s*', ', ', text)  # Clean up ", !" fragments
+    text = re.sub(r'\s+!\s*', ' ', text)  # Clean up standalone "!" with spaces
+    text = re.sub(r',\s*,\s*', ', ', text)  # Clean up double commas
+    text = re.sub(r',\s*[a-z]+\s+to\s+in\s+[a-z]+\s+situations!', '', text, flags=re.IGNORECASE)  # Clean up specific fragment pattern
     
     # Remove duplicate playlist URLs (keep only one, preferably the placeholder)
     text = re.sub(r'📺\s+Watch\s+the\s+playlist\s+here:\s*https?://[^\s]+', '', text, flags=re.IGNORECASE)
@@ -343,8 +381,8 @@ def remove_duplicate_phrases(description: str) -> str:
     
     text = "\n".join(unique_lines)
     
-    # Clean up extra whitespace from replacements
-    text = re.sub(r'\s+', ' ', text)
+    # Clean up extra whitespace from replacements (preserve newlines, only collapse multiple spaces within lines)
+    text = re.sub(r'  +', ' ', text)  # Collapse multiple spaces but preserve newlines
     text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
     return text.strip()
 
@@ -388,7 +426,7 @@ def finalize_english_description(
         # Place hashtags at end with SEO ordering
         text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
     else:
-        text = ensure_english_vibes_hashtags(text)
+        text = ensure_english_vibes_hashtags(text, theme=theme)
     return text
 
 
@@ -410,7 +448,10 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
         additions.append("📑 Timeline:\n{scene_timeline}")
-    if not re.search(r"\bsubscribe\b", text, re.IGNORECASE):
+    
+    # Remove any subscribe line without bell icon, then add proper version with bell icon
+    text = re.sub(r'(?<!🔔\s)Subscribe\s+to\s+EnglishVibesHub[^\n]*', '', text, flags=re.IGNORECASE)
+    if not re.search(r"🔔\s*Subscribe", text, re.IGNORECASE):
         additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
 
     if additions:
