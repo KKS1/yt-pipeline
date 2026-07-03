@@ -25,11 +25,12 @@ METADATA RULES:
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
 DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
-🎯 In this video, learn [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
+🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
 
 📺 Watch the full travel English playlist here: 
 https://www.youtube.com/playlist?list=PLQcVuzsH3e2I
@@ -101,18 +102,102 @@ def ensure_english_vibes_hashtags(description: str) -> str:
     return text + "\n\n#EnglishVibesHub #LearnEnglish"
 
 
-def ensure_english_seo_opener(description: str) -> str:
-    """Ensure first line uses high-intent SEO opener with 🎯 icon."""
+def validate_organic_english_script(raw_input):
+    """
+    Validation engine tailored for the Organic Multi-Character English Prompt layout.
+    Accepts raw JSON text string or a Python dictionary object.
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"❌ Structural Failure: Output is not valid parseable JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 12 to 18 range)
+    if turn_count < 12 or turn_count > 18:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 12 and 18.")
+        return script_data, False
+
+    # Track structural validation targets
+    has_pause = False
+    has_narrator = False
+    has_actors = False
+
+    for turn in dialogue:
+        turn_num = turn.get("turn_number")
+        speaker = turn.get("speaker")
+        text = turn.get("text", "")
+
+        # Check for speaker representation
+        if speaker == "Narrator":
+            has_narrator = True
+            # Narrator shouldn't slip into first person text accidentally
+            if text.startswith("I am ") or " my " in text.lower():
+                print(f"⚠️ Warning: Narrator might have slipped into first-person at turn {turn_num}")
+
+        if speaker in ["Emma", "Liam"]:
+            has_actors = True
+            # 2. ENFORCE CHARACTER PERSPECTIVE: Catch third-person character slip-ups
+            if text.startswith("He ran") or text.startswith("She said"):
+                print(f"❌ Perspective Failure: Character {speaker} is speaking in third-person at turn {turn_num}.")
+                return script_data, False
+
+            # 3. ENFORCE CHARACTER RETENTION WALL: Stop meta-talk leaking into actors
+            if "phrasal verb" in text.lower() or "expression means" in text.lower():
+                print(f"❌ Persona Failure: Actor {speaker} broke character to explain a lesson at turn {turn_num}.")
+                return script_data, False
+
+        # 4. CAPTURE THE SHIFTING PAUSE MARKER
+        if "[PAUSE 3 SECONDS]" in text:
+            has_pause = True
+
+    # Final logic balance check
+    if not has_narrator or not has_actors:
+        print("❌ Cast Failure: Script is missing either the Narrator or the Protag actors.")
+        return script_data, False
+
+    if not has_pause:
+        print("❌ Interactive Failure: Script did not include the [PAUSE 3 SECONDS] token.")
+        return script_data, False
+
+    print(f"✅ Organic Script Verification Passed! Verified {turn_count} turns successfully.")
+    return script_data, True
+
+
+def ensure_english_seo_opener(description: str, theme: str = "") -> str:
+    """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic."""
     text = str(description or "").strip()
+    theme_clean = str(theme or "").strip()
+    
+    # Build customized opener with proper keyword front-loading
+    # Rule: First 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
+    if theme_clean:
+        seo_line = f"🎯 English listening practice via Story: {theme_clean}. Master natural English for real conversations and speak like a native!"
+    else:
+        seo_line = "🎯 English listening practice: learn practical English expressions. Master natural English for real conversations and speak like a native!"
+    
     if not text:
-        return (
-            "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
-        )
+        return seo_line
+    
     lines = text.splitlines()
     opener = lines[0].lower() if lines else ""
-    if "🎯" in opener or ("in this video, learn" in opener and "natural english" in text.lower()):
+    
+    # Check if opener already has proper SEO keywords
+    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english"]
+    has_proper_opener = any(keyword in opener for keyword in required_keywords)
+    
+    if has_proper_opener:
+        # If opener exists but lacks theme, update it
+        if theme_clean and theme_clean.lower() not in text.lower():
+            return seo_line + "\n\n" + "\n".join(lines[1:] if len(lines) > 1 else lines)
         return text
-    seo_line = "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+    
     rest = lines if lines else []
     return seo_line + "\n\n" + "\n".join(rest)
 
@@ -120,13 +205,13 @@ def ensure_english_seo_opener(description: str) -> str:
 def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
     """Build a formatted timeline block from scene turn ranges and Kokoro audio timings."""
     if not scenes or not per_turn_times:
-        return "0:00 - Start"
+        return "📑 Timeline:\n0:00 - Start"
 
     def fmt_time(seconds: float) -> str:
         seconds = max(0, int(seconds))
         return f"{seconds // 60}:{seconds % 60:02d}"
 
-    lines = []
+    lines = ["📑 Timeline:"]
     for scene in scenes:
         start_turn = int(scene.get("start_turn", 0))
         end_turn = int(scene.get("end_turn", start_turn))
@@ -171,14 +256,54 @@ def inject_scene_timeline(description: str, timeline_block: str) -> str:
     return text + "\n\n" + timeline_block
 
 
+def remove_duplicate_phrases(description: str) -> str:
+    """Remove duplicate occurrences of key phrases like 'speak like a native' from descriptions."""
+    text = str(description or "").strip()
+    
+    # List of phrases that should appear only once
+    phrases_to_dedup = [
+        "speak like a native",
+        "natural english",
+        "master natural english",
+        "improve your english skills",
+        "real-life scenarios",
+    ]
+    
+    for phrase in phrases_to_dedup:
+        # Case-insensitive search for duplicates
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        matches = pattern.findall(text)
+        
+        if len(matches) > 1:
+            # Keep first occurrence, remove subsequent ones
+            def replace_func(match):
+                nonlocal count
+                count += 1
+                return match.group(0) if count == 1 else ""
+            
+            count = 0
+            text = pattern.sub(replace_func, text)
+    
+    # Clean up extra whitespace from replacements
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
+    return text.strip()
+
+
 def finalize_english_description(
     description: str,
     *,
     include_timeline: bool = False,
     is_quiz: bool = False,
+    theme: str = "",
 ) -> str:
     """Apply all English description post-processors."""
-    text = ensure_english_seo_opener(description)
+    text = ensure_english_seo_opener(description, theme=theme)
+    # Remove duplicate phrases before other processing
+    text = remove_duplicate_phrases(text)
+    # Remove timeline content from shorts (vertical videos shouldn't have timestamps)
+    if not include_timeline:
+        text = remove_timeline_from_shorts(text)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
     if is_quiz:
         text = ensure_english_quiz_shorts_hashtags(text)
@@ -214,6 +339,25 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
         text = (text + "\n\n" if text else "") + "\n\n".join(additions)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
+
+
+def remove_timeline_from_shorts(description: str) -> str:
+    """Remove timeline-like content from shorts descriptions (should not have timestamps)."""
+    text = str(description or "").strip()
+    lines = text.splitlines()
+    
+    # Remove lines that look like timestamps (e.g., "0:00 - Label")
+    filtered_lines = []
+    for line in lines:
+        # Match patterns like "0:00 - Label" or "1:23 - Label"
+        if re.match(r"^\s*\d+:\d{2}\s*-\s*", line.strip()):
+            continue
+        filtered_lines.append(line)
+    
+    # Clean up extra blank lines
+    result = "\n".join(filtered_lines)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 def ensure_english_quiz_shorts_hashtags(description: str) -> str:
@@ -399,6 +543,15 @@ def generate_english_storyboard(script: dict, *, portrait: bool = False) -> dict
         else ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
     )
     theme = script.get("theme") or script.get("title", "English Lesson")
+    
+    # Calculate appropriate scene count based on dialogue length
+    num_turns = len(dialogue)
+    if num_turns <= 6:
+        scene_count_range = f"{max(2, num_turns // 2)}-{num_turns}"
+    elif num_turns <= 12:
+        scene_count_range = f"{num_turns // 2}-{num_turns}"
+    else:
+        scene_count_range = "8-12"
 
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
 Analyze the input script. For each dialogue row, generate a highly descriptive visual prompt.
@@ -412,10 +565,11 @@ CRITICAL RULES:
 1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair.
 2. The style must ALWAYS be: "{style_suffix}"
 3. The background and character actions must match the literal words spoken in the dialogue text.
-4. Group consecutive dialogue rows into broad "scenes" based on their location or topic (e.g., Level 1 Intro, Barbecue Scene, Classroom Scene, Kitchen Sugar Scene).
-5. Do not change the visual prompt unless the topic or physical location changes.
+4. Create {scene_count_range} scenes total for visual variety (roughly 1-2 dialogue turns per scene). NEVER exceed the total number of dialogue turns ({num_turns}).
+5. Change scenes frequently to maintain viewer engagement - every 15-20 seconds in the final video.
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
-7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns.
+7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
+8. NEVER include references to narrator in visual prompts.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -423,11 +577,11 @@ Output ONLY valid JSON with this schema:
   "scenes": [
     {{
       "scene_id": 1,
-      "scene_label": "string (short chapter label for YouTube timeline, e.g. Level 1 Intro)",
+      "scene_label": "string (short chapter label for YouTube timeline, e.g. Crisis Hook)",
       "image_filename": "scene_1_library_discussion.png",
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
       "start_turn": 0,
-      "end_turn": 12
+      "end_turn": 2
     }}
   ]
 }}
@@ -439,8 +593,16 @@ Output ONLY valid JSON with this schema:
             scenes = []
         for scene in scenes:
             vp = str(scene.get("visual_prompt", "")).strip()
+            # Remove any narrator, caption, or text references to prevent them from appearing in generated images
+            vp = re.sub(r"\bnarrator'?s?\b[^,.]*", '', vp, flags=re.IGNORECASE)
+            vp = re.sub(r'\s+,', ',', vp)  # Clean up commas after removals
+            vp = re.sub(r'\s{2,}', ' ', vp)  # Clean up extra spaces
+            vp = re.sub(r',\s*\.', '.', vp)  # Clean up dangling commas
+            vp = vp.strip()
             if vp and style_suffix.lower() not in vp.lower():
                 scene["visual_prompt"] = f"{vp.rstrip('.')} {style_suffix}"
+            elif vp:
+                scene["visual_prompt"] = vp
         script["theme"] = res.get("theme") or theme
         script["scenes"] = align_scenes_to_turns(scenes, dialogue)
         print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")
@@ -454,12 +616,13 @@ def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict
     """Generate storyboard scenes and apply description post-processing."""
     script = generate_english_storyboard(script, portrait=portrait)
     is_quiz = script.get("video_format") in ("shorts_quiz", "shorts")
-    include_timeline = not portrait and script.get("video_format") not in ("shorts", "shorts_quiz")
+    theme = script.get("theme") or script.get("title", "")
     if script.get("description"):
         script["description"] = finalize_english_description(
             script["description"],
-            include_timeline=include_timeline,
+            include_timeline=False,  # Timeline handled separately by _inject_scene_timeline in manual_run.py
             is_quiz=is_quiz,
+            theme=theme,
         )
     return script
 
@@ -506,17 +669,18 @@ def save_published_topic(topic: str, topic_type: str = "podcast"):
 
 
 ENGLISH_TOPIC_POOL = [
-    "Ordering Food at a Restaurant",
-    "Discussing Hobbies and Interests",
-    "Everyday Office Conversations",
-    "Describing People and Personalities",
-    "Shopping and Asking for Prices",
-    "Talking about Future Plans",
-    "Common Idioms for Happiness and Sadness",
-    "Discussing Favorite Movies and Books",
-    "Talking about Food and Cooking",
-    "Giving Advice to a Friend",
-    "Phrasal Verbs with 'Get'"
+    "Restaurant Disaster Story",
+    "Job Interview Gone Wrong",
+    "Travel Mishap at Airport",
+    "First Date Disaster",
+    "Lost in a Foreign City",
+    "Workplace Misunderstanding",
+    "Shopping Nightmare",
+    "Hotel Check-in Crisis",
+    "Phone Call Confusion",
+    "Meeting New People Mistake",
+    "Ordering Food Disaster",
+    "Public Transport Panic"
 ]
 
 COMMUNITY_POLL_POOL = [
@@ -671,17 +835,22 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
 
     prompt = f"""
     Generate a high-CTR single, highly engaging topic for an English learning {type_label}.
-    The topic should be focused on real-world practical everyday usage, and appealing to english learners at intermediate levels.
     {avoid_instruction}
 
+    STORYTELLING FOCUS (for podcast episodes):
+    - The topic MUST be story-driven: a real-world disaster, mistake, conflict, or crisis scenario
+    - Examples: Restaurant Disaster, Job Interview Gone Wrong, Travel Mishap, First Date Disaster, Lost in Foreign City
+    - Focus on high-stress moments where English mistakes cause problems
+    - The story should have a clear problem → solution narrative arc
+
     CRITICAL TITLE RULES:
-    - Title format: [Hook phrase] | [Level/Topic context]. Example: "DON'T Say 'Room Key' | 5 Levels of Hotel English"
-    - Front-load keywords: Start with "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
+    - Title format: [Hook phrase] | [Story context]. Example: "DON'T Say This at a Restaurant | Ordering Disaster Story"
+    - Front-load keywords: Start with "English listening practice", "English speaking practice", or "Learn English"
     - Include topic-specific vocabulary immediately after the main keyword phrase
     - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
 
     Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "DON'T Say 'Room Key' | 5 Levels of Hotel English", "search_keyword": "English Conversation Practice hotel reception check-in"}}
+    Example: {{"topic": "DON'T Say This at a Restaurant | Ordering Disaster Story", "search_keyword": "English Conversation Practice restaurant ordering mistakes"}}
     """
     try:
         res = call_groq_json(prompt)
@@ -754,49 +923,9 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
     return prefix + body + suffix
 
 
-def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
-    title = part1_data.get("title")
-    if not title:
-        title_options = part1_data.get("title_options") or []
-        title = title_options[0] if title_options else f"English Conversation: {topic}"
-
-    description = part1_data.get("description")
-    if not description:
-        description = f"Learn English with this detailed conversation about {topic}."
-    description = finalize_english_description(description, include_timeline=True)
-
-    tags = part1_data.get("tags")
-    if not tags:
-        tags = ["English", "Conversation", "Learning", "Phrasal Verbs"]
-
-    final_script = {
-        "title": title,
-        "description": description,
-        "pinned_comment": part1_data.get("pinned_comment", ""),
-        "tags": tags,
-        "theme": part1_data.get("theme", topic),
-        "visual_keywords": part1_data.get("visual_keywords", []),
-        "dialogue": [],
-    }
-
-    for i, (part_data, max_outro) in enumerate((
-        (part1_data, 0),
-        (part2_data, 0),
-        (part3_data, 3),
-    )):
-        cleaned = sanitize_dialogue_part(
-            part_data.get("dialogue", []), 
-            max_outro, 
-            is_intro=(i == 0),
-            is_outro=(i == 2)
-        )
-        removed = len(part_data.get("dialogue", [])) - len(cleaned)
-        if removed:
-            print(f"  Removed {removed} mid-episode sign-off line(s)")
-        final_script["dialogue"].extend(cleaned)
-
-    return final_script
-
+# DEPRECATED: combine_english_parts removed - replaced by single storytelling prompt
+# def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
+#     ... (removed as part of storytelling format migration)
 
 def call_groq_json(user_prompt: str) -> dict:
     res = groq_chat_json(
@@ -1037,8 +1166,9 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True
+        script_data.get("description", ""), is_quiz=True, theme=theme
     )
     return attach_storyboard_to_script(script_data, portrait=True)
 
@@ -1170,8 +1300,9 @@ JSON SCHEMA:
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+    theme = script.get("theme") or script.get("title", "")
     script["description"] = finalize_english_description(
-        script.get("description", ""), include_timeline=True
+        script.get("description", ""), include_timeline=True, theme=theme
     )
 
     if not script.get("title"):
@@ -1227,146 +1358,87 @@ def generate_english_script(topic=None):
     avoid_instruction = f"\nAvoid repeating examples, idioms, or stories used in these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
 
     print(f"\nSelected topic: {topic}")
+    print("Generating storytelling script...")
 
-    print("Generating Part 1 (Intro & Setup)...")
-    prompt_1 = f"""
-You are writing PART 1 (of 3) for one continuous high-retention long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+    prompt_short_story = f"""
+You are an elite showrunner and scriptwriter for the multi-character storytelling channel EnglishVibesHub (@EnglishVibesHub-s6w). Write a highly engaging, non-linear, dramatic English audio-story script.
+
 TOPIC: {topic}
 {avoid_instruction}
-{ENGLISH_METADATA_RULES}
 
-CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 1 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
-- The last turn of Part 1 must feel like the conversation is still in progress.
+{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-STRUCTURE & CONTENT (PART 1):
-1. **8-10 second hook with value promise**: Do NOT start with a greeting, channel intro, or "today we're talking about..." Start directly with a common, slightly embarrassing ESL mistake or real-world pressure moment related to the topic, then immediately promise the solution. Example: "STOP saying [common mistake]. Here are 3 better responses."
-2. **Retention structure**: Frame the lesson as "5 Levels of {topic}" or an equivalent countdown/progression from basic to advanced so viewers feel progress and want to reach the final level.
-3. **Levels 1-2**: Cover the basic and lower-intermediate levels in this part. Make each level clear in the spoken dialogue, for example "Level 1..." and "Level 2...".
-4. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-5. **High CTR & Searchability & SEO**: High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'The #1 Way To...', 'DON'T Say This', or 'Why Native Speakers Say...'. Include a timeline, relevant keywords, comment CTA, subscribe CTA, playlist placeholder, and hashtags mirroring the 'tags' list below along with high-intent phrases like "English Listening Practice", "Improve Your Speaking", etc.
-6. Use and carefully explain 3-4 natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-{_NOT_FINAL_PART_RULES}
-STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler, generic motivation, and long personal stories that do not teach a phrase.
-- Use culturally natural phrases only. Do not invent awkward expressions.
+VOICE CAST & CHARACTER ASSIGNMENT ROLES:
+- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Sets scenes, creates dramatic transitions, and handles intermediate language definitions.
+- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
+- "Guest" (Voice Profile: af_sky): Optional bystander, antagonist, or clerk. Speaks naturally based on the scene setting requirements.
 
-JSON SCHEMA:
+CRITICAL PIPELINE VALIDATION RULES:
+1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 12 and 18 turns maximum. To preserve a strict under-3-minute video runtime, individual dialogue turns must be tight and punchy (between 1 and 3 sentences maximum per turn).
+3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
+4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to break down a phrasal verb used naturally by a character. The lesson must feel like a tactical observation of the drama, not a school textbook interruption.
+5. INTERACTIVE BEAT PLACEMENT: Include exactly one organic fill-in-the-blank vocabulary query challenge right before the narrative climax beat. You MUST include a SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn) to signal where viewers should pause and think. This must be its own dialogue entry, not embedded within another turn's text. The answer reveal must happen naturally through the Narrator's tracking lines after the pause.
+
+STRUCTURAL MOVEMENT STAGES:
+- Stage 1: The Crisis Hook (In Media Res start, high stakes, emotional conflict).
+- Stage 2: Narrative Complications (The obstacle worsens, characters react, argue, or pivot strategies).
+- Stage 3: Organic Teaching Blocks (Narrator strategically breaks down expressions as they occur naturally in dialogue).
+- Stage 4: Climax & Challenge (The absolute peak of tension, followed by the viewer pause-and-guess beat).
+- Stage 5: Resolution & Seamless Engagement (The crisis resolves. The Narrator smoothly redirects the viewer directly to the pinned comment question without generic intros/outros).
+
+JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
-  "title": "string (High-CTR, curiosity-based, searchable title using title case and selective ALL CAPS for hook words, e.g., 'STOP Saying I'm Fine: Better Ways to Respond')",
-  "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder, subscribe CTA, playlist placeholder '📺 Watch the playlist here: {{playlist_url}}', #EnglishVibesHub, and hashtags mirroring 'tags')",
-  "pinned_comment": "string (A specific engaging question about the topic to trigger comments)",
-  "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
-  "theme": "string (short topic label for storyboard, e.g. 'Restaurant Ordering - Level 1')",
-  "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
+  "title": "High-CTR Title matching METADATA RULES",
+  "description": "String matching DESCRIPTION TEMPLATE exactly",
+  "pinned_comment": "Narrative retention engagement question",
+  "tags": [ "Tag1", "Tag2" ],
   "dialogue": [
     {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
+      "turn_number": 1,
+      "speaker": "Narrator",
+      "text": "The wind howled against the terminal windows as the flight monitors began flipping to canceled."
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "Emma",
+      "text": "Are you seeing this, Liam? Our connection is totally gone and my phone has absolutely no cellular service!"
+    }}
+  ],
+  "thumbnail_text": "TEXT",
+  "thumbnail_concept": "CONCEPT",
+  "theme": "THEME",
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "The Storm Hits",
+      "image_filename": "scene_storm_hits.png",
+      "visual_prompt": "Cinematic shot of a crowded dark airport terminal during a storm.",
+      "start_turn": 1,
+      "end_turn": 2
     }}
   ]
 }}
 """
-    part1_data = call_groq_json(prompt_1)
-    groq_part_cooldown("Part 2")
+    is_valid = False
+    attempts = 0
 
-    print("Generating Part 2 (Deep Dive & Stories)...")
-    d1 = part1_data.get("dialogue", [])
-    last_turn = d1[-1] if d1 else {"speaker": "Emma", "text": "Let's continue."}
-    prompt_2 = f"""
-You are writing PART 2 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-TOPIC: {topic}
-{avoid_instruction}
+    while not is_valid and attempts < 3:
+        attempts += 1
+        print(f"🔄 Generation Attempt {attempts}...")
 
-The previous turn ended with {last_turn['speaker']} saying: "{last_turn['text']}"
-Pick up the conversation naturally from here.
+        raw_script = call_groq_json(prompt_short_story)
+        script, is_valid = validate_organic_english_script(raw_script)
 
-CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 2 is not a separate episode. It must not contain a pause, break, recap ending, episode ending, or channel CTA.
-- The first turn must continue directly from the previous turn.
-- The last turn of Part 2 must feel like the conversation is still in progress.
+    if not is_valid:
+        print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
 
-STRUCTURE & CONTENT (PART 2):
-1. **Levels 3-4**: Continue the countdown/progression from Part 1. Make the level labels clear in the spoken dialogue.
-2. **Roleplay, not rambling**: Use fast practical roleplay related to the topic. Keep it directly useful for real conversations.
-3. **Interactive challenge**: Include exactly one "Pause and Guess" moment in this part. One dialogue turn should ask the viewer to guess the phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-4. Use and carefully explain 4-5 additional natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-{_NOT_FINAL_PART_RULES}
-STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler and generic praise. Every turn should teach, test, or move the roleplay forward.
-
-JSON SCHEMA:
-{{
-  "dialogue": [
-    {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
-    }}
-  ]
-}}
-"""
-    part2_data = call_groq_json(prompt_2)
-    groq_part_cooldown("Part 3")
-
-    print("Generating Part 3 (Wrap-up & Outro)...")
-    d2 = part2_data.get("dialogue", [])
-    last_turn_2 = d2[-1] if d2 else {"speaker": "Emma", "text": "Let's wrap up."}
-    prompt_3 = f"""
-You are writing PART 3 (of 3) for the same continuous long-form English conversation video for the YouTube channel 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-TOPIC: {topic}
-{avoid_instruction}
-
-The previous turn ended with {last_turn_2['speaker']} saying: "{last_turn_2['text']}"
-Pick up the conversation naturally from here.
-
-CRITICAL RULES:
-- Output ONLY valid JSON
-- The `dialogue` array MUST contain around 20-25 turns.
-- Part 3 is the only place an ending is allowed, and only at the actual end of the final video.
-- Do not mention "next episode", "stay tuned", "take a break", or "we'll be right back" anywhere in Part 3.
-
-STRUCTURE & CONTENT (PART 3):
-1. **Level 5**: Deliver the most advanced and valuable part of the countdown/progression.
-2. **Interactive challenge**: Include exactly one final "Pause and Guess" moment. One dialogue turn should ask the viewer to guess the strongest phrase, the next turn should contain only "[PAUSE 3 SECONDS]", and the next turn should reveal the answer.
-3. Use and carefully explain 3-4 final natural expressions, phrasal verbs, or idioms. The hosts MUST explain what they mean to the listeners with clear examples.
-4. **Loop hook and outro (LAST 1-2 TURNS ONLY)**: End with a pinned-comment question that connects back to the opening mistake or challenge. The final sentence should make viewers want to comment or replay. Do NOT use like/subscribe/goodbye/thanks-for-watching language anywhere earlier in Part 3.
-
-STYLE:
-- Conversational, friendly, natural, and clear and deliberate.
-- Hosts: Emma (energetic, helpful) and Liam (curious, friendly).
-- Keep speaker turns concise: 1-3 sentences per turn for variety.
-- Avoid filler and long recap. Preserve momentum through the end.
-
-JSON SCHEMA:
-{{
-  "dialogue": [
-    {{
-      "speaker": "Emma or Liam",
-      "text": "string (the spoken text)"
-    }}
-  ]
-}}
-"""
-    part3_data = call_groq_json(prompt_3)
-
-    script = combine_english_parts(part1_data, part2_data, part3_data, topic)
     thumbnail = generate_thumbnail_text(topic, is_challenge=False)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
-    
+
     save_published_topic(script.get("title", topic), topic_type="podcast")
-    
+
     return attach_storyboard_to_script(script, portrait=False)
 
 
@@ -1484,7 +1556,8 @@ JSON SCHEMA:
 """
     script_data = call_groq_json(prompt)
     script_data.setdefault("video_format", "shorts")
-    script_data["description"] = finalize_english_description(script_data.get("description", ""))
+    theme = script_data.get("theme") or script_data.get("title", "")
+    script_data["description"] = finalize_english_description(script_data.get("description", ""), theme=theme)
 
     if not script_data.get("title"):
         title_options = script_data.get("title_options") or []
@@ -1559,8 +1632,9 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     """
     script_data = call_groq_json(prompt)
     script_data["video_format"] = "shorts_quiz"
+    theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True
+        script_data.get("description", ""), is_quiz=True, theme=theme
     )
     save_published_topic(script_data.get("title", topic), topic_type="quiz")
     return attach_storyboard_to_script(script_data, portrait=True)

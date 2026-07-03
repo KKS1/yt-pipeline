@@ -85,7 +85,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
 }
 
 ENGLISH_LONG_TTS_SPEED = 0.90
-ENGLISH_SHORTS_TTS_SPEED = 1.00
+ENGLISH_SHORTS_TTS_SPEED = 0.98
 ENGLISH_QUIZ_TTS_SPEED = 0.98
 
 def get_family_history(tag: str = "family") -> list:
@@ -139,6 +139,11 @@ def _description_with_playlist_url(description: str, command_channel: str | None
     text = str(description or "").strip()
     if not playlist_url:
         return text
+    
+    # Clean up malformed URLs where AI wrapped actual URLs in curly braces
+    # Pattern: {https://...} or {http://...}
+    text = re.sub(r'\{https?://[^\}]+\}', playlist_url, text)
+    
     if "{playlist_url}" in text:
         return text.replace("{playlist_url}", playlist_url)
     if playlist_url in text:
