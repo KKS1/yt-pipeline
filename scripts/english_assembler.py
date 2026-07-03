@@ -39,6 +39,7 @@ ENGLISH_TTS_SPEEDS = {
 }
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
+BLANK_PATTERN_RE = re.compile(r"___+", re.IGNORECASE)
 
 
 def _pause_duration_seconds(text: str) -> float | None:
@@ -48,6 +49,18 @@ def _pause_duration_seconds(text: str) -> float | None:
     if match.group(1):
         return max(0.25, min(float(match.group(1)), 10.0))
     return 1.0
+
+
+def _replace_blanks_with_beep(text: str) -> tuple[str, bool]:
+    """
+    Replace "___" patterns in text with a beep marker.
+    Returns (modified_text, has_beep) tuple.
+    """
+    if BLANK_PATTERN_RE.search(text):
+        # Replace underscores with beep marker
+        modified = BLANK_PATTERN_RE.sub("[BEEP]", text)
+        return modified, True
+    return text, False
 
 
 def _gate_idiom_windows_after_pause_reveals(
@@ -102,6 +115,21 @@ def _generate_silence_audio(output_path: str, duration_seconds: float) -> str:
         "-f", "lavfi",
         "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
         "-t", str(duration_seconds),
+        "-c:a", "aac",
+        "-b:a", "192k",
+        output_path,
+        "-loglevel", "error",
+    ], check=True)
+    return output_path
+
+
+def _generate_beep_audio(output_path: str, duration_seconds: float = 0.3) -> str:
+    """Generate a beep sound effect for fill-in-the-blank challenges."""
+    subprocess.run([
+        FFMPEG, "-y",
+        "-f", "lavfi",
+        "-i", f"sine=frequency=800:duration={duration_seconds}",
+        "-af", "volume=0.5",
         "-c:a", "aac",
         "-b:a", "192k",
         output_path,
@@ -295,8 +323,55 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                 _generate_silence_audio(out_path, pause_duration)
                 dialogue_only_durations.append(pause_duration)
             else:
-                print(f"  [{speaker}] (speed={speaker_speed}) -> {out_path}")
-                synthesize(text, out_path, voice=voice, speed=speaker_speed, speaker=speaker)
+                # Check for blank patterns and replace with beep marker
+                text_with_beep, has_beep = _replace_blanks_with_beep(text)
+                
+                if has_beep:
+                    # Split text by beep marker and generate audio for each part
+                    parts = text_with_beep.split("[BEEP]")
+                    temp_audio_parts = []
+                    
+                    for part_idx, part in enumerate(parts):
+                        if part.strip():  # Only synthesize non-empty parts
+                            part_path = str(TEMP_DIR / f"english_line_{i:03d}_part_{part_idx}.m4a")
+                            synthesize(part.strip(), part_path, voice=voice, speed=speaker_speed, speaker=speaker)
+                            temp_audio_parts.append(part_path)
+                            
+                            # Add beep after each part except the last
+                            if part_idx < len(parts) - 1:
+                                beep_path = str(TEMP_DIR / f"english_line_{i:03d}_beep_{part_idx}.m4a")
+                                _generate_beep_audio(beep_path)
+                                temp_audio_parts.append(beep_path)
+                    
+                    # Concatenate all parts (text + beeps) into final audio
+                    if temp_audio_parts:
+                        concat_list = str(TEMP_DIR / f"english_line_{i:03d}_parts.txt")
+                        with open(concat_list, "w") as f:
+                            for part_audio in temp_audio_parts:
+                                f.write(f"file '{os.path.abspath(part_audio)}'\n")
+                        
+                        subprocess.run([
+                            FFMPEG, "-y",
+                            "-f", "concat", "-safe", "0", "-i", concat_list,
+                            "-c:a", "aac", "-b:a", "192k",
+                            out_path, "-loglevel", "error"
+                        ], check=True)
+                        
+                        # Clean up temp files
+                        for part_audio in temp_audio_parts:
+                            Path(part_audio).unlink(missing_ok=True)
+                        Path(concat_list).unlink(missing_ok=True)
+                        
+                        print(f"  [{speaker}] with beep -> {out_path}")
+                    else:
+                        # Fallback if no parts to synthesize
+                        synthesize(text, out_path, voice=voice, speed=speaker_speed, speaker=speaker)
+                        print(f"  [{speaker}] (fallback) -> {out_path}")
+                else:
+                    # Normal synthesis without beeps
+                    print(f"  [{speaker}] (speed={speaker_speed}) -> {out_path}")
+                    synthesize(text, out_path, voice=voice, speed=speaker_speed, speaker=speaker)
+                
                 dialogue_only_durations.append(get_audio_duration(out_path))
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
