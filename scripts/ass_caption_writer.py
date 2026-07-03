@@ -571,6 +571,7 @@ def generate_ass_captions(
             word_text = re.sub(r'\balver\b', 'verb', word_text, flags=re.IGNORECASE)
             word_text = re.sub(r'\bfrazal\b', 'phrasal', word_text, flags=re.IGNORECASE)
             word_text = re.sub(r'\bfrazel\b', 'phrasal', word_text, flags=re.IGNORECASE)
+            word_text = re.sub(r'\bfraser\b', 'phrasal', word_text, flags=re.IGNORECASE)
             # Convert "phrase" back to "phrasal" (TTS uses "phrase" for pronunciation)
             word_text = re.sub(r'\bphrase verb\b', 'phrasal verb', word_text, flags=re.IGNORECASE)
             all_words.append({
@@ -684,6 +685,7 @@ def generate_ass_captions_from_words(
         w["word"] = re.sub(r'\balver\b', 'verb', w["word"], flags=re.IGNORECASE)
         w["word"] = re.sub(r'\bfrazal\b', 'phrasal', w["word"], flags=re.IGNORECASE)
         w["word"] = re.sub(r'\bfrazel\b', 'phrasal', w["word"], flags=re.IGNORECASE)
+        w["word"] = re.sub(r'\bfraser\b', 'phrasal', w["word"], flags=re.IGNORECASE)
         # Convert "phrase" back to "phrasal" (TTS uses "phrase" for pronunciation)
         w["word"] = re.sub(r'\bphrase verb\b', 'phrasal verb', w["word"], flags=re.IGNORECASE)
 
