@@ -29,7 +29,7 @@ METADATA RULES:
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
 DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
-🎯 In this video, learn [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
+🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
 
 📺 Watch the full travel English playlist here: 
 https://www.youtube.com/playlist?list=PLQcVuzsH3e2I
