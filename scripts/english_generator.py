@@ -25,6 +25,7 @@ METADATA RULES:
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
@@ -174,18 +175,24 @@ def ensure_english_seo_opener(description: str, theme: str = "") -> str:
     text = str(description or "").strip()
     theme_clean = str(theme or "").strip()
     
-    # Build customized opener with theme/topic
+    # Build customized opener with proper keyword front-loading
+    # Rule: First 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
     if theme_clean:
-        seo_line = f"🎯 In this video, learn {theme_clean}. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+        seo_line = f"🎯 English listening practice via Story: {theme_clean}. Master natural English for real conversations and speak like a native!"
     else:
-        seo_line = "🎯 In this video, learn practical English expressions. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!"
+        seo_line = "🎯 English listening practice: learn practical English expressions. Master natural English for real conversations and speak like a native!"
     
     if not text:
         return seo_line
     
     lines = text.splitlines()
     opener = lines[0].lower() if lines else ""
-    if "🎯" in opener or ("in this video, learn" in opener and "natural english" in text.lower()):
+    
+    # Check if opener already has proper SEO keywords
+    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english"]
+    has_proper_opener = any(keyword in opener for keyword in required_keywords)
+    
+    if has_proper_opener:
         # If opener exists but lacks theme, update it
         if theme_clean and theme_clean.lower() not in text.lower():
             return seo_line + "\n\n" + "\n".join(lines[1:] if len(lines) > 1 else lines)
@@ -198,13 +205,13 @@ def ensure_english_seo_opener(description: str, theme: str = "") -> str:
 def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
     """Build a formatted timeline block from scene turn ranges and Kokoro audio timings."""
     if not scenes or not per_turn_times:
-        return "0:00 - Start"
+        return "📑 Timeline:\n0:00 - Start"
 
     def fmt_time(seconds: float) -> str:
         seconds = max(0, int(seconds))
         return f"{seconds // 60}:{seconds % 60:02d}"
 
-    lines = []
+    lines = ["📑 Timeline:"]
     for scene in scenes:
         start_turn = int(scene.get("start_turn", 0))
         end_turn = int(scene.get("end_turn", start_turn))
@@ -249,6 +256,40 @@ def inject_scene_timeline(description: str, timeline_block: str) -> str:
     return text + "\n\n" + timeline_block
 
 
+def remove_duplicate_phrases(description: str) -> str:
+    """Remove duplicate occurrences of key phrases like 'speak like a native' from descriptions."""
+    text = str(description or "").strip()
+    
+    # List of phrases that should appear only once
+    phrases_to_dedup = [
+        "speak like a native",
+        "natural english",
+        "master natural english",
+        "improve your english skills",
+        "real-life scenarios",
+    ]
+    
+    for phrase in phrases_to_dedup:
+        # Case-insensitive search for duplicates
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        matches = pattern.findall(text)
+        
+        if len(matches) > 1:
+            # Keep first occurrence, remove subsequent ones
+            def replace_func(match):
+                nonlocal count
+                count += 1
+                return match.group(0) if count == 1 else ""
+            
+            count = 0
+            text = pattern.sub(replace_func, text)
+    
+    # Clean up extra whitespace from replacements
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
+    return text.strip()
+
+
 def finalize_english_description(
     description: str,
     *,
@@ -258,6 +299,8 @@ def finalize_english_description(
 ) -> str:
     """Apply all English description post-processors."""
     text = ensure_english_seo_opener(description, theme=theme)
+    # Remove duplicate phrases before other processing
+    text = remove_duplicate_phrases(text)
     # Remove timeline content from shorts (vertical videos shouldn't have timestamps)
     if not include_timeline:
         text = remove_timeline_from_shorts(text)
@@ -573,12 +616,11 @@ def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict
     """Generate storyboard scenes and apply description post-processing."""
     script = generate_english_storyboard(script, portrait=portrait)
     is_quiz = script.get("video_format") in ("shorts_quiz", "shorts")
-    include_timeline = not portrait and script.get("video_format") not in ("shorts", "shorts_quiz")
     theme = script.get("theme") or script.get("title", "")
     if script.get("description"):
         script["description"] = finalize_english_description(
             script["description"],
-            include_timeline=include_timeline,
+            include_timeline=False,  # Timeline handled separately by _inject_scene_timeline in manual_run.py
             is_quiz=is_quiz,
             theme=theme,
         )
