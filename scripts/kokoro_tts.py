@@ -58,9 +58,9 @@ def clean_text(text: str) -> str:
     """Strip screenplay markers before sending to TTS."""
     text = re.sub(r'\[VISUAL:[^\]]+\]', '', text)
     text = re.sub(r'\[PAUSE\]', '... ', text)
-    text = re.sub(r'\[EMPHASIS\]', '', text)
+    # Convert markdown bold to emphasis marker for TTS
+    text = re.sub(r'\*\*(.*?)\*\*', r'[EMPHASIS]\1[/EMPHASIS]', text)
     text = re.sub(r'\(.*?\)', '', text)
-    text = re.sub(r'\*\*', '', text)
     text = re.sub(r'\bphrasal\b', 'phrase', text, flags=re.IGNORECASE)
     text = ' '.join(text.split())
     return text.strip()
@@ -72,6 +72,7 @@ def synthesize(
     voice: str = "af_sarah",
     speed: float = 1.05,
     chunk_size: int = 300,
+    speaker: str = None,
 ) -> str:
     import numpy as np
 
@@ -80,29 +81,71 @@ def synthesize(
 
     print(f"  Synthesizing ({len(text)} chars, voice={voice}, speed={speed})...")
 
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    chunks, current = [], ""
+    # Only apply emphasis processing for Narrator
+    use_emphasis = speaker == "Narrator"
 
-    for s in sentences:
-        if len(current) + len(s) < chunk_size:
-            current += (" " if current else "") + s
+    if use_emphasis:
+        # Split by emphasis markers and track which parts are emphasized
+        emphasis_pattern = re.compile(r'\[EMPHASIS\](.*?)\[/EMPHASIS\]')
+        parts = []
+        pos = 0
+        for match in emphasis_pattern.finditer(text):
+            # Add non-emphasized part before this match
+            if match.start() > pos:
+                parts.append((text[pos:match.start()], False))
+            # Add emphasized part
+            parts.append((match.group(1), True))
+            pos = match.end()
+        # Add remaining text
+        if pos < len(text):
+            parts.append((text[pos:], False))
+
+        # If no emphasis markers found, treat entire text as non-emphasized
+        if not parts:
+            parts = [(text, False)]
+    else:
+        # For non-narrator speakers, strip emphasis markers and treat as plain text
+        text = re.sub(r'\[/?EMPHASIS\]', '', text).strip()
+        parts = [(text, False)]
+
+    # Group parts into chunks by character count
+    chunks = []
+    current_chunk = []
+    current_chars = 0
+    for part_text, is_emphasis in parts:
+        part_text_clean = re.sub(r'\[/?EMPHASIS\]', '', part_text).strip()
+        if not part_text_clean:
+            continue
+        if current_chars + len(part_text_clean) < chunk_size:
+            current_chunk.append((part_text_clean, is_emphasis))
+            current_chars += len(part_text_clean)
         else:
-            if current:
-                chunks.append(current)
-            current = s
-    if current:
-        chunks.append(current)
+            if current_chunk:
+                chunks.append(current_chunk)
+            current_chunk = [(part_text_clean, is_emphasis)]
+            current_chars = len(part_text_clean)
+    if current_chunk:
+        chunks.append(current_chunk)
 
     all_samples = []
     sample_rate = None
 
     for i, chunk in enumerate(chunks):
-        samples, sr = k.create(chunk, voice=voice, speed=speed)
-        all_samples.append(samples)
-        sample_rate = sr
+        chunk_samples = []
+        for part_text, is_emphasis in chunk:
+            # Use slightly slower speed for emphasized parts (only for Narrator)
+            part_speed = speed * 0.95 if is_emphasis and use_emphasis else speed
+            samples, sr = k.create(part_text, voice=voice, speed=part_speed)
+            chunk_samples.append(samples)
+            sample_rate = sr
+        if chunk_samples:
+            all_samples.append(np.concatenate(chunk_samples))
         print(f"  Chunk {i+1}/{len(chunks)} done")
 
-    combined = np.concatenate(all_samples)
+    if all_samples:
+        combined = np.concatenate(all_samples)
+    else:
+        combined = np.array([])
 
     wav_path = str(Path(output_path).with_suffix(".wav"))
     output_path = str(Path(output_path).with_suffix(".m4a"))

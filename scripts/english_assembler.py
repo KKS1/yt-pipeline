@@ -296,7 +296,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                 dialogue_only_durations.append(pause_duration)
             else:
                 print(f"  [{speaker}] (speed={speaker_speed}) -> {out_path}")
-                synthesize(text, out_path, voice=voice, speed=speaker_speed)
+                synthesize(text, out_path, voice=voice, speed=speaker_speed, speaker=speaker)
                 dialogue_only_durations.append(get_audio_duration(out_path))
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
