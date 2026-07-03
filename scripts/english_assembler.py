@@ -31,6 +31,13 @@ ENGLISH_VOICES = {
     "Guest": "bf_emma"          # Upgrade: Replaces af_sarah with a British female accent
 }
 
+ENGLISH_TTS_SPEEDS = {
+    "Narrator": 0.85,           # Slower for clear narration
+    "Emma": 0.92,               # Normal pace for protagonist
+    "Liam": 0.92,               # Normal pace for protagonist
+    "Guest": 0.90               # Slightly slower for guest characters
+}
+
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
 
@@ -152,11 +159,21 @@ def apply_face_badge_overlays(
             shutil.copy2(video_path, output_path)
         return output_path
 
-    # Prepare badges
+    # Prepare badges for all characters
     size = 140 if is_shorts else 120
     emma_src = prepare_face_badge("Emma", size)
     liam_src = prepare_face_badge("Liam", size)
-    if not emma_src or not liam_src:
+    narrator_src = prepare_face_badge("Narrator", size)
+    guest_src = prepare_face_badge("Guest", size)
+    
+    # Check if any badges are available
+    available_badges = {
+        "emma": emma_src,
+        "liam": liam_src,
+        "narrator": narrator_src,
+        "guest": guest_src
+    }
+    if not any(available_badges.values()):
         # No face badges found — skip overlay
         print("  Face PNG badges not found, skipping face badge overlay.")
         if video_path != output_path:
@@ -173,9 +190,13 @@ def apply_face_badge_overlays(
         except Exception:
             pass
 
-    # Construct the active intervals for Emma and Liam
-    emma_intervals = []
-    liam_intervals = []
+    # Construct the active intervals for all characters
+    intervals = {
+        "emma": [],
+        "liam": [],
+        "narrator": [],
+        "guest": []
+    }
     for i, turn in enumerate(dialogue):
         if i >= len(per_turn_times):
             break
@@ -183,13 +204,14 @@ def apply_face_badge_overlays(
         start, end = per_turn_times[i]
         if end <= start:
             continue
-        if speaker == "emma":
-            emma_intervals.append((start, end))
-        elif speaker == "liam":
-            liam_intervals.append((start, end))
+        if speaker in intervals:
+            intervals[speaker].append((start, end))
 
-    emma_enable = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in emma_intervals)
-    liam_enable = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in liam_intervals)
+    # Build enable expressions for each character that has a badge
+    enable_expressions = {}
+    for char, badge_src in available_badges.items():
+        if badge_src and intervals[char]:
+            enable_expressions[char] = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in intervals[char])
 
     # Determine coordinates
     if is_shorts:
@@ -204,17 +226,13 @@ def apply_face_badge_overlays(
     idx = 1
     prev_label = "0:v"
 
-    if emma_enable:
-        inputs.extend(["-i", emma_src])
-        filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{emma_enable}'[v{idx}]")
-        prev_label = f"v{idx}"
-        idx += 1
-
-    if liam_enable:
-        inputs.extend(["-i", liam_src])
-        filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{liam_enable}'[v{idx}]")
-        prev_label = f"v{idx}"
-        idx += 1
+    # Overlay each character's badge when they speak
+    for char in ["emma", "liam", "narrator", "guest"]:
+        if char in enable_expressions and available_badges[char]:
+            inputs.extend(["-i", available_badges[char]])
+            filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{enable_expressions[char]}'[v{idx}]")
+            prev_label = f"v{idx}"
+            idx += 1
 
     if idx == 1:
         # No intervals spoke — just copy
@@ -246,7 +264,8 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         per_turn_times is a list of (abs_start_sec, abs_end_sec) tuples,
         one per dialogue turn, needed for idiom overlay timestamp mapping.
     speed : Kokoro speech speed. ESL videos should stay clear; use pacing in
-        the script/edits rather than speeding speech too much.
+        the script/edits rather than speeding speech too much. This is used as
+        a fallback if the speaker is not in ENGLISH_TTS_SPEEDS.
     """
     TEMP_DIR.mkdir(exist_ok=True)
     dialogue = script_data.get("dialogue", [])
@@ -259,6 +278,8 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         speaker = line.get("speaker", "Emma")
         text = line.get("text", "")
         voice = ENGLISH_VOICES.get(speaker, "af_sarah")
+        # Use character-specific speed if available, otherwise use fallback speed
+        speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
 
         out_path = str(TEMP_DIR / f"english_line_{i:03d}.m4a")
 
@@ -268,8 +289,8 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
                 print(f"  [pause] {pause_duration:.1f}s -> {out_path}")
                 _generate_silence_audio(out_path, pause_duration)
             else:
-                print(f"  [{speaker}] -> {out_path}")
-                synthesize(text, out_path, voice=voice, speed=speed)
+                print(f"  [{speaker}] (speed={speaker_speed}) -> {out_path}")
+                synthesize(text, out_path, voice=voice, speed=speaker_speed)
             dur = get_audio_duration(out_path)
             audio_files.append(out_path)
             per_turn_durations.append(dur)
