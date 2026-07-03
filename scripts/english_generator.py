@@ -24,6 +24,7 @@ METADATA RULES:
 - Place the playlist and comment question CTAs (immediately after the SEO opener, BEFORE timeline and other CTAs) to encourage early engagement.
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
+- For quiz videos, include an "About This Lesson" section with AI-generated explanation of the idiom/theme before hashtags.
 - Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
 - IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
@@ -32,18 +33,33 @@ METADATA RULES:
 DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
 🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
 
-📺 Watch the full travel English playlist here: 
-https://www.youtube.com/playlist?list=PLQcVuzsH3e2I
+📺 Watch the playlist here: {playlist_url}
 
 💬 Comment below: [specific question]
+
+ Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
+
+📑 About This Lesson:
+What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
 
 📑 Timeline:
 {scene_timeline}
 
-🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice:
-https://www.youtube.com/channel/UCcebFzUKUN-bMXcYLBvx8Tg
-
 #EnglishVibesHub #LearnEnglish #EnglishListeningPractice #EnglishForBeginners ...
+
+QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
+🎯 English listening practice via Story: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
+
+📺 Watch the playlist here: {playlist_url}
+
+💬 Comment below: [specific question]
+
+🔔 Subscribe for more quick English quizzes!
+
+📑 About This Lesson:
+What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
+
+#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub #[TopicTag] #EnglishListeningPractice #EnglishSpeakingPractice
 """
 
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
@@ -186,7 +202,15 @@ def ensure_english_seo_opener(description: str, theme: str = "") -> str:
         return seo_line
     
     lines = text.splitlines()
-    opener = lines[0].lower() if lines else ""
+    
+    # Remove leading hashtag lines (they'll be re-added at the end)
+    while lines and lines[0].strip().startswith("#"):
+        lines.pop(0)
+    
+    if not lines:
+        return seo_line
+    
+    opener = lines[0].lower()
     
     # Check if opener already has proper SEO keywords
     required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english"]
@@ -196,10 +220,11 @@ def ensure_english_seo_opener(description: str, theme: str = "") -> str:
         # If opener exists but lacks theme, update it
         if theme_clean and theme_clean.lower() not in text.lower():
             return seo_line + "\n\n" + "\n".join(lines[1:] if len(lines) > 1 else lines)
-        return text
+        return "\n".join(lines)
     
-    rest = lines if lines else []
-    return seo_line + "\n\n" + "\n".join(rest)
+    # Add SEO opener at the beginning
+    rest = "\n".join(lines)
+    return seo_line + "\n\n" + rest
 
 
 def build_scene_timeline(scenes: list, per_turn_times: list) -> str:
@@ -257,16 +282,23 @@ def inject_scene_timeline(description: str, timeline_block: str) -> str:
 
 
 def remove_duplicate_phrases(description: str) -> str:
-    """Remove duplicate occurrences of key phrases like 'speak like a native' from descriptions."""
+    """Remove duplicate occurrences of key phrases and entire lines from descriptions."""
     text = str(description or "").strip()
     
-    # List of phrases that should appear only once
+    # Preserve existing structured sections (comment, subscribe, playlist) by not normalizing them
+    # Only normalize the content that appears to be mashed together
+    
+    # List of phrases that should appear only once (but be careful not to remove theme/topic)
     phrases_to_dedup = [
         "speak like a native",
         "natural english",
         "master natural english",
         "improve your english skills",
         "real-life scenarios",
+        "english listening practice",
+        "english speaking practice",
+        "for real conversations",
+        "learn hidden meanings",
     ]
     
     for phrase in phrases_to_dedup:
@@ -284,6 +316,33 @@ def remove_duplicate_phrases(description: str) -> str:
             count = 0
             text = pattern.sub(replace_func, text)
     
+    # Clean up fragmented phrases left after removal (but preserve theme/topic)
+    text = re.sub(r'🎯\s+via\s+Story:[^!]*!', '', text, flags=re.IGNORECASE)  # Remove fragmented opener remnants
+    text = re.sub(r'Master\s+and\s+!', '', text)  # Remove fragmented phrases
+    text = re.sub(r'🎯\s+-\s+[^.!?]*\.?\s*🎯', '', text)  # Remove fragmented emoji sections
+    text = re.sub(r':\s+[^.!?]*\s+Learn\s+hidden\s+meanings', '', text)  # Remove fragmented idiom quiz text
+    text = re.sub(r'🎯\s+-\s+[^.!?]*\.', '', text)  # Remove standalone fragmented emoji lines
+    text = re.sub(r'\s{2,}', ' ', text)  # Clean up extra spaces
+    
+    # Remove duplicate playlist URLs (keep only one, preferably the placeholder)
+    text = re.sub(r'📺\s+Watch\s+the\s+playlist\s+here:\s*https?://[^\s]+', '', text, flags=re.IGNORECASE)
+    
+    # Remove duplicate lines (case-insensitive, ignoring leading/trailing whitespace)
+    lines = text.splitlines()
+    seen_lines = {}
+    unique_lines = []
+    
+    for line in lines:
+        line_stripped = line.strip().lower()
+        if not line_stripped:
+            unique_lines.append(line)
+            continue
+        if line_stripped not in seen_lines:
+            seen_lines[line_stripped] = True
+            unique_lines.append(line)
+    
+    text = "\n".join(unique_lines)
+    
     # Clean up extra whitespace from replacements
     text = re.sub(r'\s+', ' ', text)
     text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
@@ -298,36 +357,55 @@ def finalize_english_description(
     theme: str = "",
 ) -> str:
     """Apply all English description post-processors."""
-    text = ensure_english_seo_opener(description, theme=theme)
-    # Remove duplicate phrases before other processing
-    text = remove_duplicate_phrases(text)
+    # Extract existing structured content to preserve it
+    existing_comment = None
+    comment_match = re.search(r'💬\s*Comment\s+below:[^#🔔]+', description, re.IGNORECASE)
+    if comment_match:
+        existing_comment = comment_match.group(0).strip()
+    
+    # Remove duplicate phrases first (before adding SEO opener to avoid conflicts)
+    text = remove_duplicate_phrases(description)
+    # Add SEO opener
+    text = ensure_english_seo_opener(text, theme=theme)
     # Remove timeline content from shorts (vertical videos shouldn't have timestamps)
     if not include_timeline:
         text = remove_timeline_from_shorts(text)
+    # Add CTAs (including playlist positioned after opener)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
+    
+    # Restore existing comment if it was preserved (replace generic comment)
+    if existing_comment:
+        text = re.sub(
+            r'💬\s*Comment\s+below:\s*Which\s+phrase\s+will\s+you\s+practice\s+today\?',
+            existing_comment,
+            text,
+            flags=re.IGNORECASE
+        )
+    
     if is_quiz:
-        text = ensure_english_quiz_shorts_hashtags(text)
-    text = ensure_english_vibes_hashtags(text)
+        # Add About This Lesson section for quiz videos (inserts before hashtags)
+        text = ensure_english_quiz_about_section(text, theme=theme)
+        # Place hashtags at end with SEO ordering
+        text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
+    else:
+        text = ensure_english_vibes_hashtags(text)
     return text
 
 
 def ensure_english_description_cta(description: str, *, include_timeline: bool = False) -> str:
-    """Guarantee core YouTube metadata CTAs even if the model skips them."""
+    """Guarantee core YouTube metadata CTAs even if the model skips them with proper spacing."""
     text = str(description or "").strip()
-    lines = []
-    for line in text.splitlines():
-        if _PLAYLIST_LINE_RE.match(line):
-            continue
-        lines.append(line.rstrip())
-    text = "\n".join(lines).strip()
-
+    
     additions = []
 
-    # Comment first, then playlist, then timeline, then subscribe
-    if not re.search(r"\bcomment\b", text, re.IGNORECASE):
-        additions.append("💬 Comment below: Which phrase will you practice today?")
-    if "{playlist_url}" not in text:
+    # Order: playlist → comment → timeline → subscribe
+    # Add playlist if missing (will be positioned after opener)
+    if "{playlist_url}" not in text and not re.search(r"playlist", text, re.IGNORECASE):
         additions.append("📺 Watch the playlist here: {playlist_url}")
+    
+    # Only add generic comment if no comment section exists at all
+    if not re.search(r"💬\s*comment", text, re.IGNORECASE):
+        additions.append("💬 Comment below: Which phrase will you practice today?")
     if include_timeline and "{scene_timeline}" not in text and not re.search(
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
@@ -336,7 +414,17 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
         additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
 
     if additions:
-        text = (text + "\n\n" if text else "") + "\n\n".join(additions)
+        # If text starts with SEO opener, insert additions after it
+        if text.startswith("🎯"):
+            first_blank = text.find("\n\n")
+            if first_blank != -1:
+                text = text[:first_blank] + "\n\n" + "\n\n".join(additions) + text[first_blank:]
+            else:
+                text = text + "\n\n" + "\n\n".join(additions)
+        else:
+            text = (text + "\n\n" if text else "") + "\n\n".join(additions)
+    
+    # Ensure proper spacing - no more than 2 consecutive blank lines
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
@@ -344,9 +432,24 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
 def remove_timeline_from_shorts(description: str) -> str:
     """Remove timeline-like content from shorts descriptions (should not have timestamps)."""
     text = str(description or "").strip()
-    lines = text.splitlines()
     
-    # Remove lines that look like timestamps (e.g., "0:00 - Label")
+    # Remove entire timeline section including header
+    # Match "📑 Timeline:" or "Timeline:" followed by timestamp lines
+    text = re.sub(
+        r"📑\s*Timeline:.*?(?=\n\n|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+    text = re.sub(
+        r"\bTimeline:.*?(?=\n\n|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+    
+    # Also remove any remaining timestamp lines (in case they're standalone)
+    lines = text.splitlines()
     filtered_lines = []
     for line in lines:
         # Match patterns like "0:00 - Label" or "1:23 - Label"
@@ -360,12 +463,11 @@ def remove_timeline_from_shorts(description: str) -> str:
     return result.strip()
 
 
-def ensure_english_quiz_shorts_hashtags(description: str) -> str:
-    """Keep quiz Shorts hashtags in a predictable first hashtag line."""
-    target_line = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> str:
+    """Place quiz Shorts hashtags at the END with optimal SEO ordering."""
     text = str(description or "").strip()
     if not text:
-        return target_line
+        return "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
 
     hashtag_re = re.compile(r"#\w+")
     target_re = re.compile(
@@ -373,33 +475,120 @@ def ensure_english_quiz_shorts_hashtags(description: str) -> str:
         re.IGNORECASE,
     )
 
+    # Remove all target hashtags from anywhere in the text
     cleaned_lines = []
-    first_hashtag_index = None
     for line in text.splitlines():
         if not line.strip():
             cleaned_lines.append("")
             continue
-        # Only remove target hashtags from lines that contain hashtags
         # Preserve lines without hashtags (like playlist, subscribe, etc.)
         if not hashtag_re.search(line):
             cleaned_lines.append(line)
             continue
+        # Remove target hashtags from hashtag lines
         cleaned = target_re.sub("", line).strip()
         cleaned = re.sub(r" {2,}", " ", cleaned)
-        if not cleaned:
-            continue
-        if first_hashtag_index is None and hashtag_re.search(cleaned):
-            first_hashtag_index = len(cleaned_lines)
-        cleaned_lines.append(cleaned)
+        if cleaned:
+            cleaned_lines.append(cleaned)
 
-    if first_hashtag_index is None:
-        cleaned_lines.append(target_line)
+    # Build optimized hashtag line with topic-specific tag
+    core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice"
+    
+    # Extract topic-specific hashtag from theme if available
+    topic_tag = ""
+    if theme:
+        # Convert theme to hashtag format (remove spaces, special chars)
+        topic_clean = re.sub(r"[^\w\s]", "", str(theme).strip())
+        topic_words = topic_clean.split()
+        if topic_words:
+            # Use first meaningful word or phrase as topic tag
+            topic_tag = "#" + "".join(word.capitalize() for word in topic_words[:2])
+    
+    # SEO ordering: core tags → topic-specific → practice tags
+    hashtag_line = f"{core_tags} {topic_tag} {practice_tags}".strip()
+    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)  # Remove extra spaces
+
+    # Append hashtags at the very end
+    cleaned_text = "\n".join(cleaned_lines).strip()
+    # Ensure blank line before hashtags
+    if cleaned_text and not cleaned_text.endswith("\n"):
+        cleaned_text += "\n\n"
+    cleaned_text += hashtag_line
+
+    # Clean up excessive blank lines
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    return cleaned_text.strip()
+
+
+def ensure_english_quiz_about_section(description: str, theme: str = "") -> str:
+    """Add 'About This Lesson' section for quiz videos with AI-generated explanation."""
+    text = str(description or "").strip()
+    if not text:
+        return text
+    
+    # Check if About This Lesson section already exists
+    if re.search(r"📑\s*About\s+This\s+Lesson:", text, re.IGNORECASE):
+        return text
+    
+    # Extract idiom/theme for the explanation
+    theme_clean = str(theme or "").strip()
+    if not theme_clean:
+        # Try to extract from description
+        theme_match = re.search(r"idiom\s*[:\-]\s*([^.]+)", text, re.IGNORECASE)
+        if theme_match:
+            theme_clean = theme_match.group(1).strip()
+    
+    if not theme_clean:
+        return text
+    
+    # Generate AI explanation for the idiom/theme
+    try:
+        prompt = f"""Generate a brief, engaging explanation (2-3 sentences) for an English learning quiz about: "{theme_clean}".
+        
+Format the response as a single paragraph starting with "What does the [term] mean?" and explaining the meaning in simple, everyday English context. End with "Test your vocabulary skills with your quick quiz!"
+        
+Return ONLY the explanation text, no other content."""
+        
+        explanation = call_groq_json(prompt)
+        explanation_text = explanation.get("explanation", explanation.get("text", ""))
+        
+        if not explanation_text:
+            # Fallback to generic explanation
+            explanation_text = f'What does "{theme_clean}" mean? In everyday English conversation, this term has specific meaning. Test your vocabulary skills with your quick quiz!'
+    except Exception as e:
+        print(f"  [warn] AI explanation generation failed: {e}")
+        # Fallback to generic explanation
+        explanation_text = f'What does "{theme_clean}" mean? In everyday English conversation, this term has specific meaning. Test your vocabulary skills with your quick quiz!'
+    
+    # Build the About This Lesson section
+    about_section = f"📑 About This Lesson:\n{explanation_text}"
+    
+    # Insert before hashtags (at the end), but preserve existing structured content
+    lines = text.splitlines()
+    hashtag_lines = []
+    content_lines = []
+    
+    for line in lines:
+        # Only extract lines that are purely hashtags (start with #)
+        if re.match(r"^\s*#", line.strip()):
+            hashtag_lines.append(line)
+        else:
+            content_lines.append(line)
+    
+    # Add about section before hashtags
+    result = "\n".join(content_lines).strip()
+    if result:
+        result += "\n\n" + about_section
     else:
-        cleaned_lines.insert(first_hashtag_index, target_line)
-
-    text = "\n".join(cleaned_lines).strip()
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text
+        result = about_section
+    
+    if hashtag_lines:
+        result += "\n\n" + " ".join(hashtag_lines).strip()
+    
+    # Clean up spacing
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 def _normalize_dialogue_text(text: str) -> str:
