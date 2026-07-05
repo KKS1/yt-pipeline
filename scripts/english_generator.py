@@ -316,15 +316,16 @@ def inject_scene_timeline(description: str, timeline_block: str) -> str:
     return text + "\n\n" + timeline_block
 
 
-def _remove_orphaned_fragments(description: str) -> str:
-    """Remove orphaned text fragments that lack section markers or proper context.
+def _integrate_fragments(description: str) -> str:
+    """Integrate orphaned fragments into the SEO opener line instead of removing them.
     
-    These are typically broken lines like 'tips for staying calm when your bag disappears'
-    that appear without emoji prefixes or section headers.
+    Fragments like 'tips for airport security' are useful content that should be
+    integrated into the description rather than deleted.
     """
     text = str(description or "").strip()
     lines = text.splitlines()
     filtered_lines = []
+    fragments = []
     
     # Pattern for lines that are valid section markers or structured content
     section_marker_pattern = re.compile(
@@ -350,12 +351,53 @@ def _remove_orphaned_fragments(description: str) -> str:
         # to be broken content (no emoji, no URL, not a hashtag, no section marker)
         # and starts with lowercase (suggesting it's a continuation without context)
         if (not section_marker_pattern.search(line_stripped) and
-            line_stripped[0].islower() and
-            not line_stripped.endswith(('.', '!', '?'))):
-            # This is likely an orphaned fragment - skip it
-            continue
+            line_stripped[0].islower()):
+            # Check if it's a fragment: short line OR starts with common fragment words
+            fragment_starters = ['tips', 'and', 'or', 'but', 'so', 'also', 'plus', 'then']
+            if (len(line_stripped) < 60 or 
+                any(line_stripped.lower().startswith(word) for word in fragment_starters)):
+                # This is a fragment - collect it for integration
+                fragments.append(line_stripped.rstrip('.!?'))
+                continue
         
         filtered_lines.append(line)
+    
+    # If we have fragments and an SEO opener, integrate them naturally
+    if fragments and filtered_lines and filtered_lines[0].startswith('🎯'):
+        opener = filtered_lines[0]
+        # Remove trailing punctuation from fragments for cleaner integration
+        cleaned_fragments = [f.rstrip('.!?') for f in fragments]
+        
+        if cleaned_fragments:
+            # Find the theme/topic part in the opener (after "Story:" or similar)
+            if 'Story:' in opener:
+                # Insert fragments after "Story:" with natural connector
+                story_idx = opener.find('Story:')
+                if story_idx != -1:
+                    after_story = opener[story_idx + 6:].strip()
+                    
+                    # Build natural fragment text with appropriate connectors
+                    fragment_parts = []
+                    for i, frag in enumerate(cleaned_fragments):
+                        frag_lower = frag.lower()
+                        if frag_lower.startswith('tips'):
+                            fragment_parts.append('with ' + frag)
+                        elif frag_lower.startswith('and'):
+                            # Remove "and" prefix and join with previous part
+                            if fragment_parts:
+                                fragment_parts[-1] += ' and ' + frag[3:].strip()
+                            else:
+                                fragment_parts.append(frag[3:].strip())
+                        else:
+                            fragment_parts.append(frag)
+                    
+                    fragment_text = ' '.join(fragment_parts)
+                    # Add space before fragment text for proper spacing
+                    if fragment_text and not fragment_text.startswith(' '):
+                        fragment_text = ' ' + fragment_text
+                    # Reconstruct opener with proper spacing
+                    opener = opener[:story_idx + 6] + fragment_text + ' - ' + after_story
+                    filtered_lines[0] = opener
     
     result = "\n".join(filtered_lines)
     result = re.sub(r'\n{3,}', '\n\n', result)
@@ -366,8 +408,8 @@ def remove_duplicate_phrases(description: str) -> str:
     """Remove duplicate occurrences of key phrases and entire lines from descriptions."""
     text = str(description or "").strip()
     
-    # First, remove orphaned fragments that lack section markers
-    text = _remove_orphaned_fragments(text)
+    # First, integrate orphaned fragments into the SEO opener
+    text = _integrate_fragments(text)
     
     # Preserve existing structured sections (comment, subscribe, playlist) by not normalizing them
     # Only normalize the content that appears to be mashed together
