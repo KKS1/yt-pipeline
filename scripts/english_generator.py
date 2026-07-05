@@ -1474,7 +1474,7 @@ STRUCTURE & CONTENT:
 STRUCTURE & CONTENT:
 1. Welcome listeners to Day {day_number} of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
 2. Teach the focused skill: {day.get('focus')}.
-3. Explain useful phrases, phrasal verbs, idioms, pronunciation tips, or sentence patterns connected to the skill.
+3. Explain useful phrases, idioms, pronunciation tips, or sentence patterns connected to the skill. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology.
 4. Include short roleplay moments between Emma and Liam.
 5. Give listeners this daily practice task clearly near the end: {day.get('practice_task')}.
 6. End by setting up tomorrow's challenge without saying goodbye.
@@ -1607,7 +1607,7 @@ CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
 2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 12 and 18 turns maximum. To preserve a strict under-3-minute video runtime, individual dialogue turns must be tight and punchy (between 1 and 3 sentences maximum per turn).
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
-4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to break down a phrasal verb used naturally by a character. The lesson must feel like a tactical observation of the drama, not a school textbook interruption.
+4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to explain expressions used naturally by characters. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology. The explanation should feel natural and flow with the story.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one organic fill-in-the-blank vocabulary query challenge right before the narrative climax beat. The sequence MUST be: (1) The Narrator verbally cues the challenge by saying something like "Pause and guess - what word fills in the blank in upcoming sentence?", (2) A character speaks a sentence with "___" blanks, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn) to create the thinking time, (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer in a clear, educational format (e.g., "The answer is 'find' - they will find your suitcase") before continuing with the story resolution. The verbal cue, pause turn, and answer reveal are all mandatory and non-negotiable.
 
 STRUCTURAL MOVEMENT STAGES:

@@ -58,6 +58,8 @@ def clean_text(text: str) -> str:
     """Strip screenplay markers before sending to TTS."""
     text = re.sub(r'\[VISUAL:[^\]]+\]', '', text)
     text = re.sub(r'\[PAUSE\]', '... ', text)
+    # Replace "___" blanks with pause for audio indication
+    text = re.sub(r'___', '... ', text)
     # Convert markdown bold to emphasis marker for TTS (keep for caption processing)
     text = re.sub(r'\*\*(.*?)\*\*', r'[EMPHASIS]\1[/EMPHASIS]', text)
     text = re.sub(r'\(.*?\)', '', text)

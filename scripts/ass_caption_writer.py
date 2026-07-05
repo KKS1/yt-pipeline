@@ -147,7 +147,7 @@ def _capitalize_if_emphasized(word: str, emphasized_phrases: list[str]) -> str:
 
 def _plain_caption_line(text: str, speaker: str) -> str:
     # Preserve "___" blanks in captions for visual indication
-    # The audio will have beeps, but captions should show the blank
+    # The audio will have brief pauses for blanks, captions show the blank visually
     return _badge_override(speaker) + str(text or "").replace("\n", r"\N").strip()
 
 
