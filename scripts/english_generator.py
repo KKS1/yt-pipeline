@@ -316,9 +316,58 @@ def inject_scene_timeline(description: str, timeline_block: str) -> str:
     return text + "\n\n" + timeline_block
 
 
+def _remove_orphaned_fragments(description: str) -> str:
+    """Remove orphaned text fragments that lack section markers or proper context.
+    
+    These are typically broken lines like 'tips for staying calm when your bag disappears'
+    that appear without emoji prefixes or section headers.
+    """
+    text = str(description or "").strip()
+    lines = text.splitlines()
+    filtered_lines = []
+    
+    # Pattern for lines that are valid section markers or structured content
+    section_marker_pattern = re.compile(
+        r'^(?:🎯|📺|💬|🔔|📑|#|Subscribe|Watch|Comment|Timeline|About)',
+        re.IGNORECASE
+    )
+    
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            filtered_lines.append(line)
+            continue
+        
+        # Keep lines with section markers, hashtags, or URLs
+        if (section_marker_pattern.match(line_stripped) or 
+            line_stripped.startswith('#') or 
+            'http' in line_stripped.lower() or
+            '{playlist_url}' in line_stripped):
+            filtered_lines.append(line)
+            continue
+        
+        # Check if this is an orphaned fragment: line without structure that appears
+        # to be broken content (no emoji, no URL, not a hashtag, no section marker)
+        # and starts with lowercase (suggesting it's a continuation without context)
+        if (not section_marker_pattern.search(line_stripped) and
+            line_stripped[0].islower() and
+            not line_stripped.endswith(('.', '!', '?'))):
+            # This is likely an orphaned fragment - skip it
+            continue
+        
+        filtered_lines.append(line)
+    
+    result = "\n".join(filtered_lines)
+    result = re.sub(r'\n{3,}', '\n\n', result)
+    return result.strip()
+
+
 def remove_duplicate_phrases(description: str) -> str:
     """Remove duplicate occurrences of key phrases and entire lines from descriptions."""
     text = str(description or "").strip()
+    
+    # First, remove orphaned fragments that lack section markers
+    text = _remove_orphaned_fragments(text)
     
     # Preserve existing structured sections (comment, subscribe, playlist) by not normalizing them
     # Only normalize the content that appears to be mashed together
@@ -394,21 +443,18 @@ def finalize_english_description(
     is_quiz: bool = False,
     theme: str = "",
 ) -> str:
-    """Apply all English description post-processors."""
+    """Apply all English description post-processors in optimal order."""
     # Extract existing structured content to preserve it
     existing_comment = None
     comment_match = re.search(r'💬\s*Comment\s+below:[^#🔔]+', description, re.IGNORECASE)
     if comment_match:
         existing_comment = comment_match.group(0).strip()
     
-    # Remove duplicate phrases first (before adding SEO opener to avoid conflicts)
-    text = remove_duplicate_phrases(description)
-    # Add SEO opener
+    # Processing order: fragment cleanup → dedup → SEO opener → timeline removal → CTAs → About section → hashtags
+    text = remove_duplicate_phrases(description)  # Includes fragment cleanup
     text = ensure_english_seo_opener(text, theme=theme)
-    # Remove timeline content from shorts (vertical videos shouldn't have timestamps)
     if not include_timeline:
         text = remove_timeline_from_shorts(text)
-    # Add CTAs (including playlist positioned after opener)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
     
     # Restore existing comment if it was preserved (replace generic comment)
@@ -434,9 +480,12 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     """Guarantee core YouTube metadata CTAs even if the model skips them with proper spacing."""
     text = str(description or "").strip()
     
+    # First, remove any existing subscribe lines without bell icon (to re-add in correct position)
+    text = re.sub(r'(?<!🔔\s)Subscribe\s+to\s+EnglishVibesHub[^\n]*', '', text, flags=re.IGNORECASE)
+    
     additions = []
 
-    # Order: playlist → comment → timeline → subscribe
+    # Order: playlist → comment → subscribe → timeline (timeline only for long-form)
     # Add playlist if missing (will be positioned after opener)
     if "{playlist_url}" not in text and not re.search(r"playlist", text, re.IGNORECASE):
         additions.append("📺 Watch the playlist here: {playlist_url}")
@@ -444,15 +493,16 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     # Only add generic comment if no comment section exists at all
     if not re.search(r"💬\s*comment", text, re.IGNORECASE):
         additions.append("💬 Comment below: Which phrase will you practice today?")
+    
+    # Add subscribe with bell icon if missing (comes before timeline)
+    if not re.search(r"🔔\s*Subscribe", text, re.IGNORECASE):
+        additions.append("� Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+    
+    # Add timeline only for long-form videos (not shorts)
     if include_timeline and "{scene_timeline}" not in text and not re.search(
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
-        additions.append("📑 Timeline:\n{scene_timeline}")
-    
-    # Remove any subscribe line without bell icon, then add proper version with bell icon
-    text = re.sub(r'(?<!🔔\s)Subscribe\s+to\s+EnglishVibesHub[^\n]*', '', text, flags=re.IGNORECASE)
-    if not re.search(r"🔔\s*Subscribe", text, re.IGNORECASE):
-        additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+        additions.append("� Timeline:\n{scene_timeline}")
 
     if additions:
         # If text starts with SEO opener, insert additions after it
@@ -474,7 +524,7 @@ def remove_timeline_from_shorts(description: str) -> str:
     """Remove timeline-like content from shorts descriptions (should not have timestamps)."""
     text = str(description or "").strip()
     
-    # Remove entire timeline section including header
+    # Remove entire timeline section including header with multiple patterns
     # Match "📑 Timeline:" or "Timeline:" followed by timestamp lines
     text = re.sub(
         r"📑\s*Timeline:.*?(?=\n\n|\Z)",
@@ -493,12 +543,16 @@ def remove_timeline_from_shorts(description: str) -> str:
     lines = text.splitlines()
     filtered_lines = []
     for line in lines:
-        # Match patterns like "0:00 - Label" or "1:23 - Label"
-        if re.match(r"^\s*\d+:\d{2}\s*-\s*", line.strip()):
+        line_stripped = line.strip()
+        # Match patterns like "0:00 - Label", "1:23 - Label", or "0:00 Label"
+        if re.match(r"^\s*\d+:\d{2}\s*-\s*", line_stripped):
+            continue
+        # Also match timestamps without dash separator
+        if re.match(r"^\s*\d+:\d{2}\s+[A-Z]", line_stripped):
             continue
         filtered_lines.append(line)
     
-    # Clean up extra blank lines
+    # Clean up extra blank lines after timeline removal
     result = "\n".join(filtered_lines)
     result = re.sub(r"\n{3,}", "\n\n", result)
     return result.strip()
@@ -511,26 +565,19 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
         return "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
 
     hashtag_re = re.compile(r"#\w+")
-    target_re = re.compile(
-        r"\s*(?:#Shorts|#EnglishQuiz|#LearnEnglish|#EnglishVibesHub)\b",
-        re.IGNORECASE,
-    )
 
-    # Remove all target hashtags from anywhere in the text
+    # Remove ALL hashtags from anywhere in the text (not just target ones)
     cleaned_lines = []
     for line in text.splitlines():
         if not line.strip():
             cleaned_lines.append("")
             continue
-        # Preserve lines without hashtags (like playlist, subscribe, etc.)
-        if not hashtag_re.search(line):
-            cleaned_lines.append(line)
-            continue
-        # Remove target hashtags from hashtag lines
-        cleaned = target_re.sub("", line).strip()
-        cleaned = re.sub(r" {2,}", " ", cleaned)
+        # Remove all hashtags from each line
+        cleaned = hashtag_re.sub("", line).strip()
+        cleaned = re.sub(r" {2,}", " ", cleaned)  # Remove extra spaces
         if cleaned:
             cleaned_lines.append(cleaned)
+        # Skip lines that become empty after hashtag removal
 
     # Build optimized hashtag line with topic-specific tag
     core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
@@ -568,9 +615,13 @@ def ensure_english_quiz_about_section(description: str, theme: str = "") -> str:
     if not text:
         return text
     
-    # Check if About This Lesson section already exists
-    if re.search(r"📑\s*About\s+This\s+Lesson:", text, re.IGNORECASE):
-        return text
+    # First, remove any existing About This Lesson sections to avoid duplicates
+    text = re.sub(
+        r"📑\s*About\s+This\s+Lesson:.*?(?=\n\n|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE
+    )
     
     # Extract idiom/theme for the explanation
     theme_clean = str(theme or "").strip()
