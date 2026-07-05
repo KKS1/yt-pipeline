@@ -170,9 +170,9 @@ def validate_organic_english_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 12 to 18 range)
-    if turn_count < 12 or turn_count > 18:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 12 and 18.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 14 to 22 range)
+    if turn_count < 14 or turn_count > 22:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 22.")
         return script_data, False
 
     # Track structural validation targets
@@ -1603,19 +1603,27 @@ VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
 - "Guest" (Voice Profile: af_sky): Optional bystander, antagonist, or clerk. Speaks naturally based on the scene setting requirements.
 
+NATURAL EXPRESSION REQUIREMENTS:
+- Emma and Liam MUST use authentic, natural English expressions in their dialogue
+- Include at least 2-3 distinct phrasal verbs used naturally in context (e.g., "run out of", "figure out", "calm down")
+- Include at least 1-2 idioms appropriate to the situation (e.g., "in a bind", "miss the boat", "on the same page")
+- Use colloquial expressions and varied vocabulary beyond basic English
+- Characters should speak like real people in stressful situations, not textbook examples
+- Expressions must fit the emotional context and urgency of the scene
+
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 12 and 18 turns maximum. To preserve a strict under-3-minute video runtime, individual dialogue turns must be tight and punchy (between 1 and 3 sentences maximum per turn).
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
-4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to explain expressions used naturally by characters. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology. The explanation should feel natural and flow with the story.
-5. INTERACTIVE BEAT PLACEMENT: Include exactly one organic fill-in-the-blank vocabulary query challenge right before the narrative climax beat. The sequence MUST be: (1) The Narrator verbally cues the challenge by saying something like "Pause and guess - what word fills in the blank in upcoming sentence?", (2) A character speaks a sentence with "___" blanks, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn) to create the thinking time, (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer in a clear, educational format (e.g., "The answer is 'find' - they will find your suitcase") before continuing with the story resolution. The verbal cue, pause turn, and answer reveal are all mandatory and non-negotiable.
+4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to explain expressions used naturally by characters. Explanations must be concise (1-2 sentences max) to avoid interrupting story momentum. Use natural phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Include brief usage context only when it adds immediate clarity. Provide maximum 1 alternative expression per explanation. Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology. The explanation should feel like natural story narration, not teaching moments. Narrator must remain in third-person storytelling mode, never lecture mode.
+5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). Options: (A) Context-based expression selection from multiple choices, (B) Situation-based response selection, or (C) Meaningful fill-in-the-blank with an expression (not basic word like "see"). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario with options or blank, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
 
 STRUCTURAL MOVEMENT STAGES:
-- Stage 1: The Crisis Hook (In Media Res start, high stakes, emotional conflict).
-- Stage 2: Narrative Complications (The obstacle worsens, characters react, argue, or pivot strategies).
-- Stage 3: Organic Teaching Blocks (Narrator strategically breaks down expressions as they occur naturally in dialogue).
-- Stage 4: Climax & Challenge (The absolute peak of tension, followed by the viewer pause-and-guess beat).
-- Stage 5: Resolution & Seamless Engagement (The crisis resolves. The Narrator smoothly redirects the viewer directly to the pinned comment question without generic intros/outros).
+- Stage 1: The Crisis Hook (In Media Res start, high stakes, emotional conflict with natural character reactions).
+- Stage 2: Narrative Complications (The obstacle worsens, characters react organically with authentic emotions, argue, or pivot strategies using natural expressions).
+- Stage 3: Organic Teaching Blocks (Narrator strategically breaks down expressions as they occur naturally in dialogue, keeping explanations concise and narratively integrated).
+- Stage 4: Climax & Challenge (The absolute peak of tension, followed by a meaningful expression challenge that tests real understanding).
+- Stage 5: Resolution & Seamless Engagement (The crisis resolves naturally. The Narrator smoothly redirects the viewer directly to the pinned comment question without generic intros/outros).
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
