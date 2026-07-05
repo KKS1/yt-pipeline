@@ -495,6 +495,7 @@ def finalize_english_description(
     # Processing order: fragment cleanup → dedup → SEO opener → timeline removal → CTAs → About section → hashtags
     text = remove_duplicate_phrases(description)  # Includes fragment cleanup
     text = ensure_english_seo_opener(text, theme=theme)
+    
     if not include_timeline:
         text = remove_timeline_from_shorts(text)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
@@ -509,7 +510,7 @@ def finalize_english_description(
         )
     
     if is_quiz:
-        # Add About This Lesson section for quiz videos (inserts before hashtags)
+        # Add About This Lesson section for quiz videos (inserts after SEO opener, before CTAs)
         text = ensure_english_quiz_about_section(text, theme=theme)
         # Place hashtags at end with SEO ordering
         text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
@@ -538,7 +539,7 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     
     # Add subscribe with bell icon if missing (comes before timeline)
     if not re.search(r"🔔\s*Subscribe", text, re.IGNORECASE):
-        additions.append("� Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+        additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
     
     # Add timeline only for long-form videos (not shorts)
     if include_timeline and "{scene_timeline}" not in text and not re.search(
@@ -652,7 +653,7 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
 
 
 def ensure_english_quiz_about_section(description: str, theme: str = "") -> str:
-    """Add 'About This Lesson' section for quiz videos with AI-generated explanation."""
+    """Add 'About This Lesson' section for quiz videos with AI-generated explanation, inserted immediately after SEO opener."""
     text = str(description or "").strip()
     if not text:
         return text
@@ -698,27 +699,30 @@ Return ONLY the explanation text, no other content."""
     # Build the About This Lesson section
     about_section = f"📑 About This Lesson:\n{explanation_text}"
     
-    # Insert before hashtags (at the end), but preserve existing structured content
+    # Insert immediately after SEO opener (line starting with 🎯), before any CTAs
     lines = text.splitlines()
-    hashtag_lines = []
-    content_lines = []
-    
-    for line in lines:
-        # Only extract lines that are purely hashtags (start with #)
-        if re.match(r"^\s*#", line.strip()):
-            hashtag_lines.append(line)
+    if lines and lines[0].strip().startswith("🎯"):
+        # Find the first CTA line (playlist, comment, subscribe, timeline)
+        first_cta_idx = None
+        cta_prefixes = ["📺", "💬", "🔔", "📑 Timeline"]
+        for i, line in enumerate(lines[1:], start=1):
+            if any(line.strip().startswith(prefix) for prefix in cta_prefixes):
+                first_cta_idx = i
+                break
+        
+        if first_cta_idx is not None:
+            # Insert About section between SEO opener and first CTA
+            result = "\n".join(lines[:first_cta_idx]) + "\n\n" + about_section + "\n\n" + "\n".join(lines[first_cta_idx:])
         else:
-            content_lines.append(line)
-    
-    # Add about section before hashtags
-    result = "\n".join(content_lines).strip()
-    if result:
-        result += "\n\n" + about_section
+            # No CTAs found, insert after SEO opener
+            result = lines[0] + "\n\n" + about_section
+            if len(lines) > 1:
+                result += "\n\n" + "\n".join(lines[1:])
     else:
+        # If no SEO opener found, append at beginning
         result = about_section
-    
-    if hashtag_lines:
-        result += "\n\n" + " ".join(hashtag_lines).strip()
+        if text:
+            result += "\n\n" + text
     
     # Clean up spacing
     result = re.sub(r"\n{3,}", "\n\n", result)
