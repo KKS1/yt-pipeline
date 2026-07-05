@@ -1728,12 +1728,12 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     {{
       "turn_number": 1,
       "speaker": "Narrator",
-      "text": "The wind howled against the terminal windows as the flight monitors began flipping to canceled."
+      "text": "..."
     }},
     {{
       "turn_number": 2,
-      "speaker": "Emma",
-      "text": "Are you seeing this, Liam? Our connection is totally gone and my phone has absolutely no cellular service!"
+      "speaker": "Emma or Liam",
+      "text": "..."
     }}
   ],
   "thumbnail_text": "TEXT",
@@ -1742,9 +1742,9 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
   "scenes": [
     {{
       "scene_id": 1,
-      "scene_label": "The Storm Hits",
+      "scene_label": "string (short chapter label for YouTube timeline, e.g. Crisis Hook)",
       "image_filename": "scene_storm_hits.png",
-      "visual_prompt": "Cinematic shot of a crowded dark airport terminal during a storm.",
+      "visual_prompt": "string (ONE highly descriptive 3D Pixar-style Cinematic prompt",
       "start_turn": 1,
       "end_turn": 2
     }}
