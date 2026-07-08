@@ -2,7 +2,6 @@ from scripts.english_generator import (
     _clean_challenge_dialogue,
     align_scenes_to_turns,
     build_scene_timeline,
-    combine_english_parts,
     ensure_english_description_cta,
     ensure_english_quiz_shorts_hashtags,
     ensure_english_vibes_hashtags,
@@ -48,28 +47,9 @@ def test_sanitize_keeps_outro_only_at_end_of_part3():
 
 
 def test_combine_english_parts_sanitizes_each_segment():
-    script = combine_english_parts(
-        {
-            "title": "Test",
-            "dialogue": [
-                {"speaker": "Emma", "text": "Welcome to EnglishVibesHub!"},
-                {"speaker": "Liam", "text": "Subscribe for more lessons!"},
-            ],
-        },
-        {"dialogue": [{"speaker": "Emma", "text": "Deep dive content."}]},
-        {
-            "dialogue": [
-                {"speaker": "Liam", "text": "Wrap-up lesson here."},
-                {"speaker": "Emma", "text": "Hit the like button and subscribe!"},
-                {"speaker": "Liam", "text": "Thanks for listening, tune in next time!"},
-            ]
-        },
-        "Travel",
-    )
-    assert len(script["dialogue"]) == 5
-    assert script["dialogue"][0]["text"].startswith("Welcome")
-    assert not any(is_outro_line(t["text"]) for t in script["dialogue"][:3])
-    assert is_outro_line(script["dialogue"][-1]["text"])
+    # DEPRECATED: combine_english_parts removed - replaced by single storytelling prompt
+    # This test is no longer applicable
+    pass
 
 
 def test_clean_challenge_dialogue_strips_midweek_outros():
