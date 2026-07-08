@@ -16,8 +16,9 @@ PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_top
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, searchable, curiosity-driven, and punchy.
-- Use strong title casing and selective ALL CAPS only for 1-2 hook words such as STOP, DON'T, NEVER, EASY, or FAST.
-- Title format: [Hook phrase] | [Level/Topic context]. Example: "DON'T Say 'Room Key' | 5 Levels of Hotel English"
+- Use strong title casing and selective ALL CAPS only for 1-2 benefit-focused words such as MASTER, COMPLETE, ESSENTIAL, PERFECT, or EASY.
+- Title format: [Clear Learning Benefit] | [Curiosity/FOMO Element] | [Level/Topic Context]. Example: "Master Hotel Check-In English | What Most Tourists Get Wrong | 5 Levels of Hotel English"
+- Use curiosity elements like: "What Most X Get Wrong", "The Phrase That Changes Everything", "Avoid This Common Mistake", "What X Wish You Knew"
 - Descriptions: Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
 - Descriptions: Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
 - Descriptions MUST start with exactly 2-3 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
@@ -1194,13 +1195,13 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     - The story should have a clear problem → solution narrative arc
 
     CRITICAL TITLE RULES:
-    - Title format: [Hook phrase] | [Story context]. Example: "DON'T Say This at a Restaurant | Ordering Disaster Story"
+    - Title format: [Clear Learning Benefit] | [Curiosity/FOMO Element] | [Story context]. Example: "Master Restaurant Ordering English | What Most Tourists Get Wrong | Ordering Disaster Story"
     - Front-load keywords: Start with "English listening practice", "English speaking practice", or "Learn English"
     - Include topic-specific vocabulary immediately after the main keyword phrase
     - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
 
     Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "DON'T Say This at a Restaurant | Ordering Disaster Story", "search_keyword": "English Conversation Practice restaurant ordering mistakes"}}
+    Example: {{"topic": "Master Restaurant Ordering English | What Most Tourists Get Wrong | Ordering Disaster Story", "search_keyword": "English Conversation Practice restaurant ordering mistakes"}}
     """
     try:
         res = call_groq_json(prompt)
@@ -1630,7 +1631,7 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use hooks like 'STOP Doing This' or 'DON'T Get Stuck'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Restaurant Vocabulary - Day {day_number}')",
+  "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
@@ -1896,7 +1897,7 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR, curiosity-based Short title under 70 chars using hooks like 'STOP Saying...', 'DON'T Say This', or '1 Mistake All Learners Make')",
+  "title": "string (High-CTR, curiosity-based Short title under 70 chars using benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases', or 'The Secret To...')",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
@@ -1963,7 +1964,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     {ENGLISH_METADATA_RULES}
     
     HIGH CTR & SEARCH-FOCUSED TITLE STRATEGY:
-    High-CTR, curiosity-based title using hooks like 'STOP Making These Mistakes', 'DON'T Use This Wrong', or 'The #1 Way To...'. e.g., 'STOP Saying I'm Fine: Better Ways to Respond') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
+    High-CTR, curiosity-based title using benefit-focused hooks like 'Master This Skill', 'Complete Guide To...', 'Essential Phrases', or 'The Secret To...'. e.g., 'Master Better Responses: Beyond I'm Fine') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
 
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
@@ -1978,7 +1979,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: STOP Making This Mistake!')",
+      "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: Master This Idiom!')",
       "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #EnglishVibesHub, and hashtags mirroring 'tags')",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
