@@ -153,6 +153,25 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "") -> str:
     return cleaned_text.strip()
 
 
+def update_pinned_comment_with_channel_cta(script_data: dict) -> dict:
+    """
+    Append the channel CTA to the pinned comment for shorts and quiz formats.
+    This encourages viewers to find the full playlists on the channel home page.
+    """
+    if not script_data:
+        return script_data
+
+    existing_comment = script_data.get("pinned_comment", "")
+    channel_cta = "Find the full 'English Quiz' & 'English MasterClass Series' playlists and much more on our channel home page @EnglishVibesHub-S6W!"
+
+    if existing_comment and channel_cta not in existing_comment:
+        script_data["pinned_comment"] = f"{existing_comment}\n\n{channel_cta}"
+    elif not existing_comment:
+        script_data["pinned_comment"] = channel_cta
+
+    return script_data
+
+
 def validate_organic_english_script(raw_input):
     """
     Validation engine tailored for the Organic Multi-Character English Prompt layout.
@@ -1702,8 +1721,8 @@ VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 
 NATURAL EXPRESSION REQUIREMENTS:
 - Emma and Liam MUST use authentic, natural English expressions in their dialogue
-- Include at least 2-3 distinct phrasal verbs used naturally in context (e.g., "run out of", "figure out", "calm down")
-- Include at least 1-2 idioms appropriate to the situation (e.g., "in a bind", "miss the boat", "on the same page")
+- Include at least 2-3 distinct phrasal verbs used naturally in context
+- Include at least 1-2 idioms appropriate to the situation
 - Use colloquial expressions and varied vocabulary beyond basic English
 - Characters should speak like real people in stressful situations, not textbook examples
 - Expressions must fit the emotional context and urgency of the scene
@@ -1898,9 +1917,12 @@ JSON SCHEMA:
         title_options = script_data.get("title_options") or []
         if title_options:
             script_data["title"] = title_options[0]
-    
+
+    # Update pinned comment with channel CTA
+    script_data = update_pinned_comment_with_channel_cta(script_data)
+
     save_published_topic(script_data.get("title", topic), topic_type="shorts")
-    
+
     return attach_storyboard_to_script(script_data, portrait=True)
 
 def generate_english_quiz_shorts_script(topic: str = None) -> dict:
@@ -1971,5 +1993,9 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     script_data["description"] = finalize_english_description(
         script_data.get("description", ""), is_quiz=True, theme=theme
     )
+
+    # Update pinned comment with channel CTA
+    script_data = update_pinned_comment_with_channel_cta(script_data)
+
     save_published_topic(script_data.get("title", topic), topic_type="quiz")
     return attach_storyboard_to_script(script_data, portrait=True)

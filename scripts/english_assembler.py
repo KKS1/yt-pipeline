@@ -484,6 +484,66 @@ def apply_idiom_overlays(
     return output_path
 
 
+def apply_cta_overlay(
+    video_path: str,
+    final_turn_start: float,
+    final_turn_end: float,
+    output_path: str,
+) -> str:
+    """
+    Apply a visual CTA overlay (text + animated arrow) during the final turn
+    to encourage clicking the playlist link.
+
+    Parameters
+    ----------
+    video_path       : Input assembled video.
+    final_turn_start : Start time of the final dialogue turn (seconds).
+    final_turn_end   : End time of the final dialogue turn (seconds).
+    output_path      : Where to write the final video.
+
+    The overlay appears only during the final turn and cuts when audio ends
+    to maintain the seamless loop.
+    """
+    if final_turn_start >= final_turn_end:
+        # Invalid timing, just copy
+        import shutil
+        if video_path != output_path:
+            shutil.copy2(video_path, output_path)
+        return output_path
+
+    print(f"  Applying CTA overlay during final turn ({final_turn_start:.2f}s - {final_turn_end:.2f}s)...")
+
+    # Use FFmpeg drawtext filter for text and animated arrow
+    # Text: "Tap link below for full playlist!" at y=h-650
+    # Arrow: bouncing down-arrow at y=h-540 with sine wave animation
+    cmd = [
+        FFMPEG, "-y",
+        "-i", video_path,
+        "-filter_complex",
+        f"[0:v]drawtext=text='Tap link below for full playlist!':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=h-650:enable='between(t,{final_turn_start},{final_turn_end})',drawtext=text='↓':fontcolor=yellow:fontsize=90:x=(w-text_w)/2:y='h-540+30*sin(5*t)':enable='between(t,{final_turn_start},{final_turn_end})'[outv]",
+        "-map", "[outv]",
+        "-map", "0:a",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        output_path,
+        "-loglevel", "error",
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+        size_mb = Path(output_path).stat().st_size / 1024 / 1024
+        print(f"  ✓ CTA overlay applied: {output_path} ({size_mb:.1f} MB)")
+    except subprocess.CalledProcessError as e:
+        print(f"  CTA overlay failed: {e}")
+        # Fallback: copy original
+        import shutil
+        if video_path != output_path:
+            shutil.copy2(video_path, output_path)
+
+    return output_path
+
+
 def resolve_idiom_timestamps(
     idiom_windows: list[dict],
     per_turn_times: list[tuple[float, float]],
@@ -763,7 +823,7 @@ def assemble_english_video(
                 dialogue=dialogue,
                 per_turn_times=per_turn_times or [],
                 output_path=temp_face,
-                is_shorts=False
+                is_shorts=portrait
             )
             if Path(temp_face).exists():
                 Path(base_output).unlink()
@@ -771,6 +831,25 @@ def assemble_english_video(
                 shutil.move(temp_face, base_output)
         except Exception as e:
             print(f"  Face badge overlay skipped: {e}")
+
+    # Apply CTA overlay for shorts/quiz formats (portrait mode)
+    if portrait and dialogue and per_turn_times:
+        try:
+            final_turn_start = per_turn_times[-1][0]
+            final_turn_end = per_turn_times[-1][1]
+            temp_cta = str(Path(base_output).with_suffix(".cta.mp4"))
+            apply_cta_overlay(
+                video_path=base_output,
+                final_turn_start=final_turn_start,
+                final_turn_end=final_turn_end,
+                output_path=temp_cta,
+            )
+            if Path(temp_cta).exists():
+                Path(base_output).unlink()
+                import shutil
+                shutil.move(temp_cta, base_output)
+        except Exception as e:
+            print(f"  CTA overlay skipped: {e}")
 
     append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
@@ -911,6 +990,25 @@ def assemble_english_scene_video(
             apply_idiom_overlays(base_output, resolved, card_pngs, output_path=base_output, is_shorts=portrait)
         except Exception as e:
             print(f"  Idiom overlay skipped: {e}")
+
+    # Apply CTA overlay for shorts/quiz formats (portrait mode)
+    if portrait and dialogue and per_turn_times:
+        try:
+            final_turn_start = per_turn_times[-1][0]
+            final_turn_end = per_turn_times[-1][1]
+            temp_cta = str(Path(base_output).with_suffix(".cta.mp4"))
+            apply_cta_overlay(
+                video_path=base_output,
+                final_turn_start=final_turn_start,
+                final_turn_end=final_turn_end,
+                output_path=temp_cta,
+            )
+            if Path(temp_cta).exists():
+                Path(base_output).unlink()
+                import shutil
+                shutil.move(temp_cta, base_output)
+        except Exception as e:
+            print(f"  CTA overlay skipped: {e}")
 
     append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
