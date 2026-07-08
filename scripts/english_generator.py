@@ -809,23 +809,27 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
             scene["end_turn"] = end
             aligned.append(scene)
 
-        # Enforce sequential continuity and complete dialogue coverage
+        # Validate scene coverage without redistributing turns
+        # Respect AI-generated scene boundaries based on dialogue meaning
         if aligned:
-            aligned[0]["start_turn"] = 0
-        
-        # Redistribute turns evenly across scenes to ensure complete coverage
-        if len(aligned) > 0:
-            turns_per_scene = max(1, num_turns // len(aligned))
-            remainder = num_turns % len(aligned)
+            # Ensure first scene starts at turn 0
+            if aligned[0]["start_turn"] != 0:
+                print(f"  [warn] First scene starts at turn {aligned[0]['start_turn']}, forcing to 0")
+                aligned[0]["start_turn"] = 0
             
-            for i in range(len(aligned)):
-                aligned[i]["start_turn"] = i * turns_per_scene + min(i, remainder)
-                aligned[i]["end_turn"] = aligned[i]["start_turn"] + turns_per_scene - 1
-                if i < remainder:
-                    aligned[i]["end_turn"] += 1
+            # Ensure last scene ends at final turn
+            if aligned[-1]["end_turn"] != num_turns - 1:
+                print(f"  [warn] Last scene ends at turn {aligned[-1]['end_turn']}, forcing to {num_turns - 1}")
+                aligned[-1]["end_turn"] = num_turns - 1
             
-            # Ensure the last scene covers to the end
-            aligned[-1]["end_turn"] = num_turns - 1
+            # Check for gaps or overlaps in scene coverage
+            for i in range(len(aligned) - 1):
+                current_end = aligned[i]["end_turn"]
+                next_start = aligned[i + 1]["start_turn"]
+                if next_start > current_end + 1:
+                    print(f"  [warn] Gap between scene {i+1} (ends {current_end}) and scene {i+2} (starts {next_start})")
+                elif next_start <= current_end:
+                    print(f"  [warn] Overlap between scene {i+1} (ends {current_end}) and scene {i+2} (starts {next_start})")
 
         return aligned
 
