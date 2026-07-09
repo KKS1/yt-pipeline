@@ -7,6 +7,7 @@ from scripts.english_assembler import (
     generate_podcast_audio,
     assemble_english_video,
     cleanup_english_temp,
+    get_audio_duration,
 )
 from scripts.english_generator import align_scenes_to_turns
 
@@ -75,7 +76,7 @@ def test_align_scenes_to_turns_handles_remainder():
     assert aligned[2]["end_turn"] == 10  # 3 turns
 
 def test_conversation_pauses_added_between_turns():
-    """Test that natural pauses are added between conversation turns."""
+    """Test that natural pauses are padded into dialogue turn durations."""
     cleanup_english_temp()
     
     script = {
@@ -90,21 +91,19 @@ def test_conversation_pauses_added_between_turns():
     
     audio_path, turn_times = generate_podcast_audio(script, return_turn_times=True)
     
-    # Should have 4 dialogue turns + 3 gap pauses = 7 total segments
-    assert len(turn_times) == 7
+    # Should have exactly 4 entries — one per dialogue turn (gaps absorbed into each turn)
+    assert len(turn_times) == 4
     
-    # Check that gaps exist between turns
-    # Emma -> Liam: 300ms gap (turn 1)
-    gap_1_duration = turn_times[1][1] - turn_times[1][0]
-    assert 0.29 < gap_1_duration < 0.31, f"Expected ~300ms gap, got {gap_1_duration}"
+    # Turns must be contiguous (no silent gaps between entries that would desync visual timing)
+    for i in range(len(turn_times) - 1):
+        assert turn_times[i][1] == turn_times[i+1][0], \
+            f"Turn {i} end ({turn_times[i][1]:.3f}s) != Turn {i+1} start ({turn_times[i+1][0]:.3f}s)"
     
-    # Liam -> Narrator: 400ms gap (turn 3) - entering Narrator
-    gap_2_duration = turn_times[3][1] - turn_times[3][0]
-    assert 0.39 < gap_2_duration < 0.41, f"Expected ~400ms gap, got {gap_2_duration}"
-    
-    # Narrator -> Emma: 400ms gap (turn 5) - exiting Narrator
-    gap_3_duration = turn_times[5][1] - turn_times[5][0]
-    assert 0.39 < gap_3_duration < 0.41, f"Expected ~400ms gap, got {gap_3_duration}"
+    # Total duration must match the actual audio file (no trailing silence or truncation)
+    total_dur = turn_times[-1][1]
+    audio_dur = get_audio_duration(audio_path)
+    assert abs(total_dur - audio_dur) < 0.05, \
+        f"Turn times sum ({total_dur:.3f}s) != audio duration ({audio_dur:.3f}s)"
     
     print("✓ Conversation pauses test passed")
 

@@ -1022,20 +1022,7 @@ def save_published_topic(topic: str, topic_type: str = "podcast"):
             print(f"Error saving published topic: {e}")
 
 
-ENGLISH_TOPIC_POOL = [
-    "Restaurant Disaster Story",
-    "Job Interview Gone Wrong",
-    "Travel Mishap at Airport",
-    "First Date Disaster",
-    "Lost in a Foreign City",
-    "Workplace Misunderstanding",
-    "Shopping Nightmare",
-    "Hotel Check-in Crisis",
-    "Phone Call Confusion",
-    "Meeting New People Mistake",
-    "Ordering Food Disaster",
-    "Public Transport Panic"
-]
+ENGLISH_TOPIC_POOL = []
 
 COMMUNITY_POLL_POOL = [
     "Grammar Quiz: Prepositions of Time",
@@ -1048,16 +1035,7 @@ COMMUNITY_POLL_POOL = [
     "Slang Quiz: What does 'no cap' mean?"
 ]
 
-WEEKLY_CHALLENGE_TOPIC_POOL = [
-    "Speak Confidently in Daily Conversations",
-    "Master Essential Phrasal Verbs",
-    "Build Better Listening and Speaking Habits",
-    "English for Work and Meetings",
-    "Travel English Confidence",
-    "Small Talk Without Freezing",
-    "Tell Better Stories in English",
-    "Pronunciation and Natural Rhythm",
-]
+WEEKLY_CHALLENGE_TOPIC_POOL = []
 
 # Mid-episode sign-offs the model often adds at part boundaries.
 _OUTRO_PATTERNS = [

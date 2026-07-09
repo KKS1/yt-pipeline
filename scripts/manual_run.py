@@ -888,7 +888,7 @@ def _assemble_english_video_from_script(
         assemble_english_scene_video,
     )
     from english_generator import annotate_script_with_idiom_windows, flatten_dialogue
-    from ffmpeg_assembler import generate_captions
+    from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
     cleanup_english_temp()
 
@@ -1074,7 +1074,9 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
         script["description"] = _description_with_playlist_url(
             script.get("description", ""), "english-shorts",
         )
+        # title = script.get("title", topic or "English Short")
         Path("scripts/output").mkdir(exist_ok=True)
+        # script_path = f"scripts/output/english_shorts_{slug(title)[:60]}.json"
         script_path = "scripts/output/english_shorts.json"
         Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
         print(f"\n  Script saved: {script_path}")
@@ -1082,7 +1084,6 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
         print(f"\nScript generation failed: {e}")
         import traceback; traceback.print_exc(); sys.exit(1)
 
-    title = script.get("title", topic or "English Short")
     entry = _build_manifest_entry(
         script,
         label="English Short",

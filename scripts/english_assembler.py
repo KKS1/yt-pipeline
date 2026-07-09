@@ -23,6 +23,7 @@ from ffmpeg_assembler import (
 )
 from kokoro_tts import synthesize
 from typing import Optional, Tuple, List
+import shutil
 
 ENGLISH_VOICES = {
     "Narrator": "af_bella",     # Keep: Best formal, structured American female narration
@@ -107,6 +108,29 @@ def _generate_silence_audio(output_path: str, duration_seconds: float) -> str:
         output_path,
         "-loglevel", "error",
     ], check=True)
+    return output_path
+
+
+def _pad_audio_with_silence(audio_path: str, pad_duration: float, output_path: str) -> str:
+    """Append silence to an audio file. Copies input if pad_duration <= 0."""
+    if pad_duration <= 0:
+        import shutil
+        if audio_path != output_path:
+            shutil.copy2(audio_path, output_path)
+        return output_path
+    status = subprocess.run([
+        FFMPEG, "-y",
+        "-i", audio_path,
+        "-f", "lavfi", "-t", str(pad_duration), "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-filter_complex", "[0:a][1:a]concat=n=2:v=0:a=1[out]",
+        "-map", "[out]",
+        "-c:a", "aac", "-b:a", "192k",
+        output_path, "-loglevel", "error",
+    ], capture_output=True, text=True)
+    if status.returncode != 0:
+        print(f"  Warning: audio padding failed ({status.stderr.strip()}), using original")
+        import shutil
+        shutil.copy2(audio_path, output_path)
     return output_path
 
 
@@ -287,6 +311,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
 
         out_path = str(TEMP_DIR / f"english_line_{i:03d}.m4a")
+        dur = 0.0
 
         try:
             pause_duration = _pause_duration_seconds(text)
@@ -305,25 +330,22 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
             print(f"  Error generating audio for line {i}: {e}")
             per_turn_durations.append(0.0)
             dialogue_only_durations.append(0.0)
+            audio_files.append(out_path)
 
-        # Add natural pause after regular turns (not after explicit pause tokens)
+        # Pad natural pause into the dialogue audio (avoid separate gap entries that
+        # would desync per_turn_times from the actual track length).
         if pause_duration is None and i < len(dialogue) - 1:
             next_line = dialogue[i + 1]
             next_pause_duration = _pause_duration_seconds(next_line.get("text", ""))
             next_speaker = next_line.get("speaker", "Emma")
-            # Only add pause if next turn is not already a pause token
             if next_pause_duration is None:
-                # Determine pause duration: 400ms for Narrator transitions (entering or exiting), 300ms otherwise
-                if speaker == "Narrator" or next_speaker == "Narrator":
-                    gap_duration = 0 #0.4
-                else:
-                    gap_duration = 0 #0.3
-                gap_path = str(TEMP_DIR / f"english_gap_{i:03d}.m4a")
-                _generate_silence_audio(gap_path, gap_duration)
-                gap_dur = get_audio_duration(gap_path)
-                audio_files.append(gap_path)
-                per_turn_durations.append(gap_dur)
-                print(f"  [gap] {gap_duration:.1f}s after {speaker}")
+                gap_duration = 0.4 if (speaker == "Narrator" or next_speaker == "Narrator") else 0.3
+                padded_path = str(TEMP_DIR / f"english_line_{i:03d}_padded.m4a")
+                _pad_audio_with_silence(out_path, gap_duration, padded_path)
+                audio_files[-1] = padded_path
+                dur += gap_duration
+                per_turn_durations[-1] = dur
+                dialogue_only_durations[-1] = dur
 
         previous_speaker = speaker
 
@@ -580,6 +602,40 @@ def scene_duration_from_turns(scene: dict, per_turn_times: list) -> float:
     return duration
 
 
+def _render_kb_clip(
+    image_path: str,
+    output_path: str,
+    duration: float,
+    width: int,
+    height: int,
+    *,
+    zoom_in: bool = True,
+) -> None:
+    """Render a single Ken Burns clip zooming in or out."""
+    fps = VIDEO_FPS
+    total_frames = max(round(duration * fps), 2)
+    scale_w = width * 2
+    scale_h = height * 2
+    zoom_expr = f"min(zoom+0.0015,1.12)" if zoom_in else f"max(1.0,zoom-0.0015)"
+    vf = (
+        f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
+        f"crop={scale_w}:{scale_h},"
+        f"zoompan=z='{zoom_expr}':"
+        f"x='iw/2-(iw/zoom/2)':"
+        f"y='ih/2-(ih/zoom/2)':"
+        f"d={total_frames}:s={width}x{height}:fps={fps}"
+    )
+    subprocess.run([
+        FFMPEG, "-y",
+        "-loop", "1", "-i", image_path,
+        "-t", str(duration),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an", output_path, "-loglevel", "error",
+    ], check=True)
+
+
 def _kenburns_image_to_video(
     image_path: str,
     duration: float,
@@ -589,41 +645,70 @@ def _kenburns_image_to_video(
     *,
     zoom_in: bool = True,
 ) -> None:
-    """Convert a still image to a Ken Burns video clip for exact duration using smooth zoompan."""
-    fps = VIDEO_FPS
-    total_frames = max(round(duration * fps), 2)
-    
-    # Scale up 2x first for smooth zoompan (like family_assembler)
-    scale_w = width * 2
-    scale_h = height * 2
-    
-    if zoom_in:
-        # Smooth zoom in from 1.0 to 1.12 with centered panning
-        vf = (
-            f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
-            f"crop={scale_w}:{scale_h},"
-            f"zoompan=z='min(zoom+0.0015,1.12)':"
-            f"x='iw/2-(iw/zoom/2)':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:s={width}x{height}:fps={fps}"
-        )
-    else:
-        # Smooth zoom out - start at 1.12 and zoom down to 1.0 with centered panning
-        vf = (
-            f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
-            f"crop={scale_w}:{scale_h},"
-            f"zoompan=z='max(1.0,zoom-0.0015)':"
-            f"x='iw/2-(iw/zoom/2)':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:s={width}x{height}:fps={fps}"
-        )
-    
+    """Convert a still image to a Ken Burns video clip with smooth zoompan.
+
+    For clips > 15 seconds, splits into two phases with opposite zoom
+    directions to reduce visual monotony.
+    """
+    if duration <= 15:
+        _render_kb_clip(image_path, output_path, duration, width, height, zoom_in=zoom_in)
+        return
+
+    mid = duration / 2
+    phase1 = str(TEMP_DIR / f"{Path(output_path).stem}_p1.mp4")
+    phase2 = str(TEMP_DIR / f"{Path(output_path).stem}_p2.mp4")
+    _render_kb_clip(image_path, phase1, mid, width, height, zoom_in=zoom_in)
+    _render_kb_clip(image_path, phase2, mid, width, height, zoom_in=not zoom_in)
+
+    list_path = str(TEMP_DIR / f"{Path(output_path).stem}_phases.txt")
+    with open(list_path, "w") as f:
+        f.write(f"file '{os.path.abspath(phase1)}'\n")
+        f.write(f"file '{os.path.abspath(phase2)}'\n")
     subprocess.run([
         FFMPEG, "-y",
-        "-loop", "1", "-i", image_path,
-        "-t", str(duration),
-        "-vf", vf,
+        "-f", "concat", "-safe", "0", "-i", list_path,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an", output_path, "-loglevel", "error",
+    ], check=True)
+
+
+def _xfade_video_clip_pair(
+    clip_a: str,
+    clip_b: str,
+    output_path: str,
+    fade_duration: float = 0.5,
+) -> None:
+    """Crossfade two video-only clips (no audio streams)."""
+    dur_a = get_audio_duration(clip_a)
+    dur_b = get_audio_duration(clip_b)
+    transition_dur = min(fade_duration, dur_a, dur_b)
+
+    if transition_dur <= 0:
+        list_path = str(TEMP_DIR / f"xfade_fallback_{Path(output_path).stem}.txt")
+        with open(list_path, "w") as f:
+            f.write(f"file '{os.path.abspath(clip_a)}'\n")
+            f.write(f"file '{os.path.abspath(clip_b)}'\n")
+        subprocess.run([
+            FFMPEG, "-y",
+            "-f", "concat", "-safe", "0", "-i", list_path,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-an", output_path, "-loglevel", "error",
+        ], check=True)
+        return
+
+    offset = max(dur_a - transition_dur, 0)
+    subprocess.run([
+        FFMPEG, "-y",
+        "-i", clip_a, "-i", clip_b,
+        "-filter_complex",
+        f"[0:v]fps={VIDEO_FPS},setsar=1,settb=AVTB[v0];"
+        f"[1:v]fps={VIDEO_FPS},setsar=1,settb=AVTB[v1];"
+        f"[v0][v1]xfade=transition=fade:duration={transition_dur}:"
+        f"offset={offset},format=yuv420p[v]",
+        "-map", "[v]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
         "-pix_fmt", "yuv420p",
         "-an", output_path, "-loglevel", "error",
     ], check=True)
@@ -636,7 +721,7 @@ def build_scene_visual_track(
     *,
     portrait: bool = False,
 ) -> str:
-    """Build concatenated Ken Burns visual track timed to scene dialogue durations."""
+    """Build crossfaded Ken Burns visual track timed to scene dialogue durations."""
     TEMP_DIR.mkdir(exist_ok=True)
     width = SHORTS_WIDTH if portrait else VIDEO_WIDTH
     height = SHORTS_HEIGHT if portrait else VIDEO_HEIGHT
@@ -656,19 +741,17 @@ def build_scene_visual_track(
         )
         clip_paths.append(clip_path)
 
-    list_path = str(TEMP_DIR / "english_scene_clips.txt")
-    with open(list_path, "w", encoding="utf-8") as handle:
-        for clip in clip_paths:
-            handle.write(f"file '{os.path.abspath(clip)}'\n")
-
     visual_track = str(TEMP_DIR / "english_scene_visual_track.mp4")
-    subprocess.run([
-        FFMPEG, "-y",
-        "-f", "concat", "-safe", "0", "-i", list_path,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-an", visual_track, "-loglevel", "error",
-    ], check=True)
+    if len(clip_paths) <= 1:
+        shutil.copy2(clip_paths[0], visual_track) if clip_paths else None
+    else:
+        current = clip_paths[0]
+        for i, next_clip in enumerate(clip_paths[1:], start=1):
+            pair_out = str(TEMP_DIR / f"scene_xfade_{i:02d}.mp4")
+            _xfade_video_clip_pair(current, next_clip, pair_out, fade_duration=0.5)
+            current = pair_out
+        shutil.copy2(current, visual_track)
+
     print(f"  Scene visual track assembled ({len(clip_paths)} scene(s))")
     return visual_track
 
@@ -932,6 +1015,9 @@ def assemble_english_scene_video(
             "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
         )
         vf_filter_parts.append(f"subtitles={captions_srt}:force_style='{caption_style}'")
+    vf_filter_parts.append(
+        f"drawbox=x=0:y=ih-4:w='iw*min(t/{duration},1)':h=4:color=white@0.5:t=fill"
+    )
     vf_filter = ",".join(vf_filter_parts) if vf_filter_parts else "null"
 
     try:

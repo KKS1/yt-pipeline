@@ -719,6 +719,18 @@ def assemble_shorts_video(
     print(f"\nAssembling Short: '{title}'")
     print(f"  Narration duration: {narration_duration:.1f}s ({narration_duration/60:.1f} min)")
 
+    if not stock_clips:
+        print("  WARNING: No stock clips provided — generating solid-color fallback.")
+        fallback = str(TEMP_DIR / "short_fallback.png")
+        run_ffmpeg([
+            FFMPEG, "-y", "-f", "lavfi", "-i",
+            f"color=c=black:s={SHORTS_WIDTH}x{SHORTS_HEIGHT}:d={narration_duration}:r={VIDEO_FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            str(TEMP_DIR / "short_fallback.mp4"),
+        ])
+        stock_clips = [str(TEMP_DIR / "short_fallback.mp4")]
+
     normalized_clips = []
     for i, clip in enumerate(stock_clips):
         norm_path = str(TEMP_DIR / f"short_norm_{i:03d}.mp4")

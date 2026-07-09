@@ -62,6 +62,8 @@ def clean_text(text: str) -> str:
     text = re.sub(r'___', '... ', text)
     # Convert markdown bold to emphasis marker for TTS (keep for caption processing)
     text = re.sub(r'\*\*(.*?)\*\*', r'[EMPHASIS]\1[/EMPHASIS]', text)
+    # Strip single-asterisk markdown emphasis (e.g. *hold the*) — TTS would vocalize as "asterisk"
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'\(.*?\)', '', text)
     text = re.sub(r'\bphrasal\b', 'phrase', text, flags=re.IGNORECASE)
     text = ' '.join(text.split())
