@@ -921,6 +921,9 @@ CRITICAL RULES:
 6. Each scene needs a descriptive image_filename like scene_1_library_discussion.png (lowercase, underscores, strictly .png extension).
 7. Each scene must specify the 'start_turn' and 'end_turn' as the integer dialogue turn indices (matching the DIALOGUE TURNS list indices above) that are covered by this scene. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
 8. NEVER include references to narrator in visual prompts.
+9. QUIZ TIMING RULE: For quiz formats, scenes showing the correct answer, checkmarks, or results MUST only appear in scenes that start AFTER the answer has been revealed in the dialogue (i.e., after the turn where the narrator announces the correct answer).
+10. SPOILER PREVENTION: Scenes covering "pause" turns (e.g., "[PAUSE 3 SECONDS]") must NOT reveal answers, show checkmarks, highlight correct options, or display any outcomes. They should only show the question/presentation state.
+11. CONTENT SEQUENCING: Visual prompts must only depict content that has already been mentioned or is actively being discussed in the dialogue turns covered by that scene. Do not show future events or outcomes.
 
 Output ONLY valid JSON with this schema:
 {{
