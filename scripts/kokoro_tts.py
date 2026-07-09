@@ -66,6 +66,8 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'\(.*?\)', '', text)
     text = re.sub(r'\bphrasal\b', 'phrase', text, flags=re.IGNORECASE)
+    # Strip emoji so TTS doesn't vocalize them (e.g. 💬 → "Speech bubble")
+    text = re.sub(r'[\U0001F300-\U0001FAFF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0000200D\uFE0F]', '', text)
     text = ' '.join(text.split())
     return text.strip()
 
