@@ -219,7 +219,7 @@ def validate_organic_english_script(raw_input):
             if text.startswith("I am ") or " my " in text.lower():
                 print(f"⚠️ Warning: Narrator might have slipped into first-person at turn {turn_num}")
 
-        if speaker in ["Emma", "Liam"]:
+        if speaker in ["Emma", "Liam", "Guest"]:
             has_actors = True
             # 2. ENFORCE CHARACTER PERSPECTIVE: Catch third-person character slip-ups
             if text.startswith("He ran") or text.startswith("She said"):
@@ -1793,7 +1793,7 @@ TOPIC: {topic}
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow (never pausing the story for a lesson), and guides transitions between beats.
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
-- "Guest" (Voice Profile: af_sky): Optional bystander, antagonist, or clerk. Speaks naturally based on the scene setting requirements.
+- "Guest" (Voice Profile: bf_emma): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). Speaks naturally based on the scene setting requirements.
 
 NATURAL EXPRESSION REQUIREMENTS:
 - Emma and Liam MUST use authentic, natural English expressions in their dialogue

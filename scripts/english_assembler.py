@@ -588,23 +588,17 @@ def apply_summary_overlay(
             shutil.copy2(video_path, output_path)
         return output_path
 
-    fade_dur = 0.5
-    fade_out_start = max(summary_start, summary_end - fade_dur)
+    overlay_dur = summary_end - summary_start
 
     print(f"  Applying summary card overlay ({summary_start:.2f}s – {summary_end:.2f}s)...")
 
     cmd = [
         FFMPEG, "-y",
         "-i", video_path,
-        "-loop", "1", "-framerate", str(VIDEO_FPS), "-i", summary_png,
+        "-loop", "1", "-framerate", str(VIDEO_FPS), "-t", f"{overlay_dur:.3f}",
+        "-i", summary_png,
         "-filter_complex",
-        (
-            f"[1:v]format=rgba,"
-            f"fade=t=in:st={summary_start:.3f}:d={fade_dur}:alpha=1,"
-            f"fade=t=out:st={fade_out_start:.3f}:d={fade_dur}:alpha=1"
-            f"[summary];"
-            f"[0:v][summary]overlay=0:0:enable='between(t,{summary_start:.3f},{summary_end:.3f})'[outv]"
-        ),
+        f"[0:v][1:v]overlay=0:0:enable='between(t,{summary_start:.3f},{summary_end:.3f})'[outv]",
         "-map", "[outv]",
         "-map", "0:a",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",

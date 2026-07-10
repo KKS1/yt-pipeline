@@ -3,8 +3,8 @@ ass_caption_writer.py
 ─────────────────────
 Generates Advanced Sub Station Alpha (.ass) subtitle files with:
   • Karaoke word-level highlighting (\\k tags) — words light up as spoken
-  • Emma / Liam avatar badge drawn left of each caption line
-  • Character-specific highlight colours (Emma=coral, Liam=sky-blue)
+  • Emma / Liam / Guest avatar badge drawn left of each caption line
+  • Character-specific highlight colours (Emma=coral, Liam=sky-blue, Guest=teal-green)
   • Idiom / phrasal-verb chunks in golden accent with slightly larger font
 
 The .ass filter is natively supported by FFmpeg via:
@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # Subtitle style names written into the [V4+ Styles] section
 STYLE_EMMA   = "Emma"
 STYLE_LIAM   = "Liam"
+STYLE_GUEST  = "Guest"
 STYLE_IDIOM  = "Idiom"
 STYLE_IDIOM_CARD = "IdiomCard"
 STYLE_COUNTDOWN = "Countdown"
@@ -50,11 +51,13 @@ COLOUR_BG_SEMI   = "&H00000000"   # opaque black for sharp shadows
 
 COLOUR_EMMA_HL   = "&H6666FF"     # coral-pink (BGR) highlights for Emma's spoken words
 COLOUR_LIAM_HL   = "&HFF9966"     # sky-blue (BGR) highlights for Liam's spoken words
+COLOUR_GUEST_HL  = "&H99CC66"     # teal-green (BGR) highlights for Guest's spoken words
 COLOUR_IDIOM_HL  = "&H00D7FF"     # gold (BGR) for idiom chunks
 
 # Badge colours drawn in the ASS vector path (ASS drawing primary colour)
 BADGE_EMMA_FILL  = "&H6666FF"     # coral
 BADGE_LIAM_FILL  = "&HFF9966"     # sky-blue
+BADGE_GUEST_FILL = "&H99CC66"     # teal-green
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
@@ -268,6 +271,7 @@ WrapStyle: 0
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_EMMA_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_GUEST_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
 Style: {STYLE_COUNTDOWN},{_eff_fontname()},{countdown_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&H88000000,1,0,0,0,100,100,0,0,1,5,1,5,40,40,0,1
@@ -301,6 +305,9 @@ def _badge_override(speaker: str) -> str:
     if speaker.lower() == "emma":
         # coral background on 'E'
         return r"{\c&H6666FF&\bord0\shad0\p0}{\1c&H6666FF&}[E] {\r}"
+    elif speaker.lower() == "guest":
+        # teal-green background on 'G'
+        return r"{\c&H99CC66&\bord0\shad0\p0}{\1c&H99CC66&}[G] {\r}"
     else:
         # sky-blue background on 'L'
         return r"{\c&HFF9966&\bord0\shad0\p0}{\1c&HFF9966&}[L] {\r}"
@@ -341,7 +348,12 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
             )
         else:
             # Normal karaoke: word highlight in speaker colour when spoken
-            highlight = COLOUR_EMMA_HL if speaker.lower() == "emma" else COLOUR_LIAM_HL
+            if speaker.lower() == "emma":
+                highlight = COLOUR_EMMA_HL
+            elif speaker.lower() == "guest":
+                highlight = COLOUR_GUEST_HL
+            else:
+                highlight = COLOUR_LIAM_HL
             parts.append(rf"{line_break}{{\k{dur_cs}\2c{highlight}&}}{display_word} ")
 
     return badge + "".join(parts).rstrip()
@@ -401,7 +413,13 @@ def _add_pause_guess_events(
             continue
 
         prompt = dialogue[prompt_idx]
-        style = STYLE_EMMA if prompt.get("speaker", "Emma").lower() == "emma" else STYLE_LIAM
+        spk = prompt.get("speaker", "Emma").lower()
+        if spk == "emma":
+            style = STYLE_EMMA
+        elif spk == "guest":
+            style = STYLE_GUEST
+        else:
+            style = STYLE_LIAM
         text = _plain_caption_line(prompt.get("text", ""), prompt.get("speaker", "Emma"))
         events.append(
             f"Dialogue: 0,{_ass_timestamp(pause_start)},{_ass_timestamp(pause_end)},"
@@ -542,7 +560,7 @@ def _add_caption_events_from_turn_words(
             end_t = chunk[-1]["end"]
             style = STYLE_IDIOM if _is_idiom_chunk(
                 " ".join(w["word"] for w in chunk), extra_idioms
-            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_GUEST if speaker.lower() == "guest" else STYLE_LIAM)
 
             text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             events.append(
@@ -681,7 +699,7 @@ def generate_ass_captions(
             speaker = _speaker_at(start_t)
             style   = STYLE_IDIOM if _is_idiom_chunk(
                 " ".join(w["word"] for w in chunk), extra_idioms
-            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_GUEST if speaker.lower() == "guest" else STYLE_LIAM)
 
             text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             event = (
@@ -788,7 +806,7 @@ def generate_ass_captions_from_words(
             speaker = _speaker_at(start_t)
             style   = STYLE_IDIOM if _is_idiom_chunk(
                 " ".join(w["word"] for w in chunk), extra_idioms
-            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_LIAM)
+            ) else (STYLE_EMMA if speaker.lower() == "emma" else STYLE_GUEST if speaker.lower() == "guest" else STYLE_LIAM)
 
             text = _karaoke_line(chunk, speaker, extra_idioms, emphasized_phrases)
             event = (
