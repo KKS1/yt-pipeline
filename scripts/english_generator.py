@@ -1810,6 +1810,7 @@ TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 - The Narrator's closing line MUST reference what was learned about the TOPIC
 - If the TOPIC describes a mistake (e.g. "The [X] Mistake"), the story MUST show characters making or encountering that mistake and learning the correct alternative
 - MISTAKE ACCURACY: When depicting a mistake, the character's line must be a genuine example of the mistake — not a correct/polite form mislabeled as wrong. For example, "No thanks, I'm good" is already a polite decline (it has a softener), so it must NOT be treated as the mistake. A true "no thanks" mistake would be a flat "No thanks." with no follow-up, no softener, and a dismissive tone.
+- QUIZ OPTION QUALITY: The quiz must have exactly ONE unambiguously correct answer. Distractors must be clearly wrong — not just "less ideal" or "slightly less polite." If two options could both be considered correct, rewrite the options so only one is defensible. For example, both "No thanks, but I'll take a coffee" and "I'm fine, thanks" are polite declines, so they must NOT both appear as options — pick one as the correct answer and make the distractors genuinely incorrect (e.g., a flat "No thanks." with no softener).
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
