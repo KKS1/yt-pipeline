@@ -136,7 +136,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 def _description_with_playlist_url(description: str, command_channel: str | None) -> str:
     """Inject the fixed playlist URL for standalone English upload descriptions."""
     playlist_url = ENGLISH_DESCRIPTION_PLAYLIST_URLS.get(command_channel or "")
-    text = str(description or "").strip()
+    text = str(description or "").strip().replace("\\n", "\n")
     if not playlist_url:
         return text
     

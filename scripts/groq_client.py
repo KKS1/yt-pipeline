@@ -36,15 +36,27 @@ def parse_rate_limit_wait_seconds(response: requests.Response) -> float:
     return 30.0
 
 
+def _normalize_str_newlines(obj):
+    """Recursively replace literal backslash-n sequences with real newlines."""
+    if isinstance(obj, str):
+        return obj.replace("\\n", "\n")
+    if isinstance(obj, dict):
+        return {k: _normalize_str_newlines(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalize_str_newlines(v) for v in obj]
+    return obj
+
+
 def parse_groq_json(raw: str) -> dict:
     cleaned = re.sub(r"```(?:json)?|```", "", raw).strip()
     try:
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
     except json.JSONDecodeError:
         match = re.search(r"\{.*\}", cleaned, flags=re.S)
         if not match:
             raise
-        return json.loads(match.group(0))
+        result = json.loads(match.group(0))
+    return _normalize_str_newlines(result)
 
 
 def is_json_validation_error(response: requests.Response) -> bool:
