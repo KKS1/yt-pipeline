@@ -18,7 +18,7 @@ METADATA RULES:
 - Titles must be high-CTR, searchable, curiosity-driven, and punchy.
 - Use strong title casing and selective ALL CAPS only for 1-2 benefit-focused words such as MASTER, COMPLETE, ESSENTIAL, PERFECT, or EASY.
 - Title format: [Clear Learning Benefit] | [Curiosity/FOMO Element] | [Level/Topic Context]. Example: "Master Hotel Check-In English | What Most Tourists Get Wrong | 5 Levels of Hotel English"
-- All titles MUST end with " (B1-B2/ A2)" — include this suffix at the end of every title.
+- All titles MUST end with "(B1-B2/ A2)" — include this suffix at the end of every title.
 - Use curiosity elements like: "What Most X Get Wrong", "The Phrase That Changes Everything", "Avoid This Common Mistake", "What X Wish You Knew"
 - Descriptions: Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
 - Descriptions: Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
