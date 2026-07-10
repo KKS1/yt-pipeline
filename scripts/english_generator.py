@@ -1720,7 +1720,7 @@ STRUCTURAL MOVEMENT STAGES:
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
-  "title": "High-CTR Title matching METADATA RULES",
+  "title": "High-CTR Title matching METADATA RULES (must be under 100 characters - YouTube limit)",
   "description": "String matching DESCRIPTION TEMPLATE exactly",
   "pinned_comment": "Narrative retention engagement question",
   "tags": [ "Tag1", "Tag2" ],
@@ -1869,7 +1869,7 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR, curiosity-based Short title under 70 chars using benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases', or 'The Secret To...')",
+  "title": "string (High-CTR, curiosity-based Short title under 70 characters, using benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases', or 'The Secret To...')",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
