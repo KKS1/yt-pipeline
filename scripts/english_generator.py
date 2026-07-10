@@ -1024,16 +1024,7 @@ def save_published_topic(topic: str, topic_type: str = "podcast"):
 
 ENGLISH_TOPIC_POOL = []
 
-COMMUNITY_POLL_POOL = [
-    "Grammar Quiz: Prepositions of Time",
-    "Vocabulary Challenge: Synonyms for 'Happy'",
-    "Common Mistakes: 'Your' vs 'You're'",
-    "Idiom Check: 'Under the weather' meaning",
-    "Pronunciation Poll: Which word is the odd one out?",
-    "Real-world English: Ordering at a Coffee Shop",
-    "Business English: Professional Email Openings",
-    "Slang Quiz: What does 'no cap' mean?"
-]
+COMMUNITY_POLL_POOL = []
 
 WEEKLY_CHALLENGE_TOPIC_POOL = []
 
