@@ -756,12 +756,9 @@ def build_scene_visual_track(
     width = SHORTS_WIDTH if portrait else VIDEO_WIDTH
     height = SHORTS_HEIGHT if portrait else VIDEO_HEIGHT
 
-    # Filter out the summary scene (it has no dialogue turns — used for the end card only)
     kb_scenes = []
     kb_paths = []
     for scene, img_path in zip(scenes, scene_image_paths):
-        if str(scene.get("scene_label", "")).lower() == "summary card":
-            continue
         kb_scenes.append(scene)
         kb_paths.append(img_path)
 
@@ -1153,31 +1150,8 @@ def assemble_english_scene_video(
         except Exception as e:
             print(f"  CTA overlay skipped: {e}")
 
-    # Append summary card (idiom recap) before bumpers — landscape long-form only
-    if not portrait and idiom_windows:
-        try:
-            # Find the summary scene image from the scenes list
-            summary_scene_img = None
-            for scene in scenes:
-                if str(scene.get("scene_label", "")).lower() == "summary card":
-                    fname = scene.get("image_filename", "")
-                    if fname and scene_image_paths:
-                        # The summary scene image is in the same scenes folder
-                        # Find it by matching filename in the image paths
-                        for p in scene_image_paths:
-                            if Path(p).name == fname:
-                                summary_scene_img = p
-                                break
-                    break
-            _append_summary_card(
-                base_output,
-                idiom_windows=idiom_windows,
-                summary_bg_image=summary_scene_img,
-                background_music=background_music,
-                is_shorts=portrait,
-            )
-        except Exception as e:
-            print(f"  Summary card skipped: {e}")
+    # Summary card is now part of the visual track (plays during narrator closing)
+    # No separate append needed
 
     append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
