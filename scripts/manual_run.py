@@ -1298,6 +1298,7 @@ def run_resume_from_manifest(manifest_path_str: str):
     Works for any pipeline type (english, english-shorts, english-quiz,
     english-challenge).
     """
+    from english_generator import save_published_topic
     manifest_path = Path(manifest_path_str).expanduser()
     if not manifest_path.exists():
         print(f"Manifest not found: {manifest_path}")
@@ -1385,7 +1386,7 @@ def run_resume_from_manifest(manifest_path_str: str):
         # Upload if not disabled
         do_upload = input(f"\n  Upload '{entry.topic}' to YouTube? [Y/n]: ").strip().lower()
         if do_upload in ("", "y", "yes"):
-            _upload_video(
+            result = _upload_video(
                 out_path,
                 script.get("title", entry.topic),
                 script.get("description", ""),
@@ -1395,6 +1396,9 @@ def run_resume_from_manifest(manifest_path_str: str):
                 pinned_comment=script.get("pinned_comment"),
                 command_channel=command_channel if command_channel in ENGLISH_DESCRIPTION_PLAYLIST_URLS else "english",
             )
+            if (result or {}).get("youtube_id"):
+                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge"}.get(command_channel, "podcast")
+                save_published_topic(script.get("title", entry.topic), topic_type=_topic_type)
 
         print(f"  ✓ Done: {entry.label}")
 
@@ -1416,7 +1420,7 @@ MANIFEST_ONLY_ROUTER = {
 
 def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
     from english_assembler import cleanup_english_temp
-    from english_generator import generate_english_script
+    from english_generator import generate_english_script, save_published_topic
 
     print("\n" + "=" * 50)
     print("ENGLISH VIBES HUB — Podcast Generator")
@@ -1505,6 +1509,7 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
 
+        save_published_topic(title, topic_type="podcast")
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -1739,6 +1744,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
 
             cleanup_english_temp()
 
+    save_published_topic(package.get("series_title", topic or "Weekly Challenge"), topic_type="challenge")
     print("\nWeekly challenge pipeline done!\n")
 
 def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upload=True, related_video_ids=None, notify_subscribers=None):

@@ -1633,7 +1633,6 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
     res = call_groq_json(prompt)
     res["content_type"] = content_type
     res["topic"] = topic
-    save_published_topic(topic, topic_type="post")
     return res
 
 
@@ -1764,7 +1763,6 @@ def generate_weekly_challenge_scripts(topic=None) -> dict:
         "scripts": scripts,
     }
     
-    save_published_topic(return_data["series_title"], topic_type="challenge")
     return return_data
 
 
@@ -1805,6 +1803,14 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Characters should speak like real people in stressful situations, not textbook examples
 - Expressions must fit the emotional context and urgency of the scene
 
+TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
+- The entire story MUST be built around teaching or illustrating the exact TOPIC provided above
+- The dialogue characters MUST encounter, discuss, or experience the specific concept, phrase, or mistake described in the TOPIC — the story is not generic, it must directly embody the TOPIC
+- The quiz question MUST test the listener's understanding of the expression, phrase, or concept from the TOPIC — not a random unrelated phrasal verb
+- The Narrator's closing line MUST reference what was learned about the TOPIC
+- If the TOPIC describes a mistake (e.g. "The [X] Mistake"), the story MUST show characters making or encountering that mistake and learning the correct alternative
+- MISTAKE ACCURACY: When depicting a mistake, the character's line must be a genuine example of the mistake — not a correct/polite form mislabeled as wrong. For example, "No thanks, I'm good" is already a polite decline (it has a softener), so it must NOT be treated as the mistake. A true "no thanks" mistake would be a flat "No thanks." with no follow-up, no softener, and a dismissive tone.
+
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
 2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
@@ -1821,7 +1827,7 @@ STRUCTURAL MOVEMENT STAGES:
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
-  "title": "High-CTR Title matching METADATA RULES (must be under 70 characters — YouTube truncates at ~60 on mobile)",
+  "title": "High-CTR Title that directly references the TOPIC above, matching METADATA RULES (must be under 70 characters — YouTube truncates at ~60 on mobile)",
   "description": "String matching DESCRIPTION TEMPLATE exactly",
   "pinned_comment": "Narrative retention engagement question",
   "tags": [ "Tag1", "Tag2" ],
@@ -1839,7 +1845,7 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
   ],
   "thumbnail_text": "TEXT",
   "thumbnail_concept": "CONCEPT",
-  "theme": "THEME",
+  "theme": "Short 2-5 word label that matches the TOPIC (e.g. for TOPIC 'The No Thanks Mistake' → theme 'No Thanks Mistake')",
   "scenes": [
     {{
       "scene_id": 1,
@@ -1868,8 +1874,6 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     thumbnail = generate_thumbnail_text(topic, is_challenge=False)
     script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
-
-    save_published_topic(script.get("title", topic), topic_type="podcast")
 
     return attach_storyboard_to_script(script, portrait=False)
 
@@ -1999,8 +2003,6 @@ JSON SCHEMA:
     # Update pinned comment with channel CTA
     script_data = update_pinned_comment_with_channel_cta(script_data)
 
-    save_published_topic(script_data.get("title", topic), topic_type="shorts")
-
     return attach_storyboard_to_script(script_data, portrait=True)
 
 def generate_english_quiz_shorts_script(topic: str = None) -> dict:
@@ -2075,5 +2077,4 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     # Update pinned comment with channel CTA
     script_data = update_pinned_comment_with_channel_cta(script_data)
 
-    save_published_topic(script_data.get("title", topic), topic_type="quiz")
     return attach_storyboard_to_script(script_data, portrait=True)
