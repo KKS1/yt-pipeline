@@ -1177,12 +1177,12 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
     try:
         res = call_groq_json(prompt)
-        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
-        return res.get("topic", random.choice(fallback_pool))
+        return res.get("topic")
     except Exception as e:
         print(f"  Error generating dynamic topic: {e}. Falling back to pool.")
-        fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
-        return random.choice(fallback_pool)
+        # fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
+        # return random.choice(fallback_pool)
+        return "English Conversation Practice For Everyday Situations"
 
 
 def generate_thumbnail_text(topic: str, is_challenge: bool = False) -> dict:

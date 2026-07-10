@@ -1074,7 +1074,7 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
         script["description"] = _description_with_playlist_url(
             script.get("description", ""), "english-shorts",
         )
-        # title = script.get("title", topic or "English Short")
+        title = script.get("title", topic or "English Short")
         Path("scripts/output").mkdir(exist_ok=True)
         # script_path = f"scripts/output/english_shorts_{slug(title)[:60]}.json"
         script_path = "scripts/output/english_shorts.json"
