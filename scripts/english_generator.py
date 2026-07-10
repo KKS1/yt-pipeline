@@ -425,6 +425,59 @@ def _integrate_fragments(description: str) -> str:
     return result.strip()
 
 
+def _cleanup_sentence_fragments(text: str) -> str:
+    """Remove incomplete sentence fragments left after phrase deduplication.
+    
+    Fragments are sentences that:
+    - Don't end with proper punctuation (.!?)
+    - Start with lowercase (continuation fragments)
+    - Are very short and lack verb structure
+    - End with dangling infinitives/prepositions (e.g., "to", "for", "and")
+    - Contain structured markers (emoji, URLs) but no ending punctuation (mashed content)
+    """
+    # First, insert period before structured markers mashed against text without punctuation
+    # e.g., "fragment 📺 Watch" -> "fragment. 📺 Watch"
+    text = re.sub(r'([a-z])\s+([🎯📺💬🔔📑#])', r'\1. \2', text)
+    text = re.sub(r'([a-z])\s+(https?://)', r'\1. \2', text)
+    text = re.sub(r'([a-z])\s+({playlist_url})', r'\1. \2', text)
+    
+    # Split into sentences - handle punctuation followed by whitespace OR emoji/structured markers
+    sentences = re.split(r'(?<=[.!?])(?=\s|[🎯📺💬🔔📑#])', text)
+    cleaned = []
+    
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        
+        # Keep structured lines (emoji headers, hashtags, URLs, sections, playlist URLs)
+        is_structured = bool(re.match(r'^[🎯📺💬🔔📑#]|https?://', sent) or '{playlist_url}' in sent)
+        if is_structured:
+            cleaned.append(sent)
+            continue
+        
+        # Check if this sentence contains structured content but lacks ending punctuation
+        has_structured_marker = bool(re.search(r'[🎯📺💬🔔📑#]|https?://|{playlist_url}', sent))
+        ends_with_punct = bool(re.search(r'[.!?]$', sent))
+        starts_lower = sent[0].islower() if sent else False
+        has_verb = bool(re.search(r'\b(is|are|has|have|do|did|will|can|learn|master|improve|speak|practice|watch|subscribe)\b', sent, re.I))
+        
+        # Check for dangling infinitives/prepositions at end (e.g., "to", "for", "and")
+        ends_with_dangling = bool(re.search(r'\b(to|for|and|or|but|so|with|in|on|at)\s*[.!?]?$', sent, re.I))
+        
+        # Skip fragments
+        if (not ends_with_punct or 
+            (starts_lower and len(sent) < 80) or
+            (len(sent) < 20 and not has_verb) or
+            (has_structured_marker and not ends_with_punct) or
+            ends_with_dangling):
+            continue
+            
+        cleaned.append(sent)
+    
+    return ' '.join(cleaned)
+
+
 def remove_duplicate_phrases(description: str) -> str:
     """Remove duplicate occurrences of key phrases and entire lines from descriptions."""
     text = str(description or "").strip()
@@ -462,6 +515,9 @@ def remove_duplicate_phrases(description: str) -> str:
             
             count = 0
             text = pattern.sub(replace_func, text)
+
+    # Clean up sentence fragments left after phrase deduplication
+    text = _cleanup_sentence_fragments(text)
     
     # Clean up fragmented phrases left after removal (but preserve theme/topic)
     text = re.sub(r'🎯\s+via\s+Story:[^!]*!', '', text, flags=re.IGNORECASE)  # Remove fragmented opener remnants
