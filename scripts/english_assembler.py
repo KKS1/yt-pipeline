@@ -569,6 +569,63 @@ def apply_cta_overlay(
     return output_path
 
 
+def apply_summary_overlay(
+    video_path: str,
+    summary_start: float,
+    summary_end: float,
+    summary_png: str,
+    output_path: str,
+) -> str:
+    """
+    Composite the full-frame "What We Learned Today" summary card PNG
+    on top of the video during the narrator's closing lines.
+
+    The overlay fades in over 0.5 s and fades out over 0.5 s.
+    """
+    if summary_start >= summary_end or not Path(summary_png).exists():
+        if video_path != output_path:
+            import shutil
+            shutil.copy2(video_path, output_path)
+        return output_path
+
+    fade_dur = 0.5
+    fade_out_start = max(summary_start, summary_end - fade_dur)
+
+    print(f"  Applying summary card overlay ({summary_start:.2f}s – {summary_end:.2f}s)...")
+
+    cmd = [
+        FFMPEG, "-y",
+        "-i", video_path,
+        "-loop", "1", "-framerate", str(VIDEO_FPS), "-i", summary_png,
+        "-filter_complex",
+        (
+            f"[1:v]format=rgba,"
+            f"fade=t=in:st={summary_start:.3f}:d={fade_dur}:alpha=1,"
+            f"fade=t=out:st={fade_out_start:.3f}:d={fade_dur}:alpha=1"
+            f"[summary];"
+            f"[0:v][summary]overlay=0:0:enable='between(t,{summary_start:.3f},{summary_end:.3f})'[outv]"
+        ),
+        "-map", "[outv]",
+        "-map", "0:a",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        output_path, "-loglevel", "error",
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+        size_mb = Path(output_path).stat().st_size / 1024 / 1024
+        print(f"  ✓ Summary card overlay applied: {output_path} ({size_mb:.1f} MB)")
+    except subprocess.CalledProcessError as e:
+        print(f"  Summary card overlay failed: {e}")
+        if video_path != output_path:
+            import shutil
+            shutil.copy2(video_path, output_path)
+
+    return output_path
+
+
 def resolve_idiom_timestamps(
     idiom_windows: list[dict],
     per_turn_times: list[tuple[float, float]],
@@ -1150,8 +1207,49 @@ def assemble_english_scene_video(
         except Exception as e:
             print(f"  CTA overlay skipped: {e}")
 
-    # Summary card is now part of the visual track (plays during narrator closing)
-    # No separate append needed
+    # ── Summary card text overlay ──────────────────────────────────────────
+    # Find the summary card scene and composite the "What We Learned Today"
+    # PNG on top of the video during the narrator's closing lines.
+    if not portrait and per_turn_times:
+        summary_scene = None
+        summary_scene_idx = None
+        for _idx, sc in enumerate(scenes):
+            if str(sc.get("scene_label", "")).lower() == "summary card":
+                summary_scene = sc
+                summary_scene_idx = _idx
+                break
+        if summary_scene is not None and summary_scene_idx is not None:
+            try:
+                from summary_card_renderer import render_summary_card
+
+                s_turn = max(0, min(int(summary_scene.get("start_turn", 0)), len(per_turn_times) - 1))
+                e_turn = max(s_turn, min(int(summary_scene.get("end_turn", s_turn)), len(per_turn_times) - 1))
+                summary_start = per_turn_times[s_turn][0]
+                summary_end = per_turn_times[e_turn][1]
+
+                bg_path = scene_image_paths[summary_scene_idx] if summary_scene_idx < len(scene_image_paths) else None
+                summary_dir = TEMP_DIR / "summary_card"
+                summary_png = render_summary_card(
+                    idiom_windows=idiom_windows or [],
+                    output_dir=summary_dir,
+                    is_shorts=False,
+                    bg_image_path=bg_path,
+                )
+                if Path(summary_png).exists():
+                    temp_summary = str(Path(base_output).with_suffix(".summary.mp4"))
+                    apply_summary_overlay(
+                        video_path=base_output,
+                        summary_start=summary_start,
+                        summary_end=summary_end,
+                        summary_png=summary_png,
+                        output_path=temp_summary,
+                    )
+                    if Path(temp_summary).exists():
+                        Path(base_output).unlink()
+                        import shutil
+                        shutil.move(temp_summary, base_output)
+            except Exception as e:
+                print(f"  Summary card overlay skipped: {e}")
 
     append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
