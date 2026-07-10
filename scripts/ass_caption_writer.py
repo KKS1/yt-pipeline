@@ -386,6 +386,8 @@ def _add_pause_guess_events(
     dialogue: list[dict],
     per_turn_times: list[tuple[float, float]],
     reveal_windows: list[dict],
+    video_width: int = 1920,
+    video_height: int = 1080,
 ):
     """Freeze the prompt during silence and burn a 3-2-1 countdown in ASS."""
     print(f"  [DEBUG] _add_pause_guess_events called with {len(reveal_windows)} windows")
@@ -421,6 +423,22 @@ def _add_pause_guess_events(
                 f"Dialogue: 2,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
                 f"{STYLE_COUNTDOWN},,0,0,0,,{countdown_text}"
             )
+
+        # Shrinking progress bar — anchored at right edge, shrinks to zero
+        bar_x = int(video_width * 0.1)
+        bar_w = int(video_width * 0.8)
+        bar_y = int(video_height * 0.55)
+        bar_h = 8
+        bar_dur_cs = int(round(duration * 100))
+        bar_end_cs = bar_dur_cs
+        events.append(
+            f"Dialogue: 3,{_ass_timestamp(pause_start)},{_ass_timestamp(pause_end)},"
+            f"Default,,0,0,0,"
+            f"\\org({bar_x + bar_w},{bar_y})\\pos({bar_x + bar_w},{bar_y})"
+            f"\\fad(100,150)\\p1\\c&H00D7FF&\\alpha&H66&"
+            f"\\t(0,{bar_end_cs},\\fscx0)"
+            f"{{m {bar_x} {bar_y} l {bar_x + bar_w} {bar_y} {bar_x + bar_w} {bar_y + bar_h} {bar_x} {bar_y + bar_h}}}"
+        )
     print(f"  [DEBUG] _add_pause_guess_events added {len(events)} total events")
 
 
@@ -641,7 +659,7 @@ def generate_ass_captions(
         margin_v_top,
         reveal_windows,
     )
-    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows)
+    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows, video_width, video_height)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
@@ -748,7 +766,7 @@ def generate_ass_captions_from_words(
         margin_v_top,
         reveal_windows,
     )
-    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows)
+    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows, video_width, video_height)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:

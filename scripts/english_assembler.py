@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from ffmpeg_assembler import (
     append_channel_bumpers,
     get_audio_duration,
+    _video_stream_info,
     TEMP_DIR,
     OUTPUT_DIR,
     ASSETS_DIR,
@@ -341,7 +342,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
             next_pause_duration = _pause_duration_seconds(next_line.get("text", ""))
             next_speaker = next_line.get("speaker", "Emma")
             if next_pause_duration is None:
-                gap_duration = 0.4 if (speaker == "Narrator" or next_speaker == "Narrator") else 0.3
+                gap_duration = 0.3 if (speaker == "Narrator" or next_speaker == "Narrator") else 0.2
                 padded_path = str(TEMP_DIR / f"english_line_{i:03d}_padded.m4a")
                 _pad_audio_with_silence(out_path, gap_duration, padded_path)
                 audio_files[-1] = padded_path
@@ -619,13 +620,27 @@ def _render_kb_clip(
     height: int,
     *,
     zoom_in: bool = True,
+    zoom_rate: float = 0.003,
+    zoom_max: float = 1.25,
 ) -> None:
-    """Render a single Ken Burns clip zooming in or out."""
+    """Render a single Ken Burns clip with eased zoom.
+
+    Uses a sinusoidal acceleration curve so the zoom starts gently,
+    picks up speed mid-scene, and eases into the max — creating a
+    more cinematic "push in" feel than a linear ramp.
+    """
     fps = VIDEO_FPS
     total_frames = max(round(duration * fps), 2)
     scale_w = width * 2
     scale_h = height * 2
-    zoom_expr = f"min(zoom+0.0015,1.12)" if zoom_in else f"max(1.0,zoom-0.0015)"
+
+    if zoom_in:
+        # Ease-in: rate accelerates via sin curve, starting slow
+        zoom_expr = f"min(zoom+{zoom_rate}*(1+0.5*sin(PI*on/({total_frames})))+0.0005,{zoom_max})"
+    else:
+        # Ease-out: decelerate as we zoom out
+        zoom_expr = f"max(1.0,zoom-{zoom_rate}*(1+0.5*sin(PI*on/({total_frames})))-0.0005)"
+
     vf = (
         f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
         f"crop={scale_w}:{scale_h},"
@@ -653,21 +668,26 @@ def _kenburns_image_to_video(
     height: int,
     *,
     zoom_in: bool = True,
+    zoom_rate: float = 0.003,
+    zoom_max: float = 1.25,
 ) -> None:
     """Convert a still image to a Ken Burns video clip with smooth zoompan.
 
-    For clips > 15 seconds, splits into two phases with opposite zoom
-    directions to reduce visual monotony.
+    For clips > 10 seconds, splits into two phases with opposite zoom
+    directions to reduce visual monotony and create rhythmic visual shifts.
     """
-    if duration <= 15:
-        _render_kb_clip(image_path, output_path, duration, width, height, zoom_in=zoom_in)
+    if duration <= 10:
+        _render_kb_clip(image_path, output_path, duration, width, height,
+                        zoom_in=zoom_in, zoom_rate=zoom_rate, zoom_max=zoom_max)
         return
 
     mid = duration / 2
     phase1 = str(TEMP_DIR / f"{Path(output_path).stem}_p1.mp4")
     phase2 = str(TEMP_DIR / f"{Path(output_path).stem}_p2.mp4")
-    _render_kb_clip(image_path, phase1, mid, width, height, zoom_in=zoom_in)
-    _render_kb_clip(image_path, phase2, mid, width, height, zoom_in=not zoom_in)
+    _render_kb_clip(image_path, phase1, mid, width, height,
+                    zoom_in=zoom_in, zoom_rate=zoom_rate, zoom_max=zoom_max)
+    _render_kb_clip(image_path, phase2, mid, width, height,
+                    zoom_in=not zoom_in, zoom_rate=zoom_rate, zoom_max=zoom_max)
 
     list_path = str(TEMP_DIR / f"{Path(output_path).stem}_phases.txt")
     with open(list_path, "w") as f:
@@ -736,11 +756,24 @@ def build_scene_visual_track(
     width = SHORTS_WIDTH if portrait else VIDEO_WIDTH
     height = SHORTS_HEIGHT if portrait else VIDEO_HEIGHT
 
+    # Filter out the summary scene (it has no dialogue turns — used for the end card only)
+    kb_scenes = []
+    kb_paths = []
+    for scene, img_path in zip(scenes, scene_image_paths):
+        if str(scene.get("scene_label", "")).lower() == "summary card":
+            continue
+        kb_scenes.append(scene)
+        kb_paths.append(img_path)
+
     clip_paths: list[str] = []
-    for idx, (scene, image_path) in enumerate(zip(scenes, scene_image_paths)):
+    for idx, (scene, image_path) in enumerate(zip(kb_scenes, kb_paths)):
         duration = scene_duration_from_turns(scene, per_turn_times, dialogue)
         clip_path = str(TEMP_DIR / f"english_scene_clip_{idx:03d}.mp4")
         print(f"  Scene {scene.get('scene_id', idx + 1)}: {duration:.1f}s — {Path(image_path).name}")
+        # Hook scene (index 0) gets faster zoom for visual energy; rest use standard rate
+        is_hook = (idx == 0)
+        kb_zoom_rate = 0.004 if is_hook else 0.003
+        kb_zoom_max = 1.30 if is_hook else 1.25
         _kenburns_image_to_video(
             str(image_path),
             duration,
@@ -748,6 +781,8 @@ def build_scene_visual_track(
             width,
             height,
             zoom_in=(idx % 2 == 0),
+            zoom_rate=kb_zoom_rate,
+            zoom_max=kb_zoom_max,
         )
         clip_paths.append(clip_path)
 
@@ -1118,6 +1153,32 @@ def assemble_english_scene_video(
         except Exception as e:
             print(f"  CTA overlay skipped: {e}")
 
+    # Append summary card (idiom recap) before bumpers — landscape long-form only
+    if not portrait and idiom_windows:
+        try:
+            # Find the summary scene image from the scenes list
+            summary_scene_img = None
+            for scene in scenes:
+                if str(scene.get("scene_label", "")).lower() == "summary card":
+                    fname = scene.get("image_filename", "")
+                    if fname and scene_image_paths:
+                        # The summary scene image is in the same scenes folder
+                        # Find it by matching filename in the image paths
+                        for p in scene_image_paths:
+                            if Path(p).name == fname:
+                                summary_scene_img = p
+                                break
+                    break
+            _append_summary_card(
+                base_output,
+                idiom_windows=idiom_windows,
+                summary_bg_image=summary_scene_img,
+                background_music=background_music,
+                is_shorts=portrait,
+            )
+        except Exception as e:
+            print(f"  Summary card skipped: {e}")
+
     append_channel_bumpers(base_output, channel=channel, portrait=portrait)
 
     size_mb = Path(output_path).stat().st_size / 1024 / 1024
@@ -1131,3 +1192,113 @@ def cleanup_english_temp():
         shutil.rmtree(TEMP_DIR)
         TEMP_DIR.mkdir()
     print("  Temp files cleaned.")
+
+
+def _append_summary_card(
+    video_path: str,
+    idiom_windows: list,
+    summary_bg_image: str = None,
+    scene_visual_prompt: str = "",
+    background_music: str = None,
+    is_shorts: bool = False,
+) -> str:
+    """Append a 5-second summary card to the end of the assembled video.
+
+    The card shows 'What We Learned Today' with the key idioms.
+    If summary_bg_image is provided (pre-generated Gemini image), it is used
+    directly. Otherwise falls back to the gradient background.
+    """
+    from summary_card_renderer import render_summary_card
+
+    summary_dir = TEMP_DIR / "summary_card"
+    summary_png = render_summary_card(
+        idiom_windows=idiom_windows or [],
+        scene_visual_prompt=scene_visual_prompt,
+        output_dir=summary_dir,
+        is_shorts=is_shorts,
+        bg_image_path=summary_bg_image,
+    )
+
+    if not Path(summary_png).exists():
+        print("  Summary card PNG not generated, skipping.")
+        return video_path
+
+    card_dur = 5.0
+    vid_info = _video_stream_info(video_path)
+    vw, vh = vid_info["width"], vid_info["height"]
+    fps = VIDEO_FPS
+
+    # Render summary card as a video clip (static image → video)
+    summary_video = str(TEMP_DIR / "summary_card_clip.mp4")
+    vf = (
+        f"scale={vw}:{vh}:force_original_aspect_ratio=increase,"
+        f"crop={vw}:{vh},"
+        f"fps={fps},setsar=1"
+    )
+    cmd = [
+        FFMPEG, "-y",
+        "-loop", "1", "-i", summary_png,
+        "-t", str(card_dur),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an", summary_video, "-loglevel", "error",
+    ]
+    subprocess.run(cmd, check=True)
+
+    # Mix background music into the summary card clip
+    if background_music and Path(background_music).exists():
+        summary_audio = str(TEMP_DIR / "summary_card_audio.m4a")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", summary_video,
+            "-stream_loop", "-1", "-i", background_music,
+            "-filter_complex",
+            "[1:a]volume=0.10[bg];[bg]atrim=0:{dur}[out]".format(dur=card_dur),
+            "-map", "0:v", "-map", "[out]",
+            "-t", str(card_dur),
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            summary_audio, "-loglevel", "error",
+        ]
+        subprocess.run(cmd, check=True)
+        if Path(summary_audio).exists():
+            summary_video = summary_audio
+    else:
+        # Add silent audio so concat filter works with the audio-equipped main video
+        summary_with_silence = str(TEMP_DIR / "summary_card_silent.m4a")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", summary_video,
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-map", "0:v", "-map", "1:a",
+            "-t", str(card_dur),
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            summary_with_silence, "-loglevel", "error",
+        ]
+        subprocess.run(cmd, check=True)
+        if Path(summary_with_silence).exists():
+            summary_video = summary_with_silence
+
+    # Concatenate main video + summary card using filter_complex
+    # (handles mixed audio/video stream counts gracefully)
+    temp_out = str(Path(video_path).with_suffix(".with_summary.mp4"))
+    cmd = [
+        FFMPEG, "-y",
+        "-i", video_path,
+        "-i", summary_video,
+        "-filter_complex",
+        "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
+        "-map", "[outv]", "-map", "[outa]",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        temp_out, "-loglevel", "error",
+    ]
+    subprocess.run(cmd, check=True)
+
+    if Path(temp_out).exists():
+        Path(video_path).unlink()
+        shutil.move(temp_out, video_path)
+        print(f"  ✓ Summary card appended ({card_dur}s)")
+
+    return video_path

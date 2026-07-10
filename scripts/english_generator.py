@@ -15,15 +15,21 @@ PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_top
 
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
-- Titles must be high-CTR, searchable, curiosity-driven, and punchy.
-- Use strong title casing and selective ALL CAPS only for 1-2 benefit-focused words such as MASTER, COMPLETE, ESSENTIAL, PERFECT, or EASY.
-- Title format: [Clear Learning Benefit] | [Curiosity/FOMO Element] | [Level/Topic Context]. Example: "Master Hotel Check-In English | What Most Tourists Get Wrong | 5 Levels of Hotel English"
-- All titles MUST end with "(B1-B2/ A2)" — include this suffix at the end of every title.
-- Use curiosity elements like: "What Most X Get Wrong", "The Phrase That Changes Everything", "Avoid This Common Mistake", "What X Wish You Knew"
-- Descriptions: Front-load keywords: The first 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English" followed immediately by topic-specific vocabulary.
-- Descriptions: Use natural keyword variation: If the topic is "Hair Salon", include related terms like "hairdresser", "stylist", or "barber shop" in the title or description to capture varied search intent.
-- Descriptions MUST start with exactly 2-3 SEO-heavy lines using high-intent phrases "Natural English" and "Speak like a native" (or close variants).
-- Place the playlist and comment question CTAs (immediately after the SEO opener, BEFORE timeline and other CTAs) to encourage early engagement.
+- Titles must be high-CTR, curiosity-driven, and under 70 characters (YouTube truncates on mobile at ~60 chars).
+- Use ONE of these title structures — do NOT use the same one twice in a row:
+  A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
+  B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
+  C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
+  D. Comparison: "[A] vs [B]: What's the Real Difference?"
+  E. Curiosity gap: "The [X] Phrase Native Speakers Use Daily"
+  F. Problem-solution: "Stop Saying [X] — Say This Instead"
+  G. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
+  H. Story-driven: "I [X] and Everything Went Wrong"
+- Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
+- Descriptions: Front-load a clear SEO line using natural language — e.g. "English listening practice for [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
+- Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
+- Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
+- Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - For quiz videos, include an "About This Lesson" section with AI-generated explanation of the idiom/theme before hashtags.
@@ -981,6 +987,7 @@ CRITICAL RULES:
 9. QUIZ TIMING RULE: For quiz formats, scenes showing the correct answer, checkmarks, or results MUST only appear in scenes that start AFTER the answer has been revealed in the dialogue (i.e., after the turn where the narrator announces the correct answer).
 10. SPOILER PREVENTION: Scenes covering "pause" turns (e.g., "[PAUSE 3 SECONDS]") must NOT reveal answers, show checkmarks, highlight correct options, or display any outcomes. They should only show the question/presentation state.
 11. CONTENT SEQUENCING: Visual prompts must only depict content that has already been mentioned or is actively being discussed in the dialogue turns covered by that scene. Do not show future events or outcomes.
+12. SUMMARY SCENE: You MUST add one final scene with "scene_label": "Summary Card". This scene does NOT map to any dialogue turn — set "start_turn" and "end_turn" both to {num_turns - 1}. Its "visual_prompt" should describe an atmospheric, warm, inviting background inspired by the story's setting (e.g. the café, the airport, the park where the story takes place) — NO characters, NO text, just the environment with soft golden lighting and a storybook feel. This image will be used as the background for the "What We Learned Today" summary card at the end of the video.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -993,6 +1000,14 @@ Output ONLY valid JSON with this schema:
       "visual_prompt": "string (ONE highly descriptive 3D Pixar-style prompt ending with: {style_suffix})",
       "start_turn": 0,
       "end_turn": 2
+    }},
+    {{
+      "scene_id": N,
+      "scene_label": "Summary Card",
+      "image_filename": "scene_summary.png",
+      "visual_prompt": "string (atmospheric background only — no characters, no text. Warm golden lighting, storybook aesthetic, matching the story setting)",
+      "start_turn": {num_turns - 1},
+      "end_turn": {num_turns - 1}
     }}
   ]
 }}
@@ -1014,6 +1029,9 @@ Output ONLY valid JSON with this schema:
                 scene["visual_prompt"] = f"{vp.rstrip('.')} {style_suffix}"
             elif vp:
                 scene["visual_prompt"] = vp
+        # Summary card is only used for landscape long-form — skip for portrait/shorts
+        if portrait:
+            scenes = [s for s in scenes if str(s.get("scene_label", "")).lower() != "summary card"]
         script["theme"] = res.get("theme") or theme
         script["scenes"] = align_scenes_to_turns(scenes, dialogue)
         print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")
@@ -1178,33 +1196,21 @@ def is_motivational_line(text: str) -> bool:
 
 
 def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
-    """Ask Groq to generate a fresh, trending English learning topic."""
+    """Ask Groq to generate a fresh, high-CTR English learning topic.
+
+    The prompt shows diverse topic areas as inspiration and lets the LLM
+    choose freely, relying on the avoidance list to prevent repetition.
+    """
     if topic_type == "post":
         type_label = "YouTube Community quiz or poll"
     elif is_challenge:
         type_label = "7-day weekly challenge"
     else:
         type_label = "podcast episode"
+
     topics_data = get_published_topics()
     published_topics = topics_data.get(topic_type, [])
-
     recent_topics = published_topics[-50:] if published_topics else []
-
-    # ------ENABLE BELOW IF NEED ALL TOPICS ACROSS TYPES TO BE CONSIDERED FOR AVOIDANCE IN GROQ PROMPT------
-        # Merge history from ALL content types so Groq avoids themes already covered
-        # in any format (e.g. a "bank" shorts episode stops "banking" being chosen for podcast).
-        # all_published: list = []
-        # seen: set = set()
-        # for key, entries in topics_data.items():
-        #     for entry in entries:
-        #         norm = str(entry).strip()
-        #         if norm and norm not in seen:
-        #             seen.add(norm)
-        #             all_published.append(norm)
-
-        # # Keep the most recent 60 unique entries to stay within token budget
-        # recent_topics = all_published[-60:] if all_published else []
-    # ------ENABLE ABOVE IF NEED ALL TOPICS ACROSS TYPES TO BE CONSIDERED FOR AVOIDANCE IN GROQ PROMPT------
 
     avoid_instruction = ""
     if recent_topics:
@@ -1214,32 +1220,70 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
 
     prompt = f"""
-    Generate a high-CTR single, highly engaging topic for an English learning {type_label}.
-    {avoid_instruction}
+    Generate ONE high-CTR topic for an English learning {type_label}.
 
-    STORYTELLING FOCUS (for podcast episodes):
-    - The topic MUST be story-driven: a real-world disaster, mistake, conflict, or crisis scenario
-    - Examples: Restaurant Disaster, Job Interview Gone Wrong, Travel Mishap, First Date Disaster, Lost in Foreign City
-    - Focus on high-stress moments where English mistakes cause problems
-    - The story should have a clear problem → solution narrative arc
+    Choose from ANY area — grammar, vocabulary, pronunciation, cultural situations,
+    workplace, travel, exam prep, modern slang, everyday scenarios, or storytelling.
+    The examples below show the full range; prioritize variety and pick whatever
+    will be most clickable for an English-learning audience.
 
-    CRITICAL TITLE RULES:
-    - Title format: [Clear Learning Benefit] | [Curiosity/FOMO Element] | [Story context]. Example: "Master Restaurant Ordering English | What Most Tourists Get Wrong | Ordering Disaster Story"
-    - Front-load keywords: Start with "English listening practice", "English speaking practice", or "Learn English"
-    - Include topic-specific vocabulary immediately after the main keyword phrase
-    - Use natural keyword variation (e.g., if topic is "restaurant", include "dining", "eatery", "cafe" in the search_keyword)
+    TOPIC AREA EXAMPLES (use as inspiration, not a checklist):
+    - Everyday scenarios: Calling in sick to work, returning clothes, asking a neighbor for help, canceling a subscription, dealing with a rude cashier.
+    - Grammar traps: When to use "have been" vs "have gone", "much" vs "many" in real speech, "used to" vs "would" for past habits.
+    - Confusing words: "Say" vs "Tell", "Borrow" vs "Lend", "Make" vs "Do", "Fun" vs "Funny", "Advice" vs "Advise".
+    - Cultural situations: How to small talk at a Western workplace, tipping etiquette, why Americans avoid "How old are you?", how to decline an invitation.
+    - Pronunciation pitfalls: Why "th" breaks your accent, "sheet" vs "seat", why "beach" and "bitch" sound different to natives.
+    - Modern slang: What "no cap", "bet", "slay" mean, corporate slang decoded, Gen Z dating English.
+    - Story/disaster: Lost in a foreign city, job interview nightmare, English mistake at the hospital.
+    - Workplace English: Disagree with your boss, professional email phrases, performance review prep.
+    - Travel: Surviving an English-only hotel emergency, lost passport at the airport, asking for directions.
+    - Exam prep: IELTS Speaking Part 1 model answers, TOEFL vs IELTS, common writing mistakes.
 
-    Return ONLY a JSON object with highly engaging high-CTR 'topic' and 'search_keyword' keys.
-    Example: {{"topic": "Master Restaurant Ordering English | What Most Tourists Get Wrong | Ordering Disaster Story", "search_keyword": "English Conversation Practice restaurant ordering mistakes"}}
+    PREVIOUSLY PUBLISHED TOPICS (do not repeat these):
+    {avoid_instruction if avoid_instruction else "(none yet)"}
+
+    TITLE RULES (follow these exactly):
+    - Maximum 65 characters total. This is critical — YouTube truncates titles on mobile at ~60 chars.
+    - Use ONE of these proven title formulas (vary from what you see in the published list above):
+      A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
+      B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
+      C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
+      D. Direct comparison: "[A] vs [B]: What's the Real Difference?"
+      E. Curiosity gap: "The [X] Phrase Native Speakers Use Daily (You Don't)"
+      F. Personal angle: "What I Wish I Knew Before [X]"
+      G. Problem-solution: "Stop Saying [X] — Say This Instead"
+      H. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
+      I. Story-driven: "I [X] and Everything Went Wrong"
+      J. Challenge: "Can You Pass This [X] English Test?"
+    - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
+    - The title should make a viewer curious enough to click, NOT describe the content like a textbook heading
+    - Include one natural keyword variant (e.g., if about "restaurant" include "dining", "cafe", "food order")
+
+    Return ONLY a JSON object with these keys:
+    - "topic": a short 3-8 word label for the core subject (e.g., "Saying vs telling confusion" or "Job interview confidence phrases")
+    - "title": the full YouTube title following the rules above (max 65 chars)
+    - "search_keyword": 3-5 word SEO phrase (e.g., "English confusing words say tell difference")
+
+    Example output:
+    {{"topic": "Borrow vs lend confusion", "title": "Borrow vs Lend: You're Using One Wrong", "search_keyword": "English confusing words borrow lend"}}
     """
     try:
         res = call_groq_json(prompt)
-        return res.get("topic")
+        return res.get("title") or res.get("topic")
     except Exception as e:
-        print(f"  Error generating dynamic topic: {e}. Falling back to pool.")
-        # fallback_pool = WEEKLY_CHALLENGE_TOPIC_POOL if is_challenge else (COMMUNITY_POLL_POOL if topic_type == "post" else ENGLISH_TOPIC_POOL)
-        # return random.choice(fallback_pool)
-        return "English Conversation Practice For Everyday Situations"
+        print(f"  Error generating dynamic topic: {e}. Falling back to seed topic.")
+        return random.choice([
+            "Say vs Tell: Which One Are You Using Wrong?",
+            "How to Small Talk at a Western Workplace",
+            "Why Th Breaks Your English Accent",
+            "Calling in Sick to Work in English",
+            "Have Been vs Have Gone — The Difference Nobody Explains Right",
+            "Gen Z Slang That Changes Everything",
+            "Lost in a Foreign City With No Phone",
+            "How to Disagree With Your Boss in English",
+            "Surviving an English-Only Hotel Emergency",
+            "IELTS Speaking Part 1 How to Answer Describe Your Hometown",
+        ])
 
 
 def generate_thumbnail_text(topic: str, is_challenge: bool = False) -> dict:
@@ -1749,7 +1793,7 @@ TOPIC: {topic}
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
-- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Sets scenes, creates dramatic transitions, and handles intermediate language definitions.
+- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow (never pausing the story for a lesson), and guides transitions between beats.
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
 - "Guest" (Voice Profile: af_sky): Optional bystander, antagonist, or clerk. Speaks naturally based on the scene setting requirements.
 
@@ -1765,19 +1809,19 @@ CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
 2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
-4. INTEGRATED LESSON ENGINE: The Narrator must pause the scene exactly 2 to 3 times to explain expressions used naturally by characters. Explanations must be concise (1-2 sentences max) to avoid interrupting story momentum. Use natural phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Include brief usage context only when it adds immediate clarity. Provide maximum 1 alternative expression per explanation. Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology. The explanation should feel like natural story narration, not teaching moments. Narrator must remain in third-person storytelling mode, never lecture mode.
+4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow — the story NEVER stops for a lesson. After a character uses an idiom or phrasal verb, the Narrator's next line should feel like a natural continuation of the scene, not a classroom aside. For example: after Emma says "things got out of hand," the Narrator might say "And just like that, the situation Emma feared most was exactly what was happening." The explanation is embedded in the storytelling, not bolted onto it. Limit to 1-2 brief inline explanations maximum. Use natural phrasing — never meta-language like "phrasal verb breakdown", "phrase verb spotlight", "let me explain", or "here's what that means". The Narrator must remain in third-person storytelling mode at all times. If the Narrator feels like they're pausing the scene to teach, rewrite the line so the lesson flows as part of the story.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). Options: (A) Context-based expression selection from multiple choices, (B) Situation-based response selection, or (C) Meaningful fill-in-the-blank with an expression (not basic word like "see"). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario with options or blank, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
 
 STRUCTURAL MOVEMENT STAGES:
-- Stage 1: The Crisis Hook (In Media Res start, high stakes, emotional conflict with natural character reactions).
+- Stage 1: The Crisis Hook (In Media Res start with HIGH MOMENTUM. Opening dialogue turns should be SHORT — 1-2 sentences each — to create rapid back-and-forth cuts between characters. Drop the viewer into the middle of the action with emotional urgency, no slow buildup. The first 2-3 turns should feel like a trailer: punchy, fast, high-stakes.)
 - Stage 2: Narrative Complications (The obstacle worsens, characters react organically with authentic emotions, argue, or pivot strategies using natural expressions).
-- Stage 3: Organic Teaching Blocks (Narrator strategically breaks down expressions as they occur naturally in dialogue, keeping explanations concise and narratively integrated).
+- Stage 3: Organic Teaching Blocks (The Narrator's language explanations are woven seamlessly into scene transitions — the story never pauses. After a character uses an idiom, the Narrator's next line contextualizes it naturally as part of the ongoing narrative, keeping momentum and emotional tension alive.)
 - Stage 4: Climax & Challenge (The absolute peak of tension, followed by a meaningful expression challenge that tests real understanding).
-- Stage 5: Resolution & Seamless Engagement (The crisis resolves naturally. The Narrator smoothly redirects the viewer directly to the pinned comment question without generic intros/outros).
+- Stage 5: Resolution & Seamless Engagement (The crisis resolves naturally. The Narrator's final line should be a brief 1-line bridge — e.g. "Here's what we learned in today's story..." or "Let's remember the key phrases from this adventure..." — that transitions into a visual summary card showing the idioms covered. After the card, the Narrator redirects the viewer to the pinned comment question. No generic intros/outros, no "thanks for watching", no "like and subscribe".)
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
-  "title": "High-CTR Title matching METADATA RULES (must be under 100 characters - YouTube limit)",
+  "title": "High-CTR Title matching METADATA RULES (must be under 70 characters — YouTube truncates at ~60 on mobile)",
   "description": "String matching DESCRIPTION TEMPLATE exactly",
   "pinned_comment": "Narrative retention engagement question",
   "tags": [ "Tag1", "Tag2" ],
@@ -1926,7 +1970,7 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR, curiosity-based Short title under 70 characters, using benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases', or 'The Secret To...')",
+  "title": "string (High-CTR Short title under 70 chars. Use varied formulas: question, 'Stop Saying X', 'X vs Y', number list, mistake hook, curiosity gap. Rotate from what you used last time.)",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
