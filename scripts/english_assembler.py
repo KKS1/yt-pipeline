@@ -41,6 +41,8 @@ ENGLISH_TTS_SPEEDS = {
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
+FADE_DURATION = 0.5  # crossfade duration in _xfade_video_clip_pair, used to extend pause-ending scene clips
+
 
 def _pause_duration_seconds(text: str) -> float | None:
     match = PAUSE_CUE_RE.match(str(text or ""))
@@ -591,13 +593,20 @@ def resolve_idiom_timestamps(
     return resolved
 
 
-def scene_duration_from_turns(scene: dict, per_turn_times: list) -> float:
+def scene_duration_from_turns(scene: dict, per_turn_times: list, dialogue: list | None = None) -> float:
     """Compute scene duration from Kokoro audio turn timestamps."""
     if not per_turn_times:
         return 5.0
     start_turn = max(0, min(int(scene.get("start_turn", 0)), len(per_turn_times) - 1))
     end_turn = max(start_turn, min(int(scene.get("end_turn", start_turn)), len(per_turn_times) - 1))
     duration = max(0.5, per_turn_times[end_turn][1] - per_turn_times[start_turn][0])
+    # Extend scene by fade duration if it ends with a [PAUSE] turn, so the
+    # crossfade to the next scene happens after the silence ends.
+    if dialogue and end_turn < len(dialogue):
+        last_text = dialogue[end_turn].get("text", "")
+        if _pause_duration_seconds(last_text) is not None:
+            duration += FADE_DURATION
+            print(f"  [DEBUG] Extended pause-ending scene {scene.get('scene_id', '?')} by {FADE_DURATION:.1f}s")
     print(f"  [DEBUG] Scene {scene.get('scene_id', '?')}: start_turn={start_turn}, end_turn={end_turn}, duration={duration:.2f}s")
     return duration
 
@@ -720,6 +729,7 @@ def build_scene_visual_track(
     per_turn_times: list,
     *,
     portrait: bool = False,
+    dialogue: list | None = None,
 ) -> str:
     """Build crossfaded Ken Burns visual track timed to scene dialogue durations."""
     TEMP_DIR.mkdir(exist_ok=True)
@@ -728,7 +738,7 @@ def build_scene_visual_track(
 
     clip_paths: list[str] = []
     for idx, (scene, image_path) in enumerate(zip(scenes, scene_image_paths)):
-        duration = scene_duration_from_turns(scene, per_turn_times)
+        duration = scene_duration_from_turns(scene, per_turn_times, dialogue)
         clip_path = str(TEMP_DIR / f"english_scene_clip_{idx:03d}.mp4")
         print(f"  Scene {scene.get('scene_id', idx + 1)}: {duration:.1f}s — {Path(image_path).name}")
         _kenburns_image_to_video(
@@ -969,18 +979,30 @@ def assemble_english_scene_video(
         scene_image_paths,
         per_turn_times,
         portrait=portrait,
+        dialogue=dialogue,
     )
 
     visual_duration = get_audio_duration(visual_track)
     if abs(visual_duration - duration) > 0.25:
-        trimmed = str(TEMP_DIR / "english_scene_visual_trimmed.mp4")
-        subprocess.run([
-            FFMPEG, "-y", "-i", visual_track,
-            "-t", str(duration),
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-            "-an", trimmed, "-loglevel", "error",
-        ], check=True)
-        visual_track = trimmed
+        if visual_duration < duration:
+            padded = str(TEMP_DIR / "english_scene_visual_padded.mp4")
+            pad_secs = duration - visual_duration
+            subprocess.run([
+                FFMPEG, "-y", "-i", visual_track,
+                "-vf", f"tpad=stop_mode=clone:stop_duration={pad_secs}",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an", padded, "-loglevel", "error",
+            ], check=True)
+            visual_track = padded
+        else:
+            trimmed = str(TEMP_DIR / "english_scene_visual_trimmed.mp4")
+            subprocess.run([
+                FFMPEG, "-y", "-i", visual_track,
+                "-t", str(duration),
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an", trimmed, "-loglevel", "error",
+            ], check=True)
+            visual_track = trimmed
 
     if background_music and Path(background_music).exists():
         mixed_audio_path = str(TEMP_DIR / "english_mixed_audio.m4a")
