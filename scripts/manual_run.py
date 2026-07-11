@@ -2587,6 +2587,9 @@ def _upload_video(
 
     description = _description_with_playlist_url(description, command_channel or channel)
 
+    if channel.startswith("english") and "(B1-B2/ A1-A2)" not in title:
+        title = f"{title}(B1-B2/ A1-A2)"
+
     print("\nUploading to YouTube...")
     try:
         from youtube_uploader import youtube_upload
