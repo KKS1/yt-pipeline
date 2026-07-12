@@ -976,7 +976,7 @@ DIALOGUE TURNS (index: [Speaker] text):
 {turns_summary}
 
 CRITICAL RULES:
-1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair.
+1. Always maintain character consistency: Emma has brown hair in a neat ponytail. Liam has short blonde hair. Guest is always female.
 2. The style must ALWAYS be: "{style_suffix}"
 3. The background and character actions must match the literal words spoken in the dialogue text.
 4. Create {scene_count_range} scenes total for visual variety (roughly 1-2 dialogue turns per scene). NEVER exceed the total number of dialogue turns ({num_turns}).
@@ -1793,7 +1793,7 @@ TOPIC: {topic}
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow (never pausing the story for a lesson), and guides transitions between beats.
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
-- "Guest" (Voice Profile: bf_emma): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). Speaks naturally based on the scene setting requirements.
+- "Guest" (Voice Profile: bf_emma): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). ALWAYS female character. Speaks naturally based on the scene setting requirements.
 
 NATURAL EXPRESSION REQUIREMENTS:
 - Emma and Liam MUST use authentic, natural English expressions in their dialogue
