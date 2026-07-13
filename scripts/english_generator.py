@@ -274,6 +274,33 @@ def validate_podcast_script(raw_input):
         print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 40 and 65.")
         return script_data, False
 
+    # 2. VALIDATE THEME FIELD
+    theme = script_data.get("theme", "")
+    if not theme or len(theme.split()) < 2 or len(theme.split()) > 5:
+        print(f"❌ Theme Failure: Theme must be 2-5 words. Got: '{theme}'")
+        return script_data, False
+
+    # 3. VALIDATE 5-PART PODCAST STRUCTURE
+    # Check that dialogue contains the expected sections in reasonable order
+    first_speaker = dialogue[0].get("speaker", "") if dialogue else ""
+    last_speaker = dialogue[-1].get("speaker", "") if dialogue else ""
+    
+    # Story Hook should start with Caller (in media res), not hosts
+    if first_speaker not in ["Caller", "StoryActor1", "StoryActor2"]:
+        print(f"⚠️ Structure Warning: Podcast should start with Story Hook (Caller/StoryActor), not {first_speaker}. Current start may not be in media res.")
+    
+    # Should have hosts (Emma/Liam) present
+    host_turns = [t for t in dialogue if t.get("speaker") in ["Emma", "Liam"]]
+    if not host_turns:
+        print("❌ Structure Failure: No host (Emma/Liam) turns found in dialogue.")
+        return script_data, False
+    
+    # Should have Caller present
+    caller_turns = [t for t in dialogue if t.get("speaker") == "Caller"]
+    if not caller_turns:
+        print("❌ Structure Failure: No Caller turns found in dialogue.")
+        return script_data, False
+
     # Track structural validation targets
     has_pause = False
     has_hosts = False
@@ -355,6 +382,29 @@ def validate_podcast_script(raw_input):
         if len(roles) > 1:
             print(f"❌ Role Consistency Failure: Speaker {speaker} is switching between roles: {roles}")
             return script_data, False
+
+    # 4. VALIDATE VISUAL PROMPT CONTEXT ALIGNMENT
+    scenes = script_data.get("scenes", [])
+    if scenes:
+        # Extract story content from dialogue
+        story_text = " ".join([t.get("text", "") for t in dialogue if t.get("speaker") in ["Caller", "StoryActor1", "StoryActor2"]]).lower()
+        
+        # Generic location keywords that shouldn't appear unless story actually involves them
+        generic_locations = ["marketplace", "subway", "train station", "train platform", "bus stop", "airport terminal"]
+        
+        for scene in scenes:
+            visual_prompt = scene.get("visual_prompt", "").lower()
+            image_filename = scene.get("image_filename", "")
+            
+            # Skip host scenes
+            if image_filename == "podcast_host.png":
+                continue
+            
+            # Check if visual prompt uses generic locations not in story
+            for loc in generic_locations:
+                if loc in visual_prompt and loc not in story_text:
+                    print(f"⚠️ Visual Prompt Warning: Scene {scene.get('scene_id')} uses generic location '{loc}' not found in story content. Visual prompt: {visual_prompt[:100]}")
+                    # Don't fail validation, just warn
 
     print(f"✅ Podcast Script Verification Passed! Verified {turn_count} turns successfully.")
     return script_data, True
@@ -2281,68 +2331,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
 # ─── PODCAST PIPELINE ─────────────────────────────────────────────────────────
 
-def validate_podcast_script(raw_input):
-    """
-    Validation engine tailored for the English Vibes Podcast Prompt layout.
-    Accepts raw JSON text string or a Python dictionary object.
-    """
-    if isinstance(raw_input, dict):
-        script_data = raw_input
-    else:
-        try:
-            script_data = json.loads(raw_input)
-        except Exception as e:
-            print(f"❌ Structural Failure: Output is not valid parseable JSON. Error: {e}")
-            return raw_input, False
-
-    dialogue = script_data.get("dialogue", [])
-    turn_count = len(dialogue)
-
-    # Allow 30 to 65 turns for longer 5+ minute podcasts
-    if turn_count < 30 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 30 and 65.")
-        return script_data, False
-
-    has_pause = False
-    has_narrator = False
-    has_actors = False
-
-    for turn in dialogue:
-        turn_num = turn.get("turn_number")
-        speaker = turn.get("speaker")
-        text = turn.get("text", "")
-
-        if speaker == "Narrator":
-            has_narrator = True
-            # Narrator can speak in first-person when acting as caller/story character
-            # No third-person restriction for podcast format
-
-        if speaker in ["Emma", "Liam", "Guest"]:
-            has_actors = True
-            # Emma & Liam must stay in host persona (first-person, reactive, explanatory)
-            # They should not slip into third-person storytelling mode
-
-        # Capture the shifting pause marker
-        if "[PAUSE 3 SECONDS]" in text:
-            has_pause = True
-            # Check if pause marker is mixed with other text (invalid)
-            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
-                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
-                return script_data, False
-
-    if not has_narrator or not has_actors:
-        print("❌ Cast Failure: Script is missing either the Narrator or the host actors.")
-        return script_data, False
-
-    if not has_pause:
-        print("❌ Interactive Failure: Script did not include the [PAUSE 3 SECONDS] token.")
-        return script_data, False
-
-    print(f"✅ Podcast Script Verification Passed! Verified {turn_count} turns successfully.")
-    return script_data, True
-
-
-def generate_podcast_storyboard(script: dict) -> dict:
+def generate_podcast_storyboard(script: dict, topic: str = "") -> dict:
     """Post-dialogue Groq call: group dialogue into Pixar-style visual scenes with podcast host switching."""
     dialogue = script.get("dialogue", [])
     if not dialogue:
@@ -2357,8 +2346,10 @@ def generate_podcast_storyboard(script: dict) -> dict:
     theme = script.get("theme") or script.get("title", "English Lesson")
     num_turns = len(dialogue)
 
+    topic_context = f"\n\nTOPIC/STORY CONTEXT: {topic}" if topic else ""
+    
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
-Analyze the input script. Group the dialogue turns into sequence of scenes.
+Analyze the input script. Group the dialogue turns into sequence of scenes.{topic_context}
 
 The podcast follows this structure:
 1. Story Hook (In Media Res) - High-tension moment from caller's story
@@ -2373,7 +2364,7 @@ Story segments (Story Hook, Caller Story) should use unique Pixar-style scene im
 
 CRITICAL RULES:
 1. For host segments (Emma/Liam as radio hosts in studio), set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
-2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc.
+2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc. CRITICAL: The visual prompts MUST match the actual story content from the dialogue. If the story is about a board meeting, use office/meeting settings. If about travel, use travel settings. Do NOT use generic marketplace/train/subway prompts unless the story actually involves those settings.
 3. The style must ALWAYS be: "{style_suffix}" for story scenes.
 4. Create 10-15 scenes total with appropriate labels: "Story Hook", "Radio Studio Intro", "Caller Story", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
 5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
@@ -2511,7 +2502,7 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
 
     # Post-process description and attach custom storyboard
-    script = generate_podcast_storyboard(script)
+    script = generate_podcast_storyboard(script, topic=topic)
     theme = script.get("theme") or script.get("title", "")
     if script.get("description"):
         script["description"] = finalize_english_description(
