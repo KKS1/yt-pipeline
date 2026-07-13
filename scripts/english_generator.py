@@ -314,7 +314,7 @@ def validate_podcast_script(raw_input):
             if not ("I " in text or "my " in text.lower() or "me " in text.lower()):
                 print(f"⚠️ Warning: Caller might not be speaking in first-person at turn {turn_num}")
 
-        if speaker in ["StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male"]:
+        if speaker in ["StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
             has_story_actors = True
             # Normalize to base role for tracking
             base_role = "StoryActor1" if speaker.startswith("StoryActor1") else "StoryActor2"
@@ -324,7 +324,7 @@ def validate_podcast_script(raw_input):
                 print(f"⚠️ Warning: Story actor {speaker} might not be speaking in first-person at turn {turn_num}")
 
         # Check for third-person slip-ups (invalid for character-driven format)
-        if speaker in ["Caller", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male"]:
+        if speaker in ["Caller", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
             if text.startswith("He ran") or text.startswith("She said") or text.startswith("They went"):
                 print(f"❌ Perspective Failure: Character {speaker} is speaking in third-person at turn {turn_num}.")
                 return script_data, False
@@ -2455,11 +2455,11 @@ This is a radio show podcast format structured to maximize CTR and AVD:
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
 - "Caller" (Voice Profile: af_bella): First-person storyteller who calls in with a personal story. Speaks in first-person describing their experience.
-- "StoryActor1" (Voice Profile: am_adam): Male character within the caller's story (e.g., male friend, boss, waiter). Speaks in first-person as their character. If you need a female character in this role, use "StoryActor1_Female" instead.
-- "StoryActor2" (Voice Profile: af_sarah): Female character within the caller's story (e.g., female friend, coworker, stranger). Speaks in first-person as their character. If you need a male character in this role, use "StoryActor2_Male" instead.
+- "StoryActor1" (Voice Profile: am_adam): Default male character within the caller's story. Use "StoryActor1_Female" (af_bella) for female characters. If both StoryActor1 and StoryActor2 are male, use "StoryActor1_AltMale" (am_echo) to ensure distinct voices.
+- "StoryActor2" (Voice Profile: af_sarah): Default female character within the caller's story. Use "StoryActor2_Male" (am_michael) for male characters. If both StoryActor1 and StoryActor2 are female, use "StoryActor2_AltFemale" (af_heart) to ensure distinct voices.
 - "Guest" (Voice Profile: bf_emma): Optional additional story character. Always female character. Speaks naturally based on the scene context.
 
-IMPORTANT: Match character gender to voice profile. If StoryActor1 is female in your story, use "StoryActor1_Female". If StoryActor2 is male, use "StoryActor2_Male". This ensures voice-visual consistency.
+CRITICAL: Always ensure StoryActor1 and StoryActor2 have DISTINCT voices. If they are the same gender, use the Alt variants to prevent voice overlap. This ensures listeners can distinguish between characters.
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
