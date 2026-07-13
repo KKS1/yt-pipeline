@@ -1450,8 +1450,8 @@ def assemble_english_podcast_video(
 
     # Build the filter complex for audiogram (showwaves) + subtitles + progress bar
     filter_parts = [
-        f"[1:a]showwaves=s=1920x150:mode=line:colors=0x66B2FF:scale=sqrt:r={VIDEO_FPS}[wave]",
-        f"[0:v][wave]overlay=x=0:y=200[bgwave]"
+        f"[1:a]showwaves=s=800x150:mode=line:colors=0x66B2FF:scale=sqrt:r={VIDEO_FPS}[wave]",
+        f"[0:v][wave]overlay=x=(W-800)/2:y=200[bgwave]"
     ]
     current_v = "[bgwave]"
     if has_ass:

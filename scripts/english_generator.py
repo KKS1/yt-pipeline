@@ -2206,9 +2206,13 @@ def validate_podcast_script(raw_input):
 
         if speaker == "Narrator":
             has_narrator = True
+            # Narrator can speak in first-person when acting as caller/story character
+            # No third-person restriction for podcast format
 
         if speaker in ["Emma", "Liam", "Guest"]:
             has_actors = True
+            # Emma & Liam must stay in host persona (first-person, reactive, explanatory)
+            # They should not slip into third-person storytelling mode
 
         # Capture the shifting pause marker
         if "[PAUSE 3 SECONDS]" in text:
@@ -2219,7 +2223,7 @@ def validate_podcast_script(raw_input):
                 return script_data, False
 
     if not has_narrator or not has_actors:
-        print("❌ Cast Failure: Script is missing either the Narrator or the Protag actors.")
+        print("❌ Cast Failure: Script is missing either the Narrator or the host actors.")
         return script_data, False
 
     if not has_pause:
@@ -2248,16 +2252,23 @@ def generate_podcast_storyboard(script: dict) -> dict:
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
 Analyze the input script. Group the dialogue turns into sequence of scenes.
 
-Emma and Liam are the hosts, sitting in a radio station recording the podcast.
-Some turns represent them talking as hosts (e.g., introducing the show, explaining idioms/expressions to the audience, giving the quiz, wrapping up).
-Other turns represent the dramatized story/discussion (e.g., Emma and Liam acting out a scenario or story).
+The podcast follows this structure:
+1. Story Hook (In Media Res) - High-tension moment from caller's story
+2. Radio Studio Intro - Emma & Liam welcome listeners and introduce caller
+3. Caller Story - Caller describes their incident in detail
+4. Host Analysis - Emma & Liam react and explain correct English usage
+5. Quiz & Wrap-up - Interactive challenge and episode conclusion
+
+Emma and Liam are radio show hosts sitting in a modern radio station.
+Host segments (Radio Studio Intro, Host Analysis, Quiz & Wrap-up) should use the podcast_host.png image.
+Story segments (Story Hook, Caller Story) should use unique Pixar-style scene images.
 
 CRITICAL RULES:
-1. For all scenes representing host segments (Emma/Liam talking as podcast hosts in the studio), you MUST set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
-2. For scenes representing the dramatized storytelling/scenario, generate unique, highly descriptive Pixar-style prompts, and set filename to something like "scene_2_cafe_discussion.png" etc.
+1. For host segments (Emma/Liam as radio hosts in studio), set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
+2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc.
 3. The style must ALWAYS be: "{style_suffix}" for story scenes.
-4. Create 6-10 scenes total. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
-5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the Narrator begins the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
+4. Create 6-10 scenes total with appropriate labels: "Story Hook", "Radio Studio Intro", "Caller Story", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}.
+5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
 
 Output ONLY valid JSON with this schema:
 {{
@@ -2326,16 +2337,17 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-This is a hybrid podcast format structured to maximize CTR and AVD:
-1. **Intro (Radio Station)**: Emma and Liam (hosts) greet the audience from the radio station and introduce the theme. They then introduce a caller/storyteller (Guest or Narrator acting as the caller).
-2. **The Mystery/Story (Immersive Scene)**: Visuals switch to Ken Burns scene images while the caller speaks/describes the events. Emma and Liam also speak/interact inside this storytelling scene (e.g., as part of the drama or the caller's story context).
-3. **The Break (Radio Station)**: Cut back to the studio where Emma and Liam (as hosts) discuss their reactions to the story so far. This breaks the story into manageable chunks.
-4. **The Reveal & Recap (Radio Station)**: The story concludes, and Emma and Liam explain the key vocabulary/idioms used. They present the interactive quiz challenge, and wrap up.
+This is a radio show podcast format structured to maximize CTR and AVD:
+1. **Story Hook (In Media Res)**: Start with a high-tension moment from the middle of a story - Narrator or Guest acts as a story character in first-person describing a crisis or incident.
+2. **Radio Studio Intro**: Emma and Liam (hosts) welcome listeners to the English Vibes Podcast radio station, then introduce a caller who has a story to share.
+3. **Caller Story**: The caller (Narrator or Guest) rings in and tells their incident story in detail, describing what happened, the mistake they made, or the confusion they experienced.
+4. **Host Analysis**: Emma and Liam react to the caller's story, explain what went wrong, teach the correct English usage, idioms, and phrasal verbs. They provide clear explanations and examples.
+5. **Quiz & Wrap-up**: Present an interactive quiz challenge to test understanding, then wrap up the episode.
 
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
-- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow, and guides transitions between beats.
-- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters/hosts. They speak in the first-person ("I", "my", "we").
-- "Guest" (Voice Profile: bf_emma): A secondary character / the caller in the story segment. Always female character.
+- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
+- "Narrator" (Voice Profile: af_bella): Can act as the caller/story character. When acting as caller, speaks in first-person describing their experience. Can also provide brief third-person scene transitions if needed.
+- "Guest" (Voice Profile: bf_emma): Additional story character (e.g., someone in the caller's story). Always female character. Speaks naturally based on the scene context.
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
