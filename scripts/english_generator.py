@@ -252,6 +252,114 @@ def validate_organic_english_script(raw_input):
     return script_data, True
 
 
+def validate_podcast_script(raw_input):
+    """
+    Validation engine for English podcast format (character-driven, no Narrator).
+    Accepts raw JSON text string or a Python dictionary object.
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"❌ Structural Failure: Output is not valid parseable JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 40 to 65 range for podcast format)
+    if turn_count < 40 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 40 and 65.")
+        return script_data, False
+
+    # Track structural validation targets
+    has_pause = False
+    has_hosts = False
+    has_caller = False
+    has_story_actors = False
+    has_narrator = False
+
+    # Track speaker roles to detect role switching
+    speaker_roles = {}
+
+    for turn in dialogue:
+        turn_num = turn.get("turn_number")
+        speaker = turn.get("speaker")
+        text = turn.get("text", "")
+
+        # Track what roles each speaker takes
+        if speaker not in speaker_roles:
+            speaker_roles[speaker] = set()
+        
+        # Check for Narrator presence (not allowed in podcast format)
+        if speaker == "Narrator":
+            has_narrator = True
+            print(f"❌ Persona Failure: Narrator is not allowed in podcast format at turn {turn_num}. Use Caller instead.")
+            return script_data, False
+        
+        if speaker == "Emma" or speaker == "Liam":
+            has_hosts = True
+            speaker_roles[speaker].add("host")
+            # Hosts should not break into story dialogue
+            if "I was at" in text or "I said to" in text:
+                print(f"❌ Persona Failure: Host {speaker} slipped into first-person story dialogue at turn {turn_num}.")
+                return script_data, False
+
+        if speaker == "Caller":
+            has_caller = True
+            speaker_roles[speaker].add("caller")
+            # Caller should speak in first person (this is expected)
+            if not ("I " in text or "my " in text.lower() or "me " in text.lower()):
+                print(f"⚠️ Warning: Caller might not be speaking in first-person at turn {turn_num}")
+
+        if speaker in ["StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male"]:
+            has_story_actors = True
+            # Normalize to base role for tracking
+            base_role = "StoryActor1" if speaker.startswith("StoryActor1") else "StoryActor2"
+            speaker_roles[speaker].add("story_actor")
+            # Story actors should speak in first person as their characters
+            if not ("I " in text or "my " in text.lower() or "me " in text.lower()):
+                print(f"⚠️ Warning: Story actor {speaker} might not be speaking in first-person at turn {turn_num}")
+
+        # Check for third-person slip-ups (invalid for character-driven format)
+        if speaker in ["Caller", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male"]:
+            if text.startswith("He ran") or text.startswith("She said") or text.startswith("They went"):
+                print(f"❌ Perspective Failure: Character {speaker} is speaking in third-person at turn {turn_num}.")
+                return script_data, False
+
+        # 4. CAPTURE THE SHIFTING PAUSE MARKER
+        if "[PAUSE 3 SECONDS]" in text:
+            has_pause = True
+            # Check if pause marker is mixed with other text (invalid)
+            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
+                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
+                return script_data, False
+
+    # Final logic balance check
+    if not has_hosts:
+        print("❌ Cast Failure: Script is missing podcast hosts (Emma/Liam).")
+        return script_data, False
+
+    if not has_caller:
+        print("❌ Cast Failure: Script is missing Caller character.")
+        return script_data, False
+
+    if not has_pause:
+        print("❌ Interactive Failure: Script did not include the [PAUSE 3 SECONDS] token.")
+        return script_data, False
+
+    # Check for role switching (same speaker taking multiple incompatible roles)
+    for speaker, roles in speaker_roles.items():
+        if len(roles) > 1:
+            print(f"❌ Role Consistency Failure: Speaker {speaker} is switching between roles: {roles}")
+            return script_data, False
+
+    print(f"✅ Podcast Script Verification Passed! Verified {turn_count} turns successfully.")
+    return script_data, True
+
+
 def ensure_english_seo_opener(description: str, theme: str = "") -> str:
     """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic."""
     text = str(description or "").strip()
@@ -2338,23 +2446,27 @@ TOPIC: {topic}
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
 This is a radio show podcast format structured to maximize CTR and AVD:
-1. **Story Hook (In Media Res)**: Start with a high-tension moment from the middle of a story - Narrator or Guest acts as a story character in first-person describing a crisis or incident.
+1. **Story Hook (In Media Res)**: Start with a high-tension moment from the middle of a story - Caller acts as a story character in first-person describing a crisis or incident.
 2. **Radio Studio Intro**: Emma and Liam (hosts) welcome listeners to the English Vibes Podcast radio station, then introduce a caller who has a story to share.
-3. **Caller Story**: The caller (Narrator or Guest) rings in and tells their incident story in detail, describing what happened, the mistake they made, or the confusion they experienced.
+3. **Caller Story**: The caller rings in and tells their incident story in detail, describing what happened, the mistake they made, or the confusion they experienced. The story should be acted out through dialogue between Caller and StoryActor1/StoryActor2 (characters within the story).
 4. **Host Analysis**: Emma and Liam react to the caller's story, explain what went wrong, teach the correct English usage, idioms, and phrasal verbs. They provide clear explanations and examples.
 5. **Quiz & Wrap-up**: Present an interactive quiz challenge to test understanding, then wrap up the episode.
 
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
-- "Narrator" (Voice Profile: af_bella): Can act as the caller/story character. When acting as caller, speaks in first-person describing their experience. Can also provide brief third-person scene transitions if needed.
-- "Guest" (Voice Profile: bf_emma): Additional story character (e.g., someone in the caller's story). Always female character. Speaks naturally based on the scene context.
+- "Caller" (Voice Profile: af_bella): First-person storyteller who calls in with a personal story. Speaks in first-person describing their experience.
+- "StoryActor1" (Voice Profile: am_adam): Male character within the caller's story (e.g., male friend, boss, waiter). Speaks in first-person as their character. If you need a female character in this role, use "StoryActor1_Female" instead.
+- "StoryActor2" (Voice Profile: af_sarah): Female character within the caller's story (e.g., female friend, coworker, stranger). Speaks in first-person as their character. If you need a male character in this role, use "StoryActor2_Male" instead.
+- "Guest" (Voice Profile: bf_emma): Optional additional story character. Always female character. Speaks naturally based on the scene context.
+
+IMPORTANT: Match character gender to voice profile. If StoryActor1 is female in your story, use "StoryActor1_Female". If StoryActor2 is male, use "StoryActor2_Male". This ensures voice-visual consistency.
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
 2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 40 and 65 turns to ensure 5+ minute runtime.
-3. PERSPECTIVE GUARD: Emma and Liam must stay inside the conversation.
-4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow.
-5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the climax. The sequence must be: (1) Narrator cues the challenge, (2) Option A/B/C turns, (3) Narrator "[PAUSE 3 SECONDS]" turn, (4) Narrator explains correct answer.
+3. PERSPECTIVE GUARD: Emma and Liam must stay in host role and not break into story dialogue. Caller and StoryActors speak in first-person as their characters.
+4. CHARACTER-DRIVEN STORYTELLING: Stories should be acted out through dialogue between Caller and StoryActor1/StoryActor2, not narrated.
+5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the climax. The sequence must be: (1) Host cues the challenge, (2) Option A/B/C turns, (3) Host "[PAUSE 3 SECONDS]" turn, (4) Host explains correct answer.
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
