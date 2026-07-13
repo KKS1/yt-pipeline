@@ -2232,18 +2232,16 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-This is a podcast format:
-- Emma and Liam are the podcast hosts. They speak from their modern radio station.
-- They will start the podcast by greeting the audience and introducing the topic.
-- They then transition into a dramatized story/scenario (the story segment) to illustrate the expressions/idioms.
-- After the dramatized story, they discuss the expressions they used, explaining them for intermediate learners.
-- They present a quick interactive quiz challenge.
-- Finally, they wrap up the podcast.
+This is a hybrid podcast format structured to maximize CTR and AVD:
+1. **Intro (Radio Station)**: Emma and Liam (hosts) greet the audience from the radio station and introduce the theme. They then introduce a caller/storyteller (Guest or Narrator acting as the caller).
+2. **The Mystery/Story (Immersive Scene)**: Visuals switch to Ken Burns scene images while the caller speaks/describes the events. Emma and Liam also speak/interact inside this storytelling scene (e.g., as part of the drama or the caller's story context).
+3. **The Break (Radio Station)**: Cut back to the studio where Emma and Liam (as hosts) discuss their reactions to the story so far. This breaks the story into manageable chunks.
+4. **The Reveal & Recap (Radio Station)**: The story concludes, and Emma and Liam explain the key vocabulary/idioms used. They present the interactive quiz challenge, and wrap up.
 
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow, and guides transitions between beats.
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters/hosts. They speak in the first-person ("I", "my", "we").
-- "Guest" (Voice Profile: bf_emma): A secondary character in the story segment. Always female character.
+- "Guest" (Voice Profile: bf_emma): A secondary character / the caller in the story segment. Always female character.
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
