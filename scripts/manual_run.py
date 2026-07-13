@@ -77,6 +77,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_URLS = {
     "english": "https://www.youtube.com/playlist?list=PLQcVuzsH3e2I",
     "english-shorts": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd",
     "english-quiz": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD",
+    "english-podcast": "https://www.youtube.com/playlist?list=PLQcVuzsH3e2I",
 }
 
 ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
@@ -859,11 +860,20 @@ def _inject_scene_timeline(script: dict, per_turn_times: list) -> dict:
 
 
 def _resolve_script_scene_images(script: dict, scenes_folder: str) -> list[str] | None:
+    import shutil
     scenes = script.get("scenes", [])
     if not scenes or not scenes_folder:
         return None
     try:
         scenes_dir = scenes_assets_dir(PROJECT_ROOT, scenes_folder)
+        for scene in scenes:
+            if scene.get("image_filename") == "podcast_host.png":
+                host_src = PROJECT_ROOT / "assets" / "podcast_host.png"
+                host_dst = scenes_dir / "podcast_host.png"
+                if host_src.exists() and not host_dst.exists():
+                    scenes_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(host_src, host_dst)
+                    print(f"  Copied {host_src} to {host_dst} for host segments.")
         return [str(p) for p in resolve_scene_image_paths(scenes_dir, scenes)]
     except FileNotFoundError:
         return None
@@ -939,7 +949,23 @@ def _assemble_english_video_from_script(
     scene_images = _resolve_script_scene_images(script, scenes_folder)
     out_path = str(OUTPUT_DIR / f"{out_slug}.mp4")
 
-    if portrait:
+    if channel == "english-podcast":
+        from english_assembler import assemble_english_podcast_video
+        assemble_english_podcast_video(
+            podcast_audio=audio_path,
+            scenes=script.get("scenes", []),
+            scene_image_paths=scene_images,
+            output_path=out_path,
+            per_turn_times=per_turn_times,
+            captions_srt=srt_path,
+            ass_captions=ass_path,
+            background_music=bg_music_str,
+            title=script.get("title", ""),
+            channel=channel,
+            idiom_windows=script.get("idiom_windows"),
+            dialogue=script.get("dialogue", []),
+        )
+    elif portrait:
         if scene_images:
             assemble_english_scene_video(
                 podcast_audio=audio_path,
@@ -1050,6 +1076,54 @@ def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notif
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_{slug(title)}.manifest.json"
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    _print_scene_manifest_next_steps(manifest_path, manifest)
+    print(f"{'=' * 50}\n")
+
+
+def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+    """Phase 1 for English Vibes Podcast: generate script, write manifest, exit."""
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_english_podcast_script
+
+    print("\n" + "=" * 50)
+    print("ENGLISH PODCAST — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating script with Groq...\n")
+        script = generate_english_podcast_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english-podcast",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_podcast.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    title = script.get("title", topic or "English Podcast")
+    entry = _build_manifest_entry(
+        script,
+        label="English Podcast",
+        script_path=script_path,
+        orientation="landscape",
+        legacy_assets_folder="english_visuals",
+        legacy_visuals=legacy_visuals,
+    )
+    manifest = VisualManifest(
+        pipeline="english-podcast",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_podcast_{slug(title)}.manifest.json"
     _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
@@ -1377,7 +1451,7 @@ def run_resume_from_manifest(manifest_path_str: str):
             tts_speed,
             scenes_folder=entry.scenes_folder,
             portrait=is_shorts,
-            channel="english",
+            channel=pipeline,
         )
 
         # Persist updated description with scene timeline back to script file
@@ -1415,6 +1489,7 @@ MANIFEST_ONLY_ROUTER = {
     "english-quiz": run_manifest_only_quiz_shorts,
     "english-challenge": run_manifest_only_challenge,
     "english-challenge-shorts": run_manifest_only_challenge_shorts,
+    "english-podcast": run_manifest_only_english_podcast,
 }
 
 
@@ -1508,6 +1583,108 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
                 )
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
+
+        save_published_topic(title, topic_type="podcast")
+        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
+    else:
+        print(f"\nVideo assembled without upload: {out_path}")
+
+    print("\nDone!\n")
+
+
+def run_english_podcast(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_english_podcast_script, save_published_topic
+
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES PODCAST — Generator")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+
+        print("\nGenerating script with Groq...\n")
+        script = generate_english_podcast_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""),
+            "english-podcast",
+        )
+
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_podcast.json"
+        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
+
+        print(f"\nGenerated:\n  Title: {script.get('title')}")
+
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+    title = script["title"]
+    out_slug = slug(title)
+
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English podcast",
+        script=script,
+        subfolder="english_visuals",
+        fallback_topic=topic or title,
+    )
+    out_path = _assemble_english_video_from_script(
+        script,
+        out_slug,
+        selected_visuals,
+        bg_music_str,
+        tts_speed=ENGLISH_LONG_TTS_SPEED,
+        scenes_folder=_scenes_folder_for_script(script, out_slug),
+        portrait=False,
+        channel="english-podcast",
+    )
+
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English slot: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        notify_subscribers = True
+
+    if upload:
+        print("\nUploading video...\n")
+        result = _upload_video(
+            out_path,
+            title,
+            script.get("description", ""),
+            script.get("tags", []),
+            channel="english",
+            schedule_time=schedule_time,
+            thumbnail_text=script.get("thumbnail_text", title),
+            pinned_comment=script.get("pinned_comment"),
+            thumbnail_concept=script.get("thumbnail_concept", None),
+            notify_subscribers=notify_subscribers,
+            command_channel="english-podcast",
+            slot=slot_name
+        )
+
+        video_id = (result or {}).get("youtube_id")
+        if video_id:
+            try:
+                from youtube_uploader import add_video_to_playlist
+                add_video_to_playlist(
+                    video_id=video_id,
+                    playlist_id=ENGLISH_DESCRIPTION_PLAYLIST_IDS["english-podcast"],
+                    channel="english",
+                )
+            except Exception as e:
+                print(f"  Could not add to playlist: {e}")
 
         save_published_topic(title, topic_type="podcast")
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
@@ -2700,7 +2877,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -2852,7 +3029,8 @@ def main():
         print("  7. english-quiz      — English Quiz Short")
         print("  8. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
         print("  9. english-community — English Community Tab Quizzes & Polls")
-        choice = prompt_input("Enter 1-9", "9")
+        print("  10. english-podcast  — English Vibes Podcast with host switcher and audiogram")
+        choice = prompt_input("Enter 1-10", "10")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -2862,7 +3040,8 @@ def main():
             "6": "english-shorts",
             "7": "english-quiz",
             "8": "english-challenge-shorts",
-            "9": "english-community"
+            "9": "english-community",
+            "10": "english-podcast"
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -2871,6 +3050,14 @@ def main():
         run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
         run_english(
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+        )
+    elif args.channel == "english-podcast":
+        run_english_podcast(
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,

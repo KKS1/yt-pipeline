@@ -2079,3 +2079,228 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     script_data = update_pinned_comment_with_channel_cta(script_data)
 
     return attach_storyboard_to_script(script_data, portrait=True)
+
+
+# ─── PODCAST PIPELINE ─────────────────────────────────────────────────────────
+
+def validate_podcast_script(raw_input):
+    """
+    Validation engine tailored for the English Vibes Podcast Prompt layout.
+    Accepts raw JSON text string or a Python dictionary object.
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"❌ Structural Failure: Output is not valid parseable JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    # Allow 14 to 28 turns for podcasts
+    if turn_count < 14 or turn_count > 28:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 28.")
+        return script_data, False
+
+    has_pause = False
+    has_narrator = False
+    has_actors = False
+
+    for turn in dialogue:
+        turn_num = turn.get("turn_number")
+        speaker = turn.get("speaker")
+        text = turn.get("text", "")
+
+        if speaker == "Narrator":
+            has_narrator = True
+
+        if speaker in ["Emma", "Liam", "Guest"]:
+            has_actors = True
+
+        # Capture the shifting pause marker
+        if "[PAUSE 3 SECONDS]" in text:
+            has_pause = True
+
+    if not has_narrator or not has_actors:
+        print("❌ Cast Failure: Script is missing either the Narrator or the Protag actors.")
+        return script_data, False
+
+    if not has_pause:
+        print("❌ Interactive Failure: Script did not include the [PAUSE 3 SECONDS] token.")
+        return script_data, False
+
+    print(f"✅ Podcast Script Verification Passed! Verified {turn_count} turns successfully.")
+    return script_data, True
+
+
+def generate_podcast_storyboard(script: dict) -> dict:
+    """Post-dialogue Groq call: group dialogue into Pixar-style visual scenes with podcast host switching."""
+    dialogue = script.get("dialogue", [])
+    if not dialogue:
+        script.setdefault("scenes", [])
+        return script
+
+    turns_summary = "\n".join(
+        f"{i}: [{line.get('speaker', '?')}] {line.get('text', '')[:150]}"
+        for i, line in enumerate(dialogue[:120])
+    )
+    style_suffix = ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
+    theme = script.get("theme") or script.get("title", "English Lesson")
+    num_turns = len(dialogue)
+
+    prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
+Analyze the input script. Group the dialogue turns into sequence of scenes.
+
+Emma and Liam are the hosts, sitting in a radio station recording the podcast.
+Some turns represent them talking as hosts (e.g., introducing the show, explaining idioms/expressions to the audience, giving the quiz, wrapping up).
+Other turns represent the dramatized story/discussion (e.g., Emma and Liam acting out a scenario or story).
+
+CRITICAL RULES:
+1. For all scenes representing host segments (Emma/Liam talking as podcast hosts in the studio), you MUST set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
+2. For scenes representing the dramatized storytelling/scenario, generate unique, highly descriptive Pixar-style prompts, and set filename to something like "scene_2_cafe_discussion.png" etc.
+3. The style must ALWAYS be: "{style_suffix}" for story scenes.
+4. Create 6-10 scenes total. Ensure the scenes sequentially cover all turns from 0 to {num_turns - 1}.
+5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the Narrator begins the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
+
+Output ONLY valid JSON with this schema:
+{{
+  "theme": "string",
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "string (short chapter label for YouTube timeline)",
+      "image_filename": "podcast_host.png",
+      "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style.",
+      "start_turn": 0,
+      "end_turn": 2
+    }}
+  ]
+}}
+"""
+    try:
+        res = call_groq_json(prompt)
+        scenes = res.get("scenes", [])
+        if not isinstance(scenes, list):
+            scenes = []
+        for scene in scenes:
+            if scene.get("image_filename") == "podcast_host.png":
+                continue
+            vp = str(scene.get("visual_prompt", "")).strip()
+            # Remove any narrator, caption, or text references
+            vp = re.sub(r"\bnarrator'?s?\b[^,.]*", '', vp, flags=re.IGNORECASE)
+            vp = re.sub(r'\s+,', ',', vp)
+            vp = re.sub(r'\s{2,}', ' ', vp)
+            vp = re.sub(r',\s*\.', '.', vp)
+            vp = vp.strip()
+            if vp and style_suffix.lower() not in vp.lower():
+                scene["visual_prompt"] = f"{vp.rstrip('.')} {style_suffix}"
+            elif vp:
+                scene["visual_prompt"] = vp
+        script["theme"] = res.get("theme") or theme
+        script["scenes"] = align_scenes_to_turns(scenes, dialogue)
+        print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")
+    except Exception as exc:
+        print(f"  Storyboard generation skipped (Groq error): {exc}")
+        script.setdefault("scenes", [])
+    return script
+
+
+def generate_english_podcast_script(topic=None):
+    """Generate a podcast script with Emma & Liam as hosts and dynamic scenes."""
+    if not topic:
+        topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
+    else:
+        if is_already_published(topic, "podcast"):
+            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'podcast' history.")
+
+    topics_data = get_published_topics()
+    recent = topics_data.get("podcast", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating examples, idioms, or stories used in these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+
+    print(f"\nSelected topic: {topic}")
+    print("Generating podcast storytelling script...")
+
+    prompt = f"""
+You are an elite showrunner and scriptwriter for the multi-character storytelling channel EnglishVibesHub (@EnglishVibesHub-s6w).
+Write a highly engaging English audio-story script for the "English Vibes Podcast" series.
+
+TOPIC: {topic}
+{avoid_instruction}
+
+{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
+
+This is a podcast format:
+- Emma and Liam are the podcast hosts. They speak from their modern radio station.
+- They will start the podcast by greeting the audience and introducing the topic.
+- They then transition into a dramatized story/scenario (the story segment) to illustrate the expressions/idioms.
+- After the dramatized story, they discuss the expressions they used, explaining them for intermediate learners.
+- They present a quick interactive quiz challenge.
+- Finally, they wrap up the podcast.
+
+VOICE CAST & CHARACTER ASSIGNMENT ROLES:
+- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow, and guides transitions between beats.
+- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters/hosts. They speak in the first-person ("I", "my", "we").
+- "Guest" (Voice Profile: bf_emma): A secondary character in the story segment. Always female character.
+
+CRITICAL PIPELINE VALIDATION RULES:
+1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 16 and 26 turns.
+3. PERSPECTIVE GUARD: Emma and Liam must stay inside the conversation.
+4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow.
+5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the climax. The sequence must be: (1) Narrator cues the challenge, (2) Option A/B/C turns, (3) Narrator "[PAUSE 3 SECONDS]" turn, (4) Narrator explains correct answer.
+
+JSON OUTPUT FORMAT (Follow this structure exactly):
+{{
+  "title": "High-CTR Title under 70 characters",
+  "description": "String matching DESCRIPTION TEMPLATE exactly",
+  "pinned_comment": "Narrative retention engagement question",
+  "tags": [ "Tag1", "Tag2" ],
+  "dialogue": [
+    {{
+      "turn_number": 1,
+      "speaker": "Emma",
+      "text": "Welcome to the English Vibes Podcast! I'm Emma."
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "Liam",
+      "text": "And I'm Liam. Today, we're talking about [Topic]..."
+    }}
+  ],
+  "thumbnail_text": "TEXT",
+  "thumbnail_concept": "CONCEPT",
+  "theme": "Short 2-5 word label"
+}}
+"""
+    is_valid = False
+    attempts = 0
+
+    while not is_valid and attempts < 3:
+        attempts += 1
+        print(f"🔄 Generation Attempt {attempts}...")
+
+        raw_script = call_groq_json(prompt)
+        script, is_valid = validate_podcast_script(raw_script)
+
+    if not is_valid:
+        print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
+
+    thumbnail = generate_thumbnail_text(topic, is_challenge=False)
+    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
+    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
+
+    # Post-process description and attach custom storyboard
+    script = generate_podcast_storyboard(script)
+    theme = script.get("theme") or script.get("title", "")
+    if script.get("description"):
+        script["description"] = finalize_english_description(
+            script["description"],
+            include_timeline=False,
+            is_quiz=False,
+            theme=theme,
+        )
+    return script
+
