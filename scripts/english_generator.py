@@ -1985,6 +1985,7 @@ JSON SCHEMA:
   "video_format": "shorts",
   "dialogue": [
     {{
+      "turn_number": 0,
       "speaker": "Emma or Liam",
       "text": "string (the spoken text)"
     }}
@@ -2063,8 +2064,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
       "theme": "string (short topic label for storyboard, e.g. 'Idiom Quiz - Break a Leg')",
       "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
       "dialogue": [
-        {{ "speaker": "Emma", "text": "..." }},
-        {{ "speaker": "Liam", "text": "..." }}
+        {{ "turn_number": 0, "speaker": "Emma", "text": "..." }},
+        {{ "turn_number": 1, "speaker": "Liam", "text": "..." }}
       ]
     }}
     """
