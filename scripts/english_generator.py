@@ -2100,9 +2100,9 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # Allow 14 to 28 turns for podcasts
-    if turn_count < 14 or turn_count > 28:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 28.")
+    # Allow 30 to 65 turns for longer 5+ minute podcasts
+    if turn_count < 30 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 30 and 65.")
         return script_data, False
 
     has_pause = False
