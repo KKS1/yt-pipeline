@@ -2468,11 +2468,26 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
   "dialogue": [
     {{
       "turn_number": 1,
+      "speaker": "Caller",
+      "text": "I couldn't believe what just happened in the meeting..."
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "StoryActor1",
+      "text": "What did you say?"
+    }},
+    {{
+      "turn_number": 3,
+      "speaker": "Caller",
+      "text": "I blurted out the wrong phrase and everyone froze."
+    }},
+    {{
+      "turn_number": 4,
       "speaker": "Emma",
       "text": "Welcome to the English Vibes Podcast! I'm Emma."
     }},
     {{
-      "turn_number": 2,
+      "turn_number": 5,
       "speaker": "Liam",
       "text": "And I'm Liam. Today, we're talking about [Topic]..."
     }}
@@ -2481,6 +2496,8 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
   "thumbnail_concept": "CONCEPT",
   "theme": "Short 2-5 word label"
 }}
+
+CRITICAL: The dialogue MUST start with Story Hook (Caller or StoryActor in media res), NOT with Emma/Liam. The Radio Studio Intro with Emma/Liam comes AFTER the initial story hook.
 """
     is_valid = False
     attempts = 0
