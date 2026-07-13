@@ -2267,7 +2267,7 @@ CRITICAL RULES:
 1. For host segments (Emma/Liam as radio hosts in studio), set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
 2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc.
 3. The style must ALWAYS be: "{style_suffix}" for story scenes.
-4. Create 6-10 scenes total with appropriate labels: "Story Hook", "Radio Studio Intro", "Caller Story", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}.
+4. Create 10-15 scenes total with appropriate labels: "Story Hook", "Radio Studio Intro", "Caller Story", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
 5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
 
 Output ONLY valid JSON with this schema:
@@ -2351,7 +2351,7 @@ VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 16 and 26 turns.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 40 and 65 turns to ensure 5+ minute runtime.
 3. PERSPECTIVE GUARD: Emma and Liam must stay inside the conversation.
 4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the climax. The sequence must be: (1) Narrator cues the challenge, (2) Option A/B/C turns, (3) Narrator "[PAUSE 3 SECONDS]" turn, (4) Narrator explains correct answer.
