@@ -234,6 +234,10 @@ def validate_organic_english_script(raw_input):
         # 4. CAPTURE THE SHIFTING PAUSE MARKER
         if "[PAUSE 3 SECONDS]" in text:
             has_pause = True
+            # Check if pause marker is mixed with other text (invalid)
+            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
+                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
+                return script_data, False
 
     # Final logic balance check
     if not has_narrator or not has_actors:
@@ -876,6 +880,8 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
         # Validate scene coverage without redistributing turns
         # Respect AI-generated scene boundaries based on dialogue meaning
         if aligned:
+            print(f"  [scene_align] Total dialogue turns: {num_turns}, scenes: {len(aligned)}")
+            
             # Ensure first scene starts at turn 0
             if aligned[0]["start_turn"] != 0:
                 print(f"  [warn] First scene starts at turn {aligned[0]['start_turn']}, forcing to 0")
@@ -894,6 +900,11 @@ def align_scenes_to_turns(scenes: list, dialogue: list) -> list:
                     print(f"  [warn] Gap between scene {i+1} (ends {current_end}) and scene {i+2} (starts {next_start})")
                 elif next_start <= current_end:
                     print(f"  [warn] Overlap between scene {i+1} (ends {current_end}) and scene {i+2} (starts {next_start})")
+            
+            # Log final scene alignment for verification
+            print(f"  [scene_align] Scene coverage:")
+            for i, scene in enumerate(aligned):
+                print(f"    Scene {i+1} ({scene.get('scene_label', '?')}): turns {scene['start_turn']}-{scene['end_turn']}")
 
         return aligned
 
@@ -1481,10 +1492,78 @@ JSON SCHEMA:
 
         script_data["idiom_windows"] = cleaned
         print(f"  Idiom annotation: {len(cleaned)} window(s) identified")
+        
+        # Remove summary scene if no idioms/phrasal verbs were found
+        if not cleaned:
+            scenes = script_data.get("scenes", [])
+            original_count = len(scenes)
+            script_data["scenes"] = [s for s in scenes if str(s.get("scene_label", "")).lower() != "summary card"]
+            if len(script_data["scenes"]) < original_count:
+                print(f"  Removed summary scene (no idioms/phrasal verbs to summarize)")
     except Exception as exc:
         print(f"  Idiom annotation skipped (Groq error): {exc}")
         script_data.setdefault("idiom_windows", [])
 
+    return script_data
+
+
+def separate_mixed_pause_turns(script_data: dict) -> dict:
+    """
+    Preprocessing step to split dialogue turns where pause marker is mixed with other text.
+    The pause marker "[PAUSE 3 SECONDS]" must be on its own turn for proper pause detection.
+    
+    Example: Turn with text "[PAUSE 3 SECONDS]\nOption C is the best choice..."
+    becomes:
+      - Turn N: "[PAUSE 3 SECONDS]"
+      - Turn N+1: "Option C is the best choice..."
+    """
+    dialogue = script_data.get("dialogue", [])
+    if not dialogue:
+        return script_data
+    
+    PAUSE_PATTERN = re.compile(r'^\s*\[PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?\]\s*$', re.IGNORECASE)
+    
+    new_dialogue = []
+    turn_offset = 0
+    
+    for turn in dialogue:
+        text = turn.get("text", "")
+        
+        # Check if this is a mixed pause turn (pause marker + other text)
+        lines = text.split('\n')
+        pause_line = None
+        remaining_lines = []
+        
+        for line in lines:
+            if PAUSE_PATTERN.match(line.strip()):
+                pause_line = line.strip()
+            else:
+                remaining_lines.append(line)
+        
+        if pause_line and remaining_lines:
+            # Split into two separate turns
+            # First turn: pause marker only
+            pause_turn = dict(turn)
+            pause_turn["text"] = pause_line
+            pause_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
+            new_dialogue.append(pause_turn)
+            turn_offset += 1
+            
+            # Second turn: remaining text
+            content_turn = dict(turn)
+            content_turn["text"] = '\n'.join(remaining_lines).strip()
+            content_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
+            new_dialogue.append(content_turn)
+            turn_offset += 1
+            
+            print(f"  [pause_split] Split mixed pause at turn {turn.get('turn_number')} into separate turns")
+        else:
+            # No mixed pause, keep as-is with updated turn number
+            updated_turn = dict(turn)
+            updated_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
+            new_dialogue.append(updated_turn)
+    
+    script_data["dialogue"] = new_dialogue
     return script_data
 
 
@@ -1589,6 +1668,8 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     }}
     """
     script_data = call_groq_json(prompt)
+    # Preprocess to separate mixed pause markers
+    script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
     theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
@@ -1720,6 +1801,8 @@ JSON SCHEMA:
 }}
 """
     script = call_groq_json(prompt)
+    # Preprocess to separate mixed pause markers
+    script = separate_mixed_pause_turns(script)
     script.setdefault("day", day_number)
     script.setdefault("series_title", series_title)
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
@@ -1867,6 +1950,8 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
         print(f"🔄 Generation Attempt {attempts}...")
 
         raw_script = call_groq_json(prompt_short_story)
+        # Preprocess to separate mixed pause markers before validation
+        raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_organic_english_script(raw_script)
 
     if not is_valid:
@@ -1993,6 +2078,8 @@ JSON SCHEMA:
 }}
 """
     script_data = call_groq_json(prompt)
+    # Preprocess to separate mixed pause markers
+    script_data = separate_mixed_pause_turns(script_data)
     script_data.setdefault("video_format", "shorts")
     theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(script_data.get("description", ""), theme=theme)
@@ -2070,6 +2157,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     }}
     """
     script_data = call_groq_json(prompt)
+    # Preprocess to separate mixed pause markers
+    script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
     theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
@@ -2124,6 +2213,10 @@ def validate_podcast_script(raw_input):
         # Capture the shifting pause marker
         if "[PAUSE 3 SECONDS]" in text:
             has_pause = True
+            # Check if pause marker is mixed with other text (invalid)
+            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
+                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
+                return script_data, False
 
     if not has_narrator or not has_actors:
         print("❌ Cast Failure: Script is missing either the Narrator or the Protag actors.")
@@ -2282,6 +2375,8 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
         print(f"🔄 Generation Attempt {attempts}...")
 
         raw_script = call_groq_json(prompt)
+        # Preprocess to separate mixed pause markers before validation
+        raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_podcast_script(raw_script)
 
     if not is_valid:
