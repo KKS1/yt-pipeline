@@ -2455,11 +2455,11 @@ This is a radio show podcast format structured to maximize CTR and AVD:
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
 - "Caller" (Voice Profile: af_bella): First-person storyteller who calls in with a personal story. Speaks in first-person describing their experience.
-- "StoryActor1" (Voice Profile: am_adam): Default male character within the caller's story. Use "StoryActor1_Female" (af_bella) for female characters. If both StoryActor1 and StoryActor2 are male, use "StoryActor1_AltMale" (am_echo) to ensure distinct voices.
-- "StoryActor2" (Voice Profile: af_sarah): Default female character within the caller's story. Use "StoryActor2_Male" (am_michael) for male characters. If both StoryActor1 and StoryActor2 are female, use "StoryActor2_AltFemale" (af_heart) to ensure distinct voices.
+- "StoryActor1" (Voice Profile: am_adam): Default male character within the caller's story. Use "StoryActor1_Female" (af_bella) for female characters. If both StoryActor1 and StoryActor2 are male, use "StoryActor1_AltMale" (am_michael) to ensure distinct voices.
+- "StoryActor2" (Voice Profile: af_sarah): Default female character within the caller's story. Use "StoryActor2_Male" (am_echo) for male characters. If both StoryActor1 and StoryActor2 are female, use "StoryActor2_AltFemale" (af_nicole) to ensure distinct voices.
 - "Guest" (Voice Profile: bf_emma): Optional additional story character. Always female character. Speaks naturally based on the scene context.
 
-CRITICAL: Always ensure StoryActor1 and StoryActor2 have DISTINCT voices. If they are the same gender, use the Alt variants to prevent voice overlap. This ensures listeners can distinguish between characters.
+CRITICAL: Always ensure StoryActor1 and StoryActor2 have DISTINCT voices from each other AND from the hosts. If they are the same gender, use the Alt variants to prevent voice overlap. This ensures listeners can distinguish between characters.
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.

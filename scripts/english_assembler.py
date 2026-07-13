@@ -35,9 +35,9 @@ ENGLISH_VOICES = {
     "StoryActor1": "am_adam",   # Default male character within stories
     "StoryActor2": "af_sarah",  # Default female character within stories
     "StoryActor1_Female": "af_bella",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
-    "StoryActor2_Male": "am_michael",    # Alternative male voice for StoryActor2 (distinct from StoryActor1)
-    "StoryActor1_AltMale": "am_echo",    # Alternative male voice if StoryActor2 is also male
-    "StoryActor2_AltFemale": "af_heart", # Alternative female voice if StoryActor1 is also female
+    "StoryActor2_Male": "am_echo",    # Alternative male voice for StoryActor2 (distinct from StoryActor1 and Liam)
+    "StoryActor1_AltMale": "am_michael",    # Alternative male voice if StoryActor2 is also male (uses Liam's voice but acceptable as alt)
+    "StoryActor2_AltFemale": "af_nicole", # Alternative female voice if StoryActor1 is also female (distinct from Emma's af_heart)
 }
 
 ENGLISH_TTS_SPEEDS = {
