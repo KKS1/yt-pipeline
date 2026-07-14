@@ -1607,7 +1607,10 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
 # def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
 #     ... (removed as part of storytelling format migration)
 
-def call_groq_json(user_prompt: str, max_tokens: int = ENGLISH_MAX_TOKENS) -> dict:
+def call_groq_json(
+    user_prompt: str,
+    max_tokens: int = ENGLISH_MAX_TOKENS,
+) -> dict:
     res = groq_chat_json(
         messages=[
             {
@@ -2221,7 +2224,9 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(prompt_short_story, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+        raw_script = call_groq_json(
+            prompt_short_story, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS,
+        )
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_organic_english_script(raw_script)
@@ -2968,7 +2973,9 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+        raw_script = call_groq_json(
+            prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS,
+        )
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_podcast_script(raw_script)

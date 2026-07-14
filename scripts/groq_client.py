@@ -77,20 +77,12 @@ def groq_chat_json(
     temperature: float = 0.7,
     max_retries: int = 8,
     timeout: int = 120,
-    json_schema: dict | None = None,
-    schema_name: str | None = None,
 ) -> dict:
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY. Add it to .env for Groq script generation.")
 
-    if json_schema and schema_name:
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {"name": schema_name, "strict": False, "schema": json_schema},
-        }
-    else:
-        response_format = {"type": "json_object"}
+    response_format = {"type": "json_object"}
 
     payload = {
         "model": GROQ_MODEL,
