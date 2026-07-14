@@ -8,8 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from groq_client import groq_chat_json, groq_part_cooldown
 
-# Free tier TPM is 12k; three 7k-cap calls in a row exceed it. Lower cap + pause between parts.
-ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "8192"))
+# Free tier TPM is 8k; keep topic/thumbnail calls safe at 4096, bump script calls separately.
+ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
+ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "6144"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
@@ -1604,7 +1605,7 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
 # def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
 #     ... (removed as part of storytelling format migration)
 
-def call_groq_json(user_prompt: str) -> dict:
+def call_groq_json(user_prompt: str, max_tokens: int = ENGLISH_MAX_TOKENS) -> dict:
     res = groq_chat_json(
         messages=[
             {
@@ -1621,7 +1622,7 @@ def call_groq_json(user_prompt: str) -> dict:
             },
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=ENGLISH_MAX_TOKENS,
+        max_tokens=max_tokens,
         temperature=0.7,
     )
     # Ensure we always return a dictionary; sometimes the LLM returns a list of items directly.
@@ -1909,7 +1910,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
       ]
     }}
     """
-    script_data = call_groq_json(prompt)
+    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
@@ -2042,7 +2043,7 @@ JSON SCHEMA:
   ]
 }}
 """
-    script = call_groq_json(prompt)
+    script = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
     # Preprocess to separate mixed pause markers
     script = separate_mixed_pause_turns(script)
     script.setdefault("day", day_number)
@@ -2191,7 +2192,7 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(prompt_short_story)
+        raw_script = call_groq_json(prompt_short_story, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_organic_english_script(raw_script)
@@ -2319,7 +2320,7 @@ JSON SCHEMA:
   ]
 }}
 """
-    script_data = call_groq_json(prompt)
+    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data.setdefault("video_format", "shorts")
@@ -2398,7 +2399,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
       ]
     }}
     """
-    script_data = call_groq_json(prompt)
+    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
@@ -2938,7 +2939,7 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(prompt)
+        raw_script = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_podcast_script(raw_script)
