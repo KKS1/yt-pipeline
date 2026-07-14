@@ -32,8 +32,8 @@ ENGLISH_VOICES = {
     "Liam": "am_michael",       # Upgrade: Replaces am_echo with the absolute best male voice
     "Guest": "bf_emma",         # Upgrade: Replaces af_sarah with a British female accent
     "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
-    "StoryActor1": "am_adam",   # Default male character within stories
-    "StoryActor2": "af_sarah",  # Default female character within stories
+    "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
+    "StoryActor2": "af_heart",     # Premium female voice (was af_sarah)
     "StoryActor1_Female": "af_bella",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
     "StoryActor2_Male": "am_echo",    # Alternative male voice for StoryActor2 (distinct from StoryActor1 and Liam)
     "StoryActor1_AltMale": "am_michael",    # Alternative male voice if StoryActor2 is also male (uses Liam's voice but acceptable as alt)
@@ -1485,8 +1485,8 @@ def assemble_english_podcast_video(
 
     # Build the filter complex for audiogram (showwaves) + subtitles + progress bar
     filter_parts = [
-        f"[1:a]showwaves=s=800x150:mode=line:colors=0x66B2FF:scale=sqrt:r={VIDEO_FPS}[wave]",
-        f"[0:v][wave]overlay=x=(W-800)/2:y=200[bgwave]"
+        f"[1:a]showwaves=s=500x100:mode=line:colors=0x66B2FF:scale=sqrt:r={VIDEO_FPS}[wave]",
+        f"[0:v][wave]overlay=x=(W-500)/2:y=280[bgwave]"
     ]
     current_v = "[bgwave]"
     if has_ass:
