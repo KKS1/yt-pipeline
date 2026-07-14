@@ -356,8 +356,11 @@ def validate_podcast_script(raw_input):
             speaker_roles[speaker].add("story_actor")
             # StoryActors speak as themselves in direct dialogue — check for narration patterns
             narration_patterns = [
-                r"(?i)\bI\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped)\b",
-                r"(?i)\b(he|she)\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped)\b",
+                r"(?i)\bI\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped|tried|explained|answered|clarified|told)\b",
+                r"(?i)\b(he|she)\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped|tried|explained|answered|clarified|told)\b",
+                r"(?i)\b(we|they)\s+(had\s+to|tried\s+to|were)\s+(clarify|explain|tell|call)\b",
+                r"(?i)\b(he|she)\s+heard\s+(me|us)\s+(say|tell|explain)\b",
+                r"(?i)\ball\s+because\s+of\b",
                 r"(?i)\bfrom\s+the\s+doorway\b",
                 r"(?i)\blooking\s+uncomfortable\b",
             ]
@@ -2448,6 +2451,108 @@ def _extract_podcast_story_context(dialogue: list) -> str:
     )
 
 
+def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
+    """Correct scene turn ranges using speaker identity for the 6-stage podcast structure.
+
+    Groq often assigns incorrect turn ranges (e.g. host scenes showing story turns, or
+    story scenes showing studio turns). This function uses the actual speaker at each turn
+    to clamp each scene to the correct range based on its label.
+    """
+    if not scenes or not dialogue:
+        return scenes
+
+    num_turns = len(dialogue)
+    host_speakers = {"Emma", "Liam"}
+    story_speakers = {"StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male",
+                      "StoryActor1_AltMale", "StoryActor2_AltFemale"}
+
+    # Build speaker-type index: 0=hook/unknown, 1=host, 2=story, 3=caller
+    speaker_type = []
+    for t in dialogue:
+        sp = t.get("speaker", "")
+        if sp in host_speakers:
+            speaker_type.append(1)
+        elif sp in story_speakers:
+            speaker_type.append(2)
+        elif sp == "Caller":
+            speaker_type.append(3)
+        else:
+            speaker_type.append(0)
+
+    # Find key boundary turns
+    first_host_turn = next((i for i, st in enumerate(speaker_type) if st == 1), None)
+    last_story_turn = next((i for i in range(num_turns - 1, -1, -1) if speaker_type[i] == 2), None)
+    caller_after_story = None
+    host_after_caller = None
+    if last_story_turn is not None:
+        for i in range(last_story_turn + 1, num_turns):
+            if speaker_type[i] == 3 and caller_after_story is None:
+                caller_after_story = i
+            if speaker_type[i] == 1 and i > (caller_after_story or last_story_turn):
+                host_after_caller = i
+                break
+
+    # If no story actors found, return scenes unchanged
+    if first_host_turn is None or last_story_turn is None:
+        return scenes
+
+    # Define turn ranges for each label
+    # Hook: turns 0 to first_host_turn - 1
+    # Studio Intro: first_host_turn to last_story_turn - 1 (includes intro, story, back-to-studio)
+    # Host Analysis / Quiz & Wrap-up: host_after_caller to end
+    # Story scenes: first_host_turn to last_story_turn
+    hook_end = max(0, first_host_turn - 1)
+    story_start = first_host_turn  # story scenes can overlap with studio intro range
+    story_end = last_story_turn
+
+    corrected = []
+    for scene in scenes:
+        scene = dict(scene)
+        label = scene.get("scene_label", "").lower()
+        start = scene.get("start_turn", 0)
+        end = scene.get("end_turn", num_turns - 1)
+
+        if "hook" in label:
+            start, end = 0, hook_end
+        elif "studio intro" in label or "radio studio" in label:
+            start, end = first_host_turn, min(first_host_turn + 3, story_start)
+        elif "caller story" in label or "caller part" in label:
+            start, end = story_start, story_end
+        elif "back to studio" in label:
+            # Back-to-studio = Caller turns between story and host analysis
+            if caller_after_story is not None and host_after_caller is not None:
+                start, end = caller_after_story, host_after_caller - 1
+            elif caller_after_story is not None:
+                start, end = caller_after_story, min(caller_after_story + 2, num_turns - 1)
+        elif "host analysis" in label:
+            if host_after_caller is not None:
+                # Host analysis runs until the quiz begins
+                quiz_start = host_after_caller + 8  # ~8 turns of analysis
+                start, end = host_after_caller, min(quiz_start, num_turns - 1)
+        elif "quiz" in label or "wrap" in label:
+            if host_after_caller is not None:
+                quiz_start = host_after_caller + 8
+                start, end = quiz_start, num_turns - 1
+        elif "summary" in label:
+            start, end = max(0, num_turns - 2), num_turns - 1
+
+        # Clamp and ensure valid range
+        start = max(0, min(start, num_turns - 1))
+        end = max(start, min(end, num_turns - 1))
+        scene["start_turn"] = start
+        scene["end_turn"] = end
+        corrected.append(scene)
+
+    # Ensure first scene starts at 0
+    if corrected and corrected[0]["start_turn"] != 0:
+        corrected[0]["start_turn"] = 0
+    # Ensure last scene ends at final turn
+    if corrected and corrected[-1]["end_turn"] != num_turns - 1:
+        corrected[-1]["end_turn"] = num_turns - 1
+
+    return corrected
+
+
 def generate_podcast_storyboard(script: dict, topic: str = "") -> dict:
     """Post-dialogue Groq call: group dialogue into Pixar-style visual scenes with podcast host switching."""
     dialogue = script.get("dialogue", [])
@@ -2488,7 +2593,7 @@ CRITICAL RULES:
 3. VISUAL-DIALOGUE ALIGNMENT: The "STORY EXCERPT" and "STORY SETTING" above describe the actual story. Every non-host scene's visual_prompt MUST depict settings, objects, and actions from that story. If the story mentions a Zoom call, show a person at a computer on a video call. If it mentions a restaurant, show a restaurant. NEVER use generic settings (high school, coffee shop, marketplace, hallway) unless the story EXPLICITLY mentions them. DO NOT invent settings or character appearances not described in the story excerpt.
 4. The style must ALWAYS be: "{style_suffix}" for story scenes.
 5. Create 10-15 scenes total with appropriate labels matching the 6 stages: "Story Hook", "Radio Studio Intro", "Caller Story", "Back to Studio", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
-6. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
+6. ONLY IF the episode explicitly teaches idioms or phrasal verbs (e.g. "kick the bucket", "break a leg"), add a final scene with "scene_label": "Summary Card". Set "start_turn" to the last host analysis turn and "end_turn" to the final turn. Use "scene_summary.png" and a visual_prompt showing an atmospheric background matching the story setting (no characters). If the episode does NOT teach idioms/phrasal verbs, do NOT add a Summary Card scene.
 
 Output ONLY valid JSON with this schema:
 {{
@@ -2526,6 +2631,7 @@ Output ONLY valid JSON with this schema:
                 scene["visual_prompt"] = vp
         script["theme"] = res.get("theme") or theme
         script["scenes"] = align_scenes_to_turns(scenes, dialogue)
+        script["scenes"] = _fix_podcast_scene_alignment(script["scenes"], dialogue)
         print(f"  Storyboard: {len(script['scenes'])} scene(s) generated")
     except Exception as exc:
         print(f"  Storyboard generation skipped (Groq error): {exc}")
