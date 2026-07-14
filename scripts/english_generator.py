@@ -2597,6 +2597,20 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
     hook_end = max(0, first_host_turn - 1)
     story_end = last_story_turn
     host_analysis_start = host_after_caller
+
+    # DEBUG: Log computed stage boundaries
+    print(f"  [podcast_align] Stage boundaries computed:")
+    print(f"    hook_end: {hook_end}")
+    print(f"    first_host_turn: {first_host_turn}")
+    print(f"    studio_intro_end: {studio_intro_end}")
+    print(f"    caller_setup_start: {caller_setup_start}")
+    print(f"    caller_setup_end: {caller_setup_end}")
+    print(f"    story_start: {story_start}")
+    print(f"    story_end: {story_end}")
+    print(f"    back_to_studio_start: {back_to_studio_start}")
+    print(f"    back_to_studio_end: {back_to_studio_end}")
+    print(f"    host_analysis_start: {host_analysis_start}")
+    print(f"    quiz_start: {quiz_start}")
     # Host analysis end = quiz start
     # Search for the first turn after host analysis that contains quiz-related keywords
     pause_idx = None
@@ -2683,6 +2697,11 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
         stage = label_to_stage(scene.get("scene_label", ""))
         scene_stages.append(stage)
 
+    # DEBUG: Log scene stage assignments
+    print(f"  [podcast_align] Scene stage assignments:")
+    for i, (scene, stage) in enumerate(zip(scenes, scene_stages)):
+        print(f"    Scene {i+1} ({scene.get('scene_label', '?')}): stage={stage}, groq_range={scene.get('start_turn', '?')}-{scene.get('end_turn', '?')}")
+
     # For each stage, collect its scenes and fix ranges
     # Group scenes by stage while preserving order
     from collections import OrderedDict
@@ -2695,6 +2714,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
         sr = stage_range(stage)
         if sr is None:
             # Stage not found in dialogue — keep Groq's ranges, just clamp
+            print(f"  [podcast_align] Stage '{stage}' not found in dialogue, keeping Groq ranges")
             for i in indices:
                 s = max(0, min(corrected[i].get("start_turn", 0), num_turns - 1))
                 e = max(s, min(corrected[i].get("end_turn", num_turns - 1), num_turns - 1))
@@ -2703,6 +2723,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             continue
 
         stage_start, stage_end = sr
+        print(f"  [podcast_align] Processing stage '{stage}': range={stage_start}-{stage_end}, scenes={len(indices)}")
 
         # Use Groq's ranges as hints, but clamp to stage range
         # Then fix overlaps by shifting later scenes forward
@@ -2715,13 +2736,17 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             start = max(stage_start, min(groq_start, stage_end))
             end = max(start, min(groq_end, stage_end))
 
+            print(f"    Scene {scene_idx+1} ({corrected[scene_idx].get('scene_label', '?')}): groq={groq_start}-{groq_end}, clamped={start}-{end}, prev_end={prev_end}")
+
             # If this scene starts before or at the previous scene's end, shift it forward
             if start <= prev_end:
+                print(f"      -> Overlap detected, shifting start from {start} to {prev_end + 1}")
                 start = prev_end + 1
                 end = max(start, min(groq_end, stage_end))
 
             # If shifting pushed start past stage end, this scene is empty — merge with previous
             if start > stage_end:
+                print(f"      -> Start {start} > stage_end {stage_end}, merging with previous")
                 # Extend the previous scene to cover this scene's remaining range
                 if idx_in_group > 0:
                     prev_scene_idx = indices[idx_in_group - 1]
@@ -2733,15 +2758,18 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
 
             # If end pushed past stage end, clamp
             if end > stage_end:
+                print(f"      -> End {end} > stage_end {stage_end}, clamping to {stage_end}")
                 end = stage_end
 
             corrected[scene_idx]["start_turn"] = start
             corrected[scene_idx]["end_turn"] = end
             prev_end = end
+            print(f"      -> Final: {start}-{end}")
 
         # If only one scene in this stage, extend it to cover the full stage range
         if len(indices) == 1:
             scene_idx = indices[0]
+            print(f"    -> Single scene in stage, extending from {corrected[scene_idx].get('start_turn', '?')}-{corrected[scene_idx].get('end_turn', '?')} to full stage range {stage_start}-{stage_end}")
             corrected[scene_idx]["start_turn"] = stage_start
             corrected[scene_idx]["end_turn"] = stage_end
 
@@ -2755,6 +2783,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
     for i, t in enumerate(dialogue):
         if t.get("speaker", "") in story_speakers:
             last_story_idx = i
+    print(f"  [podcast_align] last_story_idx: {last_story_idx}")
     # Find the first studio scene after the last story turn
     merge_start = None
     for i, s in enumerate(corrected):
@@ -2763,6 +2792,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
                 merge_start = i
     # Merge all subsequent studio scenes into the first one
     if merge_start is not None:
+        print(f"  [podcast_align] Merging studio scenes from index {merge_start} to end")
         corrected[merge_start]["end_turn"] = num_turns - 1
         # Update label to reflect it covers everything from back-to-studio onward
         label = corrected[merge_start].get("scene_label", "")
@@ -2776,17 +2806,27 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
 
     # Ensure first scene starts at 0
     if corrected and corrected[0].get("start_turn", 0) != 0:
+        print(f"  [podcast_align] Adjusting first scene start from {corrected[0].get('start_turn', '?')} to 0")
         corrected[0]["start_turn"] = 0
     # Ensure last scene ends at final turn
     if corrected and corrected[-1].get("end_turn", 0) != num_turns - 1:
+        print(f"  [podcast_align] Adjusting last scene end from {corrected[-1].get('end_turn', '?')} to {num_turns - 1}")
         corrected[-1]["end_turn"] = num_turns - 1
 
     # Final pass: fix any remaining gaps — extend current scene to fill gap to next scene
+    print(f"  [podcast_align] Final gap-fix pass:")
     for i in range(len(corrected) - 1):
         curr_end = corrected[i]["end_turn"]
         next_start = corrected[i + 1]["start_turn"]
         if next_start > curr_end + 1:
+            print(f"    Gap between scene {i+1} (ends {curr_end}) and scene {i+2} (starts {next_start}), extending to {next_start - 1}")
             corrected[i]["end_turn"] = next_start - 1
+        elif next_start <= curr_end:
+            print(f"    OVERLAP between scene {i+1} (ends {curr_end}) and scene {i+2} (starts {next_start}) - NOT FIXED")
+
+    print(f"  [podcast_align] Final scene coverage:")
+    for i, scene in enumerate(corrected):
+        print(f"    Scene {i+1} ({scene.get('scene_label', '?')}): turns {scene['start_turn']}-{scene['end_turn']}")
 
     return corrected
 
