@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from groq_client import groq_chat_json, groq_part_cooldown
 
 # Free tier TPM is 12k; three 7k-cap calls in a row exceed it. Lower cap + pause between parts.
-ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
+ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "8192"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
@@ -202,6 +202,15 @@ def validate_organic_english_script(raw_input):
         print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 22.")
         return script_data, False
 
+    # 1b. VALIDATE TOTAL WORD COUNT (minimum 350 words for ~2 min runtime)
+    total_words = sum(len(t.get("text", "").split()) for t in dialogue)
+    if total_words < 350:
+        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 350 words for adequate video length.")
+        return script_data, False
+
+    avg_words = total_words // max(turn_count, 1)
+    print(f"  [info] Word count: {total_words} total, ~{avg_words} avg per turn")
+
     # Track structural validation targets
     has_pause = False
     has_narrator = False
@@ -273,6 +282,15 @@ def validate_podcast_script(raw_input):
     if turn_count < 35 or turn_count > 65:
         print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
         return script_data, False
+
+    # 1b. VALIDATE TOTAL WORD COUNT (minimum 600 words for ~4 min runtime)
+    total_words = sum(len(t.get("text", "").split()) for t in dialogue)
+    if total_words < 600:
+        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 600 words for adequate video length.")
+        return script_data, False
+
+    avg_words = total_words // max(turn_count, 1)
+    print(f"  [info] Word count: {total_words} total, ~{avg_words} avg per turn")
 
     # 2. VALIDATE THEME FIELD (optional — fall back to title if missing)
     theme = script_data.get("theme", "")
@@ -2121,7 +2139,7 @@ TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development). EACH TURN MUST CONTAIN MINIMUM 20-30 WORDS — avoid one-word agreements, short greetings, or bare reactions. Characters should elaborate with substance and emotional depth.
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
 4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow — the story NEVER stops for a lesson. After a character uses an idiom or phrasal verb, the Narrator's next line should feel like a natural continuation of the scene, not a classroom aside. For example: after Emma says "things got out of hand," the Narrator might say "And just like that, the situation Emma feared most was exactly what was happening." The explanation is embedded in the storytelling, not bolted onto it. Limit to 1-2 brief inline explanations maximum. Use natural phrasing — never meta-language like "phrasal verb breakdown", "phrase verb spotlight", "let me explain", or "here's what that means". The Narrator must remain in third-person storytelling mode at all times. If the Narrator feels like they're pausing the scene to teach, rewrite the line so the lesson flows as part of the story.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario — then on SEPARATE lines, each option on its own line starting with the word "Option" (e.g. "Option A: No thanks." / "Option B: No thanks, but I'll take a coffee." / "Option C: No, I don't want anything.") — this is critical for TTS pronunciation, never use bare "A)" "B)" "C)" labels, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
@@ -2901,6 +2919,7 @@ VOICES:
 
 RULES:
 - 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
+- EACH DIALOGUE TURN MUST BE A FULLY DEVELOPED THOUGHT: minimum 20-30 words per turn. Avoid one-word agreements, short greetings, or bare reactions. Hosts should elaborate, explain, and react with substance — think radio-show cadence, not text messages. Characters in the story should speak with detail and emotional depth.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Emma/Liam never break into story dialogue.
