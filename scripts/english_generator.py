@@ -2578,14 +2578,26 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
     hook_end = max(0, first_host_turn - 1)
     story_end = last_story_turn
     host_analysis_start = host_after_caller
-    # Host analysis end = quiz start (heuristic: look for [PAUSE] or last ~30% of turns)
+    # Host analysis end = quiz start
+    # Search for the first turn after host analysis that contains quiz-related keywords
     pause_idx = None
     for i in range(num_turns - 1, -1, -1):
         if "[PAUSE" in dialogue[i].get("text", "").upper():
             pause_idx = i
             break
-    # Quiz starts ~2 turns before pause (pause is in the quiz)
-    quiz_start = (pause_idx - 2) if pause_idx is not None else (host_analysis_start + 8 if host_analysis_start else num_turns - 1)
+    # Find quiz start: first turn with "quiz", "test", "challenge", or "which" after host analysis
+    quiz_start = None
+    if host_analysis_start is not None:
+        for i in range(host_analysis_start + 2, num_turns):  # +2 to ensure at least 2 turns of analysis
+            text_lower = dialogue[i].get("text", "").lower()
+            if any(kw in text_lower for kw in ["quiz", "test", "challenge", "which "]):
+                quiz_start = i
+                break
+    # Fallback: use pause_idx heuristic
+    if quiz_start is None and pause_idx is not None:
+        quiz_start = max(pause_idx - 2, (host_analysis_start + 2) if host_analysis_start else 0)
+    if quiz_start is None and host_analysis_start is not None:
+        quiz_start = host_analysis_start + 8
 
     # Map stage labels to valid ranges
     def label_to_stage(label: str) -> str:
@@ -2596,16 +2608,24 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             return "studio_intro"
         if "caller story setup" in label or "caller setup" in label:
             return "caller_setup"
-        if "caller story" in label or "caller part" in label:
-            return "story"
         if "back to studio" in label:
             return "back_to_studio"
-        if "host analysis" in label:
-            return "host_analysis"
-        if "quiz" in label or "wrap" in label:
+        if "quiz" in label:
+            return "quiz_wrap"
+        if "wrap" in label:
             return "quiz_wrap"
         if "summary" in label:
             return "summary"
+        # Analysis labels: "host analysis", "analysis:", "analysis —", etc.
+        if "analysis" in label or "analyse" in label:
+            return "host_analysis"
+        # Story labels: "caller story", "flashback", "story part", etc.
+        if "caller story" in label or "caller part" in label:
+            return "story"
+        if "flashback" in label:
+            return "story"
+        if "story" in label:
+            return "story"
         return "unknown"
 
     def stage_range(stage: str):
@@ -2628,7 +2648,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             return None
         if stage == "host_analysis":
             if host_analysis_start is not None:
-                return (host_analysis_start, quiz_start)
+                return (host_analysis_start, max(host_analysis_start, quiz_start - 1))
             return None
         if stage == "quiz_wrap":
             if host_analysis_start is not None:
@@ -2699,6 +2719,38 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             corrected[scene_idx]["start_turn"] = start
             corrected[scene_idx]["end_turn"] = end
             prev_end = end
+
+        # If only one scene in this stage, extend it to cover the full stage range
+        if len(indices) == 1:
+            scene_idx = indices[0]
+            corrected[scene_idx]["start_turn"] = stage_start
+            corrected[scene_idx]["end_turn"] = stage_end
+
+    # Merge all post-story studio scenes (podcast_host.png) into one scene.
+    # Once back in the studio, the visual never changes — splitting adds no AVD value.
+    # Find the first scene that covers the back-to-studio or later stage, then extend
+    # it to cover everything through the end.
+    story_speakers = {"StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male",
+                      "StoryActor1_AltMale", "StoryActor2_AltFemale"}
+    last_story_idx = -1
+    for i, t in enumerate(dialogue):
+        if t.get("speaker", "") in story_speakers:
+            last_story_idx = i
+    # Find the first studio scene after the last story turn
+    merge_start = None
+    for i, s in enumerate(corrected):
+        if s.get("start_turn", 0) > last_story_idx and s.get("image_filename", "") == "podcast_host.png":
+            if merge_start is None:
+                merge_start = i
+    # Merge all subsequent studio scenes into the first one
+    if merge_start is not None:
+        corrected[merge_start]["end_turn"] = num_turns - 1
+        # Update label to reflect it covers everything from back-to-studio onward
+        label = corrected[merge_start].get("scene_label", "")
+        if "back to studio" not in label.lower():
+            corrected[merge_start]["scene_label"] = "Back to Studio"
+        # Remove all subsequent studio scenes
+        corrected = corrected[:merge_start + 1]
 
     # Remove empty scenes (start > end)
     corrected = [s for s in corrected if s.get("start_turn", 0) <= s.get("end_turn", 0)]
