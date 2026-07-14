@@ -274,11 +274,19 @@ def validate_podcast_script(raw_input):
         print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
         return script_data, False
 
-    # 2. VALIDATE THEME FIELD
+    # 2. VALIDATE THEME FIELD (optional — fall back to title if missing)
     theme = script_data.get("theme", "")
-    if not theme or len(theme.split()) < 2 or len(theme.split()) > 5:
-        print(f"❌ Theme Failure: Theme must be 2-5 words. Got: '{theme}'")
-        return script_data, False
+    if not theme:
+        # Auto-derive from title if available
+        title = script_data.get("title", "")
+        if title:
+            script_data["theme"] = " ".join(title.split()[:5])
+            print(f"  [info] Theme missing — derived from title: '{script_data['theme']}'")
+        else:
+            script_data["theme"] = "English Podcast"
+            print("  [info] Theme missing — using fallback 'English Podcast'")
+    elif len(theme.split()) < 2 or len(theme.split()) > 5:
+        print(f"⚠️ Theme Warning: Theme should be 2-5 words. Got: '{theme}' (continuing anyway)")
 
     # 3. VALIDATE 5-PART PODCAST STRUCTURE
     # Check that dialogue contains the expected sections in reasonable order
