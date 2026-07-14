@@ -198,6 +198,18 @@ def check_scene_images_ready(scenes_dir: Path, scenes: list) -> tuple[bool, list
     """Return (all_ready, missing_relative_paths)."""
     if not scenes:
         return False, []
+    
+    # Auto-copy podcast_host.png if needed
+    for scene in scenes:
+        if scene.get("image_filename") == "podcast_host.png":
+            host_src = scenes_dir.parent.parent / "podcast_host.png"
+            host_dst = scenes_dir / "podcast_host.png"
+            if host_src.exists() and not host_dst.exists():
+                scenes_dir.mkdir(parents=True, exist_ok=True)
+                import shutil
+                shutil.copy2(host_src, host_dst)
+                print(f"  Auto-populated {host_dst.name} from assets.")
+
     missing = []
     for scene in scenes:
         path = scene_image_path(scenes_dir, scene)

@@ -27,17 +27,31 @@ from typing import Optional, Tuple, List
 import shutil
 
 ENGLISH_VOICES = {
-    "Narrator": "af_bella",     # Keep: Best formal, structured American female narration
+    "Narrator": "af_bella",     # Keep: Best formal, structured American female narration (used by english pipeline)
     "Emma": "af_heart",         # Keep: Lively, high-energy, great for emotional dialogue
     "Liam": "am_michael",       # Upgrade: Replaces am_echo with the absolute best male voice
-    "Guest": "bf_emma"          # Upgrade: Replaces af_sarah with a British female accent
+    "Guest": "bf_emma",         # Upgrade: Replaces af_sarah with a British female accent
+    "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
+    "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
+    "StoryActor2": "af_heart",     # Premium female voice (was af_sarah)
+    "StoryActor1_Female": "af_bella",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
+    "StoryActor2_Male": "am_echo",    # Alternative male voice for StoryActor2 (distinct from StoryActor1 and Liam)
+    "StoryActor1_AltMale": "am_michael",    # Alternative male voice if StoryActor2 is also male (uses Liam's voice but acceptable as alt)
+    "StoryActor2_AltFemale": "af_nicole", # Alternative female voice if StoryActor1 is also female (distinct from Emma's af_heart)
 }
 
 ENGLISH_TTS_SPEEDS = {
     "Narrator": 0.90,           # Slower for clear narration
     "Emma": 0.90,               # Normal pace for protagonist
     "Liam": 0.90,               # Normal pace for protagonist
-    "Guest": 0.90               # Slightly slower for guest characters
+    "Guest": 0.90,              # Slightly slower for guest characters
+    "Caller": 0.90,             # Normal pace for caller storytelling
+    "StoryActor1": 0.90,        # Normal pace for story characters
+    "StoryActor2": 0.90,        # Normal pace for story characters
+    "StoryActor1_Female": 0.90, # Alternative female voice
+    "StoryActor2_Male": 0.90,   # Alternative male voice
+    "StoryActor1_AltMale": 0.90,    # Alternative male voice
+    "StoryActor2_AltFemale": 0.90,   # Alternative female voice
 }
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
@@ -192,13 +206,27 @@ def apply_face_badge_overlays(
     liam_src = prepare_face_badge("Liam", size)
     narrator_src = prepare_face_badge("Narrator", size)
     guest_src = prepare_face_badge("Guest", size)
+    caller_src = prepare_face_badge("Caller", size)
+    story_actor1_src = prepare_face_badge("StoryActor1", size)
+    story_actor2_src = prepare_face_badge("StoryActor2", size)
+    story_actor1_female_src = prepare_face_badge("StoryActor1_Female", size)
+    story_actor2_male_src = prepare_face_badge("StoryActor2_Male", size)
+    story_actor1_altmale_src = prepare_face_badge("StoryActor1_AltMale", size)
+    story_actor2_altfemale_src = prepare_face_badge("StoryActor2_AltFemale", size)
     
     # Check if any badges are available
     available_badges = {
         "emma": emma_src,
         "liam": liam_src,
         "narrator": narrator_src,
-        "guest": guest_src
+        "guest": guest_src,
+        "caller": caller_src,
+        "storyactor1": story_actor1_src,
+        "storyactor2": story_actor2_src,
+        "storyactor1_female": story_actor1_female_src,
+        "storyactor2_male": story_actor2_male_src,
+        "storyactor1_altmale": story_actor1_altmale_src,
+        "storyactor2_altfemale": story_actor2_altfemale_src
     }
     if not any(available_badges.values()):
         # No face badges found — skip overlay
@@ -222,7 +250,14 @@ def apply_face_badge_overlays(
         "emma": [],
         "liam": [],
         "narrator": [],
-        "guest": []
+        "guest": [],
+        "caller": [],
+        "storyactor1": [],
+        "storyactor2": [],
+        "storyactor1_female": [],
+        "storyactor2_male": [],
+        "storyactor1_altmale": [],
+        "storyactor2_altfemale": []
     }
     print(f"  [DEBUG] Avatar overlay: dialogue={len(dialogue)}, per_turn_times={len(per_turn_times)}")
     for i, turn in enumerate(dialogue):
@@ -257,7 +292,7 @@ def apply_face_badge_overlays(
     prev_label = "0:v"
 
     # Overlay each character's badge when they speak
-    for char in ["emma", "liam", "narrator", "guest"]:
+    for char in ["emma", "liam", "narrator", "guest", "caller", "storyactor1", "storyactor2", "storyactor1_female", "storyactor2_male", "storyactor1_altmale", "storyactor2_altfemale"]:
         if char in enable_expressions and available_badges[char]:
             inputs.extend(["-i", available_badges[char]])
             filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{enable_expressions[char]}'[v{idx}]")
