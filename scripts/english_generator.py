@@ -402,13 +402,17 @@ def validate_podcast_script(raw_input):
             print(f"❌ Role Consistency Failure: Speaker {speaker} is switching between roles: {roles}")
             return script_data, False
 
-    # 4. VALIDATE 6-STAGE STRUCTURE: Back-to-Studio reflection check
+    # 4. VALIDATE 7-STAGE STRUCTURE: Caller Story Setup + Back-to-Studio checks
     # After the last StoryActor turn, there should be at least one Caller turn
     # before host analysis begins (the "linger confusion" reflection beat).
     last_story_actor_idx = -1
     first_story_actor_idx = -1
+    first_host_idx = -1
     for i, t in enumerate(dialogue):
-        if t.get("speaker", "").startswith("StoryActor"):
+        sp = t.get("speaker", "")
+        if first_host_idx == -1 and sp in ["Emma", "Liam"]:
+            first_host_idx = i
+        if sp.startswith("StoryActor"):
             if first_story_actor_idx == -1:
                 first_story_actor_idx = i
             last_story_actor_idx = i
@@ -420,7 +424,16 @@ def validate_podcast_script(raw_input):
             if t.get("speaker") == "Caller"
         ]
         if caller_in_story:
-            print(f"⚠️ Structure Warning: Caller appears {len(caller_in_story)} time(s) within the story section (between StoryActor turns). Caller should only appear in hook (Stage 1) and back-to-studio (Stage 4), not in Stage 3.")
+            print(f"⚠️ Structure Warning: Caller appears {len(caller_in_story)} time(s) within the story section (between StoryActor turns). Caller should only appear in hook (Stage 1), caller setup (Stage 3), and back-to-studio (Stage 5), not in Stage 4.")
+    
+    # Check for Caller Story Setup: Caller should have turns between first host turn and first StoryActor
+    if first_host_idx >= 0 and first_story_actor_idx > first_host_idx:
+        caller_setup_turns = [
+            t for t in dialogue[first_host_idx:first_story_actor_idx]
+            if t.get("speaker") == "Caller"
+        ]
+        if not caller_setup_turns:
+            print("⚠️ Structure Warning: No Caller turns found between studio intro and story. Expected a 'Caller Story Setup' beat where Caller briefly tells hosts what happened before the flashback.")
     
     if last_story_actor_idx >= 0 and last_story_actor_idx < len(dialogue) - 1:
         # Check if there's a Caller turn after the last StoryActor turn
@@ -2452,11 +2465,11 @@ def _extract_podcast_story_context(dialogue: list) -> str:
 
 
 def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
-    """Correct scene turn ranges using speaker identity for the 6-stage podcast structure.
+    """Validate and fix scene turn ranges using speaker identity for the podcast structure.
 
-    Groq often assigns incorrect turn ranges (e.g. host scenes showing story turns, or
-    story scenes showing studio turns). This function uses the actual speaker at each turn
-    to clamp each scene to the correct range based on its label.
+    Uses Groq's start_turn/end_turn as hints, then clamps each scene to the correct
+    stage range based on its label. If scenes within a stage overlap, shifts later ones
+    to start after the previous one ends. Preserves Groq's intent while fixing errors.
     """
     if not scenes or not dialogue:
         return scenes
@@ -2479,76 +2492,230 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
         else:
             speaker_type.append(0)
 
-    # Find key boundary turns
+    # Find stage boundaries from speaker types
     first_host_turn = next((i for i, st in enumerate(speaker_type) if st == 1), None)
-    last_story_turn = next((i for i in range(num_turns - 1, -1, -1) if speaker_type[i] == 2), None)
-    caller_after_story = None
-    host_after_caller = None
-    if last_story_turn is not None:
-        for i in range(last_story_turn + 1, num_turns):
-            if speaker_type[i] == 3 and caller_after_story is None:
-                caller_after_story = i
-            if speaker_type[i] == 1 and i > (caller_after_story or last_story_turn):
-                host_after_caller = i
+
+    # First StoryActor turn after the first host turn = story start
+    story_start = None
+    if first_host_turn is not None:
+        for i in range(first_host_turn, num_turns):
+            if speaker_type[i] == 2:
+                story_start = i
                 break
 
+    # Last StoryActor turn = story end
+    last_story_turn = None
+    for i in range(num_turns - 1, -1, -1):
+        if speaker_type[i] == 2:
+            last_story_turn = i
+            break
+
+    # First Caller turn between first host turn and story start = caller setup start
+    caller_setup_start = None
+    if first_host_turn is not None and story_start is not None:
+        for i in range(first_host_turn, story_start):
+            if speaker_type[i] == 3:
+                caller_setup_start = i
+                break
+
+    # Studio intro end: last host turn before caller setup (or before story if no caller setup)
+    studio_intro_end = None
+    if first_host_turn is not None:
+        intro_end_bound = caller_setup_start if caller_setup_start is not None else story_start
+        if intro_end_bound is not None:
+            for i in range(intro_end_bound - 1, first_host_turn - 1, -1):
+                if speaker_type[i] == 1:
+                    studio_intro_end = i
+                    break
+            if studio_intro_end is None:
+                studio_intro_end = first_host_turn
+
+    # Caller setup end: turn before story start
+    caller_setup_end = story_start - 1 if story_start is not None else None
+
+    # First Caller turn after story = back-to-studio starts with host transition
+    caller_after_story = None
+    if last_story_turn is not None:
+        for i in range(last_story_turn + 1, num_turns):
+            if speaker_type[i] == 3:
+                caller_after_story = i
+                break
+
+    # Back-to-studio: host transition turn + caller reflection turns
+    back_to_studio_start = None
+    back_to_studio_end = None
+    if last_story_turn is not None:
+        # Starts at first host or caller turn after story
+        for i in range(last_story_turn + 1, num_turns):
+            if speaker_type[i] in (1, 3):
+                back_to_studio_start = i
+                break
+        # Ends at last caller turn before host analysis
+        if back_to_studio_start is not None:
+            for i in range(back_to_studio_start, num_turns):
+                if speaker_type[i] == 3:
+                    back_to_studio_end = i
+            # Extend to include host transition if host starts back-to-studio
+            if back_to_studio_start is not None and speaker_type[back_to_studio_start] == 1:
+                # Host started back-to-studio, find where caller ends
+                for i in range(back_to_studio_start + 1, num_turns):
+                    if speaker_type[i] == 3:
+                        back_to_studio_end = i
+
+    # First Host turn after back-to-studio = host analysis start
+    host_after_caller = None
+    search_start = (back_to_studio_end + 1) if back_to_studio_end is not None else (last_story_turn + 1 if last_story_turn is not None else 0)
+    for i in range(search_start, num_turns):
+        if speaker_type[i] == 1:
+            host_after_caller = i
+            break
+
     # If no story actors found, return scenes unchanged
-    if first_host_turn is None or last_story_turn is None:
+    if first_host_turn is None or last_story_turn is None or story_start is None:
         return scenes
 
-    # Define turn ranges for each label
-    # Hook: turns 0 to first_host_turn - 1
-    # Studio Intro: first_host_turn to last_story_turn - 1 (includes intro, story, back-to-studio)
-    # Host Analysis / Quiz & Wrap-up: host_after_caller to end
-    # Story scenes: first_host_turn to last_story_turn
+    # Define valid turn ranges for each stage (inclusive)
     hook_end = max(0, first_host_turn - 1)
-    story_start = first_host_turn  # story scenes can overlap with studio intro range
     story_end = last_story_turn
+    host_analysis_start = host_after_caller
+    # Host analysis end = quiz start (heuristic: look for [PAUSE] or last ~30% of turns)
+    pause_idx = None
+    for i in range(num_turns - 1, -1, -1):
+        if "[PAUSE" in dialogue[i].get("text", "").upper():
+            pause_idx = i
+            break
+    # Quiz starts ~2 turns before pause (pause is in the quiz)
+    quiz_start = (pause_idx - 2) if pause_idx is not None else (host_analysis_start + 8 if host_analysis_start else num_turns - 1)
 
-    corrected = []
-    for scene in scenes:
-        scene = dict(scene)
-        label = scene.get("scene_label", "").lower()
-        start = scene.get("start_turn", 0)
-        end = scene.get("end_turn", num_turns - 1)
-
+    # Map stage labels to valid ranges
+    def label_to_stage(label: str) -> str:
+        label = label.lower()
         if "hook" in label:
-            start, end = 0, hook_end
-        elif "studio intro" in label or "radio studio" in label:
-            start, end = first_host_turn, min(first_host_turn + 3, story_start)
-        elif "caller story" in label or "caller part" in label:
-            start, end = story_start, story_end
-        elif "back to studio" in label:
-            # Back-to-studio = Caller turns between story and host analysis
-            if caller_after_story is not None and host_after_caller is not None:
-                start, end = caller_after_story, host_after_caller - 1
-            elif caller_after_story is not None:
-                start, end = caller_after_story, min(caller_after_story + 2, num_turns - 1)
-        elif "host analysis" in label:
-            if host_after_caller is not None:
-                # Host analysis runs until the quiz begins
-                quiz_start = host_after_caller + 8  # ~8 turns of analysis
-                start, end = host_after_caller, min(quiz_start, num_turns - 1)
-        elif "quiz" in label or "wrap" in label:
-            if host_after_caller is not None:
-                quiz_start = host_after_caller + 8
-                start, end = quiz_start, num_turns - 1
-        elif "summary" in label:
-            start, end = max(0, num_turns - 2), num_turns - 1
+            return "hook"
+        if "studio intro" in label or "radio studio" in label:
+            return "studio_intro"
+        if "caller story setup" in label or "caller setup" in label:
+            return "caller_setup"
+        if "caller story" in label or "caller part" in label:
+            return "story"
+        if "back to studio" in label:
+            return "back_to_studio"
+        if "host analysis" in label:
+            return "host_analysis"
+        if "quiz" in label or "wrap" in label:
+            return "quiz_wrap"
+        if "summary" in label:
+            return "summary"
+        return "unknown"
 
-        # Clamp and ensure valid range
-        start = max(0, min(start, num_turns - 1))
-        end = max(start, min(end, num_turns - 1))
-        scene["start_turn"] = start
-        scene["end_turn"] = end
-        corrected.append(scene)
+    def stage_range(stage: str):
+        """Return (start, end) inclusive turn range for a stage."""
+        if stage == "hook":
+            return (0, hook_end)
+        if stage == "studio_intro":
+            if studio_intro_end is not None:
+                return (first_host_turn, studio_intro_end)
+            return None
+        if stage == "caller_setup":
+            if caller_setup_start is not None and caller_setup_end is not None:
+                return (caller_setup_start, caller_setup_end)
+            return None
+        if stage == "story":
+            return (story_start, story_end)
+        if stage == "back_to_studio":
+            if back_to_studio_start is not None and back_to_studio_end is not None:
+                return (back_to_studio_start, back_to_studio_end)
+            return None
+        if stage == "host_analysis":
+            if host_analysis_start is not None:
+                return (host_analysis_start, quiz_start)
+            return None
+        if stage == "quiz_wrap":
+            if host_analysis_start is not None:
+                return (quiz_start, num_turns - 1)
+            return None
+        if stage == "summary":
+            return (max(0, num_turns - 2), num_turns - 1)
+        return None
+
+    # Assign each scene to a stage and collect Groq's ranges
+    scene_stages = []
+    for scene in scenes:
+        stage = label_to_stage(scene.get("scene_label", ""))
+        scene_stages.append(stage)
+
+    # For each stage, collect its scenes and fix ranges
+    # Group scenes by stage while preserving order
+    from collections import OrderedDict
+    stage_groups = OrderedDict()
+    for i, (scene, stage) in enumerate(zip(scenes, scene_stages)):
+        stage_groups.setdefault(stage, []).append(i)
+
+    corrected = [dict(s) for s in scenes]
+    for stage, indices in stage_groups.items():
+        sr = stage_range(stage)
+        if sr is None:
+            # Stage not found in dialogue — keep Groq's ranges, just clamp
+            for i in indices:
+                s = max(0, min(corrected[i].get("start_turn", 0), num_turns - 1))
+                e = max(s, min(corrected[i].get("end_turn", num_turns - 1), num_turns - 1))
+                corrected[i]["start_turn"] = s
+                corrected[i]["end_turn"] = e
+            continue
+
+        stage_start, stage_end = sr
+
+        # Use Groq's ranges as hints, but clamp to stage range
+        # Then fix overlaps by shifting later scenes forward
+        prev_end = stage_start - 1
+        for idx_in_group, scene_idx in enumerate(indices):
+            groq_start = corrected[scene_idx].get("start_turn", stage_start)
+            groq_end = corrected[scene_idx].get("end_turn", stage_end)
+
+            # Clamp to stage range
+            start = max(stage_start, min(groq_start, stage_end))
+            end = max(start, min(groq_end, stage_end))
+
+            # If this scene starts before or at the previous scene's end, shift it forward
+            if start <= prev_end:
+                start = prev_end + 1
+                end = max(start, min(groq_end, stage_end))
+
+            # If shifting pushed start past stage end, this scene is empty — merge with previous
+            if start > stage_end:
+                # Extend the previous scene to cover this scene's remaining range
+                if idx_in_group > 0:
+                    prev_scene_idx = indices[idx_in_group - 1]
+                    corrected[prev_scene_idx]["end_turn"] = stage_end
+                # Mark this scene for removal
+                corrected[scene_idx]["start_turn"] = stage_end
+                corrected[scene_idx]["end_turn"] = stage_start - 1  # Empty range
+                continue
+
+            # If end pushed past stage end, clamp
+            if end > stage_end:
+                end = stage_end
+
+            corrected[scene_idx]["start_turn"] = start
+            corrected[scene_idx]["end_turn"] = end
+            prev_end = end
+
+    # Remove empty scenes (start > end)
+    corrected = [s for s in corrected if s.get("start_turn", 0) <= s.get("end_turn", 0)]
 
     # Ensure first scene starts at 0
-    if corrected and corrected[0]["start_turn"] != 0:
+    if corrected and corrected[0].get("start_turn", 0) != 0:
         corrected[0]["start_turn"] = 0
     # Ensure last scene ends at final turn
-    if corrected and corrected[-1]["end_turn"] != num_turns - 1:
+    if corrected and corrected[-1].get("end_turn", 0) != num_turns - 1:
         corrected[-1]["end_turn"] = num_turns - 1
+
+    # Final pass: fix any remaining gaps — extend current scene to fill gap to next scene
+    for i in range(len(corrected) - 1):
+        curr_end = corrected[i]["end_turn"]
+        next_start = corrected[i + 1]["start_turn"]
+        if next_start > curr_end + 1:
+            corrected[i]["end_turn"] = next_start - 1
 
     return corrected
 
@@ -2575,16 +2742,17 @@ def generate_podcast_storyboard(script: dict, topic: str = "") -> dict:
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
 Analyze the input script. Group the dialogue turns into sequence of scenes.{topic_context}{story_context_block}
 
-The podcast follows this 6-stage structure:
+The podcast follows this 7-stage structure:
 1. Story Hook (turns 0-1) - 2-line teaser, high tension
 2. Radio Studio Intro - Emma & Liam welcome listeners and introduce caller
-3. Caller Story - Full story acted out through dialogue
-4. Back to Studio - Caller reflects with lingering confusion
-5. Host Analysis - Emma & Liam explain correct English usage
-6. Quiz & Wrap-up - Interactive challenge and episode conclusion
+3. Caller Story Setup - Caller talks to hosts, briefly explains what happened
+4. Caller Story - Full story flashback acted out through dialogue
+5. Back to Studio - Caller reflects with lingering confusion
+6. Host Analysis - Emma & Liam explain correct English usage
+7. Quiz & Wrap-up - Interactive challenge and episode conclusion
 
 Emma and Liam are radio show hosts sitting in a modern radio station.
-Host segments (Radio Studio Intro, Host Analysis, Quiz & Wrap-up) should use the podcast_host.png image.
+Host segments (Radio Studio Intro, Caller Story Setup, Host Analysis, Quiz & Wrap-up) should use the podcast_host.png image.
 Story segments (Story Hook, Caller Story, Back to Studio) should use unique Pixar-style scene images.
 
 CRITICAL RULES:
@@ -2592,7 +2760,7 @@ CRITICAL RULES:
 2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc.
 3. VISUAL-DIALOGUE ALIGNMENT: The "STORY EXCERPT" and "STORY SETTING" above describe the actual story. Every non-host scene's visual_prompt MUST depict settings, objects, and actions from that story. If the story mentions a Zoom call, show a person at a computer on a video call. If it mentions a restaurant, show a restaurant. NEVER use generic settings (high school, coffee shop, marketplace, hallway) unless the story EXPLICITLY mentions them. DO NOT invent settings or character appearances not described in the story excerpt.
 4. The style must ALWAYS be: "{style_suffix}" for story scenes.
-5. Create 10-15 scenes total with appropriate labels matching the 6 stages: "Story Hook", "Radio Studio Intro", "Caller Story", "Back to Studio", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
+5. Create 10-15 scenes total with appropriate labels matching the 7 stages: "Story Hook", "Radio Studio Intro", "Caller Story Setup", "Caller Story", "Back to Studio", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
 6. ONLY IF the episode explicitly teaches idioms or phrasal verbs (e.g. "kick the bucket", "break a leg"), add a final scene with "scene_label": "Summary Card". Set "start_turn" to the last host analysis turn and "end_turn" to the final turn. Use "scene_summary.png" and a visual_prompt showing an atmospheric background matching the story setting (no characters). If the episode does NOT teach idioms/phrasal verbs, do NOT add a Summary Card scene.
 
 Output ONLY valid JSON with this schema:
@@ -2662,28 +2830,29 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-FORMAT: Radio podcast, 40-65 dialogue turns, 6 stages in this EXACT order:
+FORMAT: Radio podcast, 40-65 dialogue turns, 7 stages in this EXACT order:
 
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
-2. STUDIO INTRO (3-4 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller, Liam hands off ("Take it away, [name]").
-3. FULL STORY (15-20 turns): A real-time scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
-4. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
-5. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
-6. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
+2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
+3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened (e.g. "I was at a coffee shop and someone said 'no cap' — I had no idea what it meant"). Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off ("Let's hear what happened" / "Tell us the full story").
+4. FULL STORY (12-18 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
+5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
+6. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
+7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
-- "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Only appear in Stages 1-2 (hook/studio intro), 4-6 (back-to-studio/analysis/wrap-up). NEVER in Stage 3.
-- "Caller" (af_bella): Only appears in Stage 1 (hook — 1 line), Stage 4 (back-to-studio reflection — 2-3 lines). Does NOT appear in Stage 3 (the story scene).
+- "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Appear in Stages 1-2 (hook/studio intro), 3 (caller setup reactions), 5-7 (back-to-studio/analysis/wrap-up). NEVER in Stage 4.
+- "Caller" (af_bella): Appears in Stage 1 (hook — 1 line), Stage 3 (caller story setup — 2-3 lines explaining what happened), Stage 5 (back-to-studio reflection — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
 - "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
 - "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
 - "Guest" (bf_emma): Optional. Always female.
 
 RULES:
-- 40-65 total turns. Hook=2, Studio=3-4, Story=15-20, Back=2-3, Analysis=8-12, Wrap=2-3.
+- 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
-- Caller does NOT appear in Stage 3 (Full Story). Caller only appears in Stages 1 and 4.
+- Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Emma/Liam never break into story dialogue.
-- Story told ONCE in Stage 3. Hook is just a 2-line teaser.
+- Story told ONCE in Stage 4. Hook is just a 2-line teaser. Caller Setup briefly sets up the story in studio.
 - Output ONLY valid JSON.
 
 JSON SCHEMA:
