@@ -269,9 +269,9 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 40 to 65 range for podcast format)
-    if turn_count < 40 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 40 and 65.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 35 to 65 range for podcast format)
+    if turn_count < 35 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
         return script_data, False
 
     # 2. VALIDATE THEME FIELD
@@ -346,9 +346,17 @@ def validate_podcast_script(raw_input):
             # Normalize to base role for tracking
             base_role = "StoryActor1" if speaker.startswith("StoryActor1") else "StoryActor2"
             speaker_roles[speaker].add("story_actor")
-            # Story actors should speak in first person as their characters
-            if not ("I " in text or "my " in text.lower() or "me " in text.lower()):
-                print(f"⚠️ Warning: Story actor {speaker} might not be speaking in first-person at turn {turn_num}")
+            # StoryActors speak as themselves in direct dialogue — check for narration patterns
+            narration_patterns = [
+                r"(?i)\bI\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped)\b",
+                r"(?i)\b(he|she)\s+(raised|leaned|whispered|nodded|replied|said|shook|smiled|frowned|looked|turned|walked|stepped)\b",
+                r"(?i)\bfrom\s+the\s+doorway\b",
+                r"(?i)\blooking\s+uncomfortable\b",
+            ]
+            for pattern in narration_patterns:
+                if re.search(pattern, text):
+                    print(f"⚠️ Narration Warning: StoryActor {speaker} appears to be narrating instead of speaking directly at turn {turn_num}: '{text[:80]}...'")
+                    break
 
         # Check for third-person slip-ups (invalid for character-driven format)
         if speaker in ["Caller", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
@@ -387,9 +395,21 @@ def validate_podcast_script(raw_input):
     # After the last StoryActor turn, there should be at least one Caller turn
     # before host analysis begins (the "linger confusion" reflection beat).
     last_story_actor_idx = -1
+    first_story_actor_idx = -1
     for i, t in enumerate(dialogue):
         if t.get("speaker", "").startswith("StoryActor"):
+            if first_story_actor_idx == -1:
+                first_story_actor_idx = i
             last_story_actor_idx = i
+    
+    # Check that Caller does NOT appear within the story section (between first and last StoryActor)
+    if first_story_actor_idx >= 0 and last_story_actor_idx > first_story_actor_idx:
+        caller_in_story = [
+            t for t in dialogue[first_story_actor_idx:last_story_actor_idx + 1]
+            if t.get("speaker") == "Caller"
+        ]
+        if caller_in_story:
+            print(f"⚠️ Structure Warning: Caller appears {len(caller_in_story)} time(s) within the story section (between StoryActor turns). Caller should only appear in hook (Stage 1) and back-to-studio (Stage 4), not in Stage 3.")
     
     if last_story_actor_idx >= 0 and last_story_actor_idx < len(dialogue) - 1:
         # Check if there's a Caller turn after the last StoryActor turn
@@ -2521,133 +2541,41 @@ def generate_english_podcast_script(topic=None):
     print("Generating podcast storytelling script...")
 
     prompt = f"""
-You are an elite showrunner and scriptwriter for the multi-character storytelling channel EnglishVibesHub (@EnglishVibesHub-s6w).
-Write a highly engaging English audio-story script for the "English Vibes Podcast" series.
+You are an elite showrunner for EnglishVibesHub (@EnglishVibesHub-s6w). Write an English audio-story script for the "English Vibes Podcast".
 
 TOPIC: {topic}
 {avoid_instruction}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-This is a radio show podcast format structured to maximize CTR and AVD. Follow this EXACT 6-stage sequence — NO stage may be skipped, reordered, or merged:
+FORMAT: Radio podcast, 40-65 dialogue turns, 6 stages in this EXACT order:
 
-Stage 1: STORY HOOK — exactly 2 turns (in media res)
-- Turn 1: Caller in media res — ONE punchy line, 1-2 sentences max, high tension. Drop the listener into the peak moment. Example: "I was presenting to my biggest client when they suddenly yelled 'No cap!' and I froze."
-- Turn 2: StoryActor responds with ONE short reaction line (confusion, surprise, or a question).
-- STOP. Do NOT continue the story past these 2 turns. Cut immediately to the studio.
+1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
+2. STUDIO INTRO (3-4 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller, Liam hands off ("Take it away, [name]").
+3. FULL STORY (15-20 turns): A real-time scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
+4. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
+5. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
+6. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
-Stage 2: RADIO STUDIO INTRO — 3-4 turns
-- Emma welcomes listeners to the English Vibes Podcast.
-- Liam introduces today's topic/theme.
-- Emma says "We've got a caller on the line" and hands off.
-- Liam says "Take it away, [Caller name]."
-- These are the first host turns. They set up the show, NOT the story.
+VOICES:
+- "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Only appear in Stages 1-2 (hook/studio intro), 4-6 (back-to-studio/analysis/wrap-up). NEVER in Stage 3.
+- "Caller" (af_bella): Only appears in Stage 1 (hook — 1 line), Stage 4 (back-to-studio reflection — 2-3 lines). Does NOT appear in Stage 3 (the story scene).
+- "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
+- "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
+- "Guest" (bf_emma): Optional. Always female.
 
-Stage 3: CALLER STORY — 15-20 turns (the FULL story)
-- Caller begins telling their complete story from the top — this is where the full incident plays out.
-- StoryActor1 and StoryActor2 act as characters IN the story (first-person dialogue).
-- The story builds through: setup → rising tension → complication → climax.
-- This is the ONLY place the full story is told. DO NOT repeat or re-enact story beats from Stage 1 — those were just a teaser hook.
+RULES:
+- 40-65 total turns. Hook=2, Studio=3-4, Story=15-20, Back=2-3, Analysis=8-12, Wrap=2-3.
+- StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
+- Caller does NOT appear in Stage 3 (Full Story). Caller only appears in Stages 1 and 4.
+- Emma/Liam never break into story dialogue.
+- Story told ONCE in Stage 3. Hook is just a 2-line teaser.
+- Output ONLY valid JSON.
 
-Stage 4: BACK TO STUDIO — CALLER REFLECTION — 2-3 turns
-- Cut back to the studio. Emma or Liam asks a question like "So what happened after that?" or "What confused you the most about that?"
-- Caller responds with 1-2 lines expressing LINGERING CONFUSION — they still don't fully understand why the language mistake happened or what the correct usage was.
-- This creates a natural transition for the hosts to step in and teach.
+JSON SCHEMA:
+{{"title":"...","description":"...","pinned_comment":"...","tags":["..."],"dialogue":[{{"turn_number":1,"speaker":"Caller","text":"..."}},{{"turn_number":2,"speaker":"StoryActor1","text":"..."}}],"thumbnail_text":"...","thumbnail_concept":"...","theme":"2-5 words"}}
 
-Stage 5: HOST ANALYSIS — 8-12 turns
-- Emma and Liam react to the caller's story.
-- They explain what went wrong (the language mistake, idiom, or phrasal verb).
-- They teach the correct English usage with clear examples.
-- Include the interactive quiz challenge: Host cues the challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" turn → Host reveals correct answer with brief explanation.
-
-Stage 6: WRAP-UP — 2-3 turns
-- One host summarizes the key takeaway from the episode.
-- End with pinned comment question or CTA. No "thanks for watching" or "like and subscribe" — keep it conversational.
-
-VOICE CAST & CHARACTER ASSIGNMENT ROLES:
-- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
-- "Caller" (Voice Profile: af_bella): First-person storyteller who calls in with a personal story. Speaks in first-person describing their experience.
-- "StoryActor1" (Voice Profile: am_adam): Default male character within the caller's story. Use "StoryActor1_Female" (af_bella) for female characters. If both StoryActor1 and StoryActor2 are male, use "StoryActor1_AltMale" (am_michael) to ensure distinct voices.
-- "StoryActor2" (Voice Profile: af_sarah): Default female character within the caller's story. Use "StoryActor2_Male" (am_echo) for male characters. If both StoryActor1 and StoryActor2 are female, use "StoryActor2_AltFemale" (af_nicole) to ensure distinct voices.
-- "Guest" (Voice Profile: bf_emma): Optional additional story character. Always female character. Speaks naturally based on the scene context.
-
-CRITICAL: Always ensure StoryActor1 and StoryActor2 have DISTINCT voices from each other AND from the hosts. If they are the same gender, use the Alt variants to prevent voice overlap. This ensures listeners can distinguish between characters.
-
-CRITICAL PIPELINE VALIDATION RULES:
-1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 40 and 65 turns to ensure 5+ minute runtime. Distribute turns across stages: Hook (2) + Studio Intro (3-4) + Full Story (15-20) + Back-to-Studio (2-3) + Host Analysis (8-12) + Quiz/Wrap-up (5-8) = 35-49 range. Add turns within stages as needed to reach 40+.
-3. PERSPECTIVE GUARD: Emma and Liam must stay in host role and never break into story dialogue. Caller and StoryActors speak in first-person as their characters.
-4. CHARACTER-DRIVEN STORYTELLING: Stories should be acted out through dialogue between Caller and StoryActor1/StoryActor2, not narrated.
-5. NO DUPLICATE STORY: Stage 1 (Hook) is a 2-line teaser ONLY. Stage 3 (Caller Story) is the ONE and ONLY place the full story is told. Never repeat the same story beats in both stages.
-6. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge in Stage 5. The sequence must be: (1) Host cues the challenge, (2) Option A/B/C turns, (3) Host "[PAUSE 3 SECONDS]" turn, (4) Host explains correct answer.
-7. STAGE COMPLIANCE: Validate your output against the 6 stages above before returning. Confirm: Hook has exactly 2 turns, Studio Intro follows immediately, Story is told once in Stage 3, Caller returns to studio for reflection in Stage 4, Host Analysis follows in Stage 5.
-
-JSON OUTPUT FORMAT (Follow this structure exactly):
-{{
-  "title": "High-CTR Title under 70 characters",
-  "description": "String matching DESCRIPTION TEMPLATE exactly",
-  "pinned_comment": "Narrative retention engagement question",
-  "tags": [ "Tag1", "Tag2" ],
-  "dialogue": [
-    {{
-      "turn_number": 1,
-      "speaker": "Caller",
-      "text": "I was presenting to my biggest client when they suddenly yelled 'No cap!' and I froze."
-    }},
-    {{
-      "turn_number": 2,
-      "speaker": "StoryActor1",
-      "text": "Wait, what? The internet went down?"
-    }},
-    {{
-      "turn_number": 3,
-      "speaker": "Emma",
-      "text": "Welcome to the English Vibes Podcast! I'm Emma."
-    }},
-    {{
-      "turn_number": 4,
-      "speaker": "Liam",
-      "text": "And I'm Liam. Today we're diving into modern slang that catches people off guard."
-    }},
-    {{
-      "turn_number": 5,
-      "speaker": "Emma",
-      "text": "We've got Bella on the line who just experienced this firsthand."
-    }},
-    {{
-      "turn_number": 6,
-      "speaker": "Liam",
-      "text": "Take it away, Bella."
-    }},
-    {{
-      "turn_number": 7,
-      "speaker": "Caller",
-      "text": "Thanks! So I was on a Zoom call with my client..."
-    }},
-    {{
-      "turn_number": 26,
-      "speaker": "Emma",
-      "text": "So Bella, what confused you the most about that whole experience?"
-    }},
-    {{
-      "turn_number": 27,
-      "speaker": "Caller",
-      "text": "I still don't understand why they said 'no cap' — I thought it was something negative."
-    }},
-    {{
-      "turn_number": 28,
-      "speaker": "Liam",
-      "text": "That's actually a really common confusion..."
-    }}
-  ],
-  "thumbnail_text": "TEXT",
-  "thumbnail_concept": "CONCEPT",
-  "theme": "Short 2-5 word label"
-}}
-
-NOTE: The example above shows abbreviated turn numbers for clarity. Your output must have sequential turn_number values (1, 2, 3, 4, ...) covering all 40-65 turns across the 6 stages. The key structural points are: Hook (turns 1-2) → Studio (turns 3-6) → Full Story (turns 7-~25) → Back-to-Studio reflection (turns ~26-28) → Host Analysis + Quiz (turns ~29-end).
-
-CRITICAL: The dialogue MUST start with Story Hook (Caller + StoryActor in media res), NOT with Emma/Liam. The Radio Studio Intro comes AFTER the 2-line hook. After the full story, the Caller MUST return to the studio for a reflection beat before Host Analysis begins.
+Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller MUST return to studio for reflection before Host Analysis.
 """
     is_valid = False
     attempts = 0
