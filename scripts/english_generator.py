@@ -242,12 +242,13 @@ def validate_organic_english_script(raw_input):
                 return script_data, False
 
         # 4. CAPTURE THE SHIFTING PAUSE MARKER
-        if "[PAUSE 3 SECONDS]" in text:
+        PAUSE_PATTERN = re.compile(r'^\s*\[PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?\]\s*$', re.IGNORECASE)
+        if PAUSE_PATTERN.match(text.strip()):
             has_pause = True
-            # Check if pause marker is mixed with other text (invalid)
-            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
-                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
-                return script_data, False
+        elif "[PAUSE" in text.upper():
+            # Pause marker found but not on its own line - this is invalid
+            print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
+            return script_data, False
 
     # Final logic balance check
     if not has_narrator or not has_actors:
@@ -395,12 +396,13 @@ def validate_podcast_script(raw_input):
                 return script_data, False
 
         # 4. CAPTURE THE SHIFTING PAUSE MARKER
-        if "[PAUSE 3 SECONDS]" in text:
+        PAUSE_PATTERN = re.compile(r'^\s*\[PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?\]\s*$', re.IGNORECASE)
+        if PAUSE_PATTERN.match(text.strip()):
             has_pause = True
-            # Check if pause marker is mixed with other text (invalid)
-            if text.strip() != "[PAUSE 3 SECONDS]" and not text.strip().startswith("[PAUSE 3 SECONDS]\n"):
-                print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
-                return script_data, False
+        elif "[PAUSE" in text.upper():
+            # Pause marker found but not on its own line - this is invalid
+            print(f"❌ Pause Format Failure: Pause marker is mixed with other text at turn {turn_num}. Pause must be on its own turn.")
+            return script_data, False
 
     # Final logic balance check
     if not has_hosts:
@@ -1759,12 +1761,15 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
     becomes:
       - Turn N: "[PAUSE 3 SECONDS]"
       - Turn N+1: "Option C is the best choice..."
+      
+    Also handles same-line mixing: "[PAUSE 3 SECONDS] Option C is the best choice..."
     """
     dialogue = script_data.get("dialogue", [])
     if not dialogue:
         return script_data
     
     PAUSE_PATTERN = re.compile(r'^\s*\[PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?\]\s*$', re.IGNORECASE)
+    SAME_LINE_PAUSE_PATTERN = re.compile(r'(\[PAUSE\s+\d+(?:\.\d+)?\s*SECONDS?\])', re.IGNORECASE)
     
     new_dialogue = []
     turn_offset = 0
@@ -1772,7 +1777,31 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
     for turn in dialogue:
         text = turn.get("text", "")
         
-        # Check if this is a mixed pause turn (pause marker + other text)
+        # First check for same-line mixed pause (e.g., "[PAUSE 3 SECONDS] Option C is...")
+        same_line_match = SAME_LINE_PAUSE_PATTERN.search(text)
+        if same_line_match and not PAUSE_PATTERN.match(text.strip()):
+            # Extract pause marker and remaining text
+            pause_marker = same_line_match.group(1)
+            remaining_text = text.replace(pause_marker, "", 1).strip()
+            
+            # Split into two separate turns
+            pause_turn = dict(turn)
+            pause_turn["text"] = pause_marker
+            pause_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
+            new_dialogue.append(pause_turn)
+            turn_offset += 1
+            
+            if remaining_text:
+                content_turn = dict(turn)
+                content_turn["text"] = remaining_text
+                content_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
+                new_dialogue.append(content_turn)
+                turn_offset += 1
+            
+            print(f"  [pause_split] Split same-line mixed pause at turn {turn.get('turn_number')} into separate turns")
+            continue
+        
+        # Check for multi-line mixed pause (pause on its own line with other text below)
         lines = text.split('\n')
         pause_line = None
         remaining_lines = []
@@ -1799,7 +1828,7 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
             new_dialogue.append(content_turn)
             turn_offset += 1
             
-            print(f"  [pause_split] Split mixed pause at turn {turn.get('turn_number')} into separate turns")
+            print(f"  [pause_split] Split multi-line mixed pause at turn {turn.get('turn_number')} into separate turns")
         else:
             # No mixed pause, keep as-is with updated turn number
             updated_turn = dict(turn)
