@@ -8,9 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from groq_client import groq_chat_json, groq_part_cooldown
 
-# Free tier TPM is 8k; keep topic/thumbnail calls safe at 4096, bump script calls separately.
+# Free tier TPM is 8k; prompt (~3K) + output must stay under 8K total.
 ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
-ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "8192"))
+ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "4096"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
@@ -279,15 +279,15 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 35 to 65 range for podcast format)
-    if turn_count < 35 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 10 to 65 range for podcast format)
+    if turn_count < 10 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 10 and 65.")
         return script_data, False
 
-    # 1b. VALIDATE TOTAL WORD COUNT (minimum 600 words for ~4 min runtime)
+    # 1b. VALIDATE TOTAL WORD COUNT (minimum 300 words for podcast runtime)
     total_words = sum(len(t.get("text", "").split()) for t in dialogue)
-    if total_words < 600:
-        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 600 words for adequate video length.")
+    if total_words < 300:
+        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 300 words for adequate video length.")
         return script_data, False
 
     avg_words = total_words // max(turn_count, 1)
@@ -2901,15 +2901,15 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-FORMAT: Radio podcast, 40-65 dialogue turns, 7 stages in this EXACT order:
+FORMAT: Radio podcast, 10-25 dialogue turns, 7 stages in this EXACT order:
 
-1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
-2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
-3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened (e.g. "I was at a coffee shop and someone said 'no cap' — I had no idea what it meant"). Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off ("Let's hear what happened" / "Tell us the full story").
-4. FULL STORY (12-18 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
-5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
-6. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
-7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
+1. HOOK (1 turn): Caller in media res — ONE punchy 1-2 sentence line of high tension. Then STOP — cut to studio.
+2. STUDIO INTRO (1-2 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
+3. CALLER STORY SETUP (1-2 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened. Hosts react naturally. Then Liam or Emma hands off.
+4. FULL STORY (4-8 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
+5. BACK TO STUDIO (1-2 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
+6. HOST ANALYSIS (3-6 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
+7. WRAP-UP (1-2 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
 - "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Appear in Stages 1-2 (hook/studio intro), 3 (caller setup reactions), 5-7 (back-to-studio/analysis/wrap-up). NEVER in Stage 4.
@@ -2919,7 +2919,7 @@ VOICES:
 - "Guest" (bf_emma): Optional. Always female.
 
 RULES:
-- 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
+- 10-25 total turns. Hook=1, Studio=1-2, Caller Setup=1-2, Story=4-8, Back=1-2, Analysis=3-6, Wrap=1-2.
 - EACH DIALOGUE TURN MUST BE A FULLY DEVELOPED THOUGHT: minimum 20-30 words per turn. Avoid one-word agreements, short greetings, or bare reactions. Hosts should elaborate, explain, and react with substance — think radio-show cadence, not text messages. Characters in the story should speak with detail and emotional depth.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
