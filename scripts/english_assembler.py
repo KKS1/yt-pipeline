@@ -27,17 +27,31 @@ from typing import Optional, Tuple, List
 import shutil
 
 ENGLISH_VOICES = {
-    "Narrator": "af_bella",     # Keep: Best formal, structured American female narration
+    "Narrator": "af_bella",     # Keep: Best formal, structured American female narration (used by english pipeline)
     "Emma": "af_heart",         # Keep: Lively, high-energy, great for emotional dialogue
     "Liam": "am_michael",       # Upgrade: Replaces am_echo with the absolute best male voice
-    "Guest": "bf_emma"          # Upgrade: Replaces af_sarah with a British female accent
+    "Guest": "bf_emma",         # Upgrade: Replaces af_sarah with a British female accent
+    "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
+    "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
+    "StoryActor2": "af_heart",     # Premium female voice (was af_sarah)
+    "StoryActor1_Female": "af_bella",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
+    "StoryActor2_Male": "am_echo",    # Alternative male voice for StoryActor2 (distinct from StoryActor1 and Liam)
+    "StoryActor1_AltMale": "am_michael",    # Alternative male voice if StoryActor2 is also male (uses Liam's voice but acceptable as alt)
+    "StoryActor2_AltFemale": "af_nicole", # Alternative female voice if StoryActor1 is also female (distinct from Emma's af_heart)
 }
 
 ENGLISH_TTS_SPEEDS = {
     "Narrator": 0.90,           # Slower for clear narration
     "Emma": 0.90,               # Normal pace for protagonist
     "Liam": 0.90,               # Normal pace for protagonist
-    "Guest": 0.90               # Slightly slower for guest characters
+    "Guest": 0.90,              # Slightly slower for guest characters
+    "Caller": 0.90,             # Normal pace for caller storytelling
+    "StoryActor1": 0.90,        # Normal pace for story characters
+    "StoryActor2": 0.90,        # Normal pace for story characters
+    "StoryActor1_Female": 0.90, # Alternative female voice
+    "StoryActor2_Male": 0.90,   # Alternative male voice
+    "StoryActor1_AltMale": 0.90,    # Alternative male voice
+    "StoryActor2_AltFemale": 0.90,   # Alternative female voice
 }
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
@@ -192,13 +206,27 @@ def apply_face_badge_overlays(
     liam_src = prepare_face_badge("Liam", size)
     narrator_src = prepare_face_badge("Narrator", size)
     guest_src = prepare_face_badge("Guest", size)
+    caller_src = prepare_face_badge("Caller", size)
+    story_actor1_src = prepare_face_badge("StoryActor1", size)
+    story_actor2_src = prepare_face_badge("StoryActor2", size)
+    story_actor1_female_src = prepare_face_badge("StoryActor1_Female", size)
+    story_actor2_male_src = prepare_face_badge("StoryActor2_Male", size)
+    story_actor1_altmale_src = prepare_face_badge("StoryActor1_AltMale", size)
+    story_actor2_altfemale_src = prepare_face_badge("StoryActor2_AltFemale", size)
     
     # Check if any badges are available
     available_badges = {
         "emma": emma_src,
         "liam": liam_src,
         "narrator": narrator_src,
-        "guest": guest_src
+        "guest": guest_src,
+        "caller": caller_src,
+        "storyactor1": story_actor1_src,
+        "storyactor2": story_actor2_src,
+        "storyactor1_female": story_actor1_female_src,
+        "storyactor2_male": story_actor2_male_src,
+        "storyactor1_altmale": story_actor1_altmale_src,
+        "storyactor2_altfemale": story_actor2_altfemale_src
     }
     if not any(available_badges.values()):
         # No face badges found — skip overlay
@@ -222,7 +250,14 @@ def apply_face_badge_overlays(
         "emma": [],
         "liam": [],
         "narrator": [],
-        "guest": []
+        "guest": [],
+        "caller": [],
+        "storyactor1": [],
+        "storyactor2": [],
+        "storyactor1_female": [],
+        "storyactor2_male": [],
+        "storyactor1_altmale": [],
+        "storyactor2_altfemale": []
     }
     print(f"  [DEBUG] Avatar overlay: dialogue={len(dialogue)}, per_turn_times={len(per_turn_times)}")
     for i, turn in enumerate(dialogue):
@@ -257,7 +292,7 @@ def apply_face_badge_overlays(
     prev_label = "0:v"
 
     # Overlay each character's badge when they speak
-    for char in ["emma", "liam", "narrator", "guest"]:
+    for char in ["emma", "liam", "narrator", "guest", "caller", "storyactor1", "storyactor2", "storyactor1_female", "storyactor2_male", "storyactor1_altmale", "storyactor2_altfemale"]:
         if char in enable_expressions and available_badges[char]:
             inputs.extend(["-i", available_badges[char]])
             filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{enable_expressions[char]}'[v{idx}]")
@@ -1368,3 +1403,207 @@ def _append_summary_card(
         print(f"  ✓ Summary card appended ({card_dur}s)")
 
     return video_path
+
+
+def assemble_english_podcast_video(
+    podcast_audio: str,
+    scenes: list,
+    scene_image_paths: list[str],
+    output_path: str,
+    per_turn_times: list,
+    *,
+    captions_srt: str = None,
+    ass_captions: str = None,
+    background_music: str = None,
+    title: str = "",
+    channel: str = None,
+    idiom_windows: list = None,
+    dialogue: list = None,
+) -> str:
+    """
+    Assemble English Vibes Podcast video:
+    - Switches between host image (podcast_host.png) and story scenes
+    - Timed Ken Burns visual track
+    - Generates dynamic audiogram overlay using showwaves filter
+    - Burns in ASS/SRT subtitles
+    - Applies summary card/idiom overlays and appends bumpers
+    """
+    duration = get_audio_duration(podcast_audio)
+    print(f"\nAssembling English podcast video: {duration:.1f}s ({len(scenes)} scenes)")
+
+    visual_track = build_scene_visual_track(
+        scenes,
+        scene_image_paths,
+        per_turn_times,
+        portrait=False,
+        dialogue=dialogue,
+    )
+
+    visual_duration = get_audio_duration(visual_track)
+    if abs(visual_duration - duration) > 0.25:
+        if visual_duration < duration:
+            padded = str(TEMP_DIR / "english_scene_visual_padded.mp4")
+            pad_secs = duration - visual_duration
+            subprocess.run([
+                FFMPEG, "-y", "-i", visual_track,
+                "-vf", f"tpad=stop_mode=clone:stop_duration={pad_secs}",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an", padded, "-loglevel", "error",
+            ], check=True)
+            visual_track = padded
+        else:
+            trimmed = str(TEMP_DIR / "english_scene_visual_trimmed.mp4")
+            subprocess.run([
+                FFMPEG, "-y", "-i", visual_track,
+                "-t", str(duration),
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-an", trimmed, "-loglevel", "error",
+            ], check=True)
+            visual_track = trimmed
+
+    if background_music and Path(background_music).exists():
+        mixed_audio_path = str(TEMP_DIR / "english_mixed_audio.m4a")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", podcast_audio,
+            "-stream_loop", "-1", "-i", background_music,
+            "-filter_complex",
+            "[0:a]volume=1.0[narr];[1:a]volume=0.08[bg];[narr][bg]amix=inputs=2:duration=first:dropout_transition=3[out]",
+            "-map", "[out]",
+            "-t", str(duration),
+            "-c:a", "aac", "-b:a", "192k",
+            mixed_audio_path,
+        ]
+        subprocess.run(cmd, capture_output=True, check=True)
+        final_audio = mixed_audio_path
+    else:
+        final_audio = podcast_audio
+
+    base_output = output_path
+    has_ass = ass_captions and Path(ass_captions).exists()
+    has_srt = captions_srt and Path(captions_srt).exists()
+
+    # Build the filter complex for audiogram (showwaves) + subtitles + progress bar
+    filter_parts = [
+        f"[1:a]showwaves=s=400x80:mode=line:colors=0x66B2FF:scale=sqrt:r={VIDEO_FPS}[wave]",
+        f"[0:v][wave]overlay=x=(W-400)/2:y=830[bgwave]"
+    ]
+    current_v = "[bgwave]"
+    if has_ass:
+        ass_escaped = str(ass_captions).replace("\\", "/").replace(":", "\\:")
+        filter_parts.append(f"{current_v}ass={ass_escaped}[captionedv]")
+        current_v = "[captionedv]"
+    elif has_srt:
+        caption_style = (
+            "FontName=Arial,FontSize=22,"
+            "PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,"
+            "Bold=1,BorderStyle=1,Outline=4,Shadow=2,MarginV=40"
+        )
+        filter_parts.append(f"{current_v}subtitles={captions_srt}:force_style='{caption_style}'[captionedv]")
+        current_v = "[captionedv]"
+    
+    filter_parts.append(f"{current_v}drawbox=x=0:y=ih-4:w='iw*min(t/{duration},1)':h=4:color=white@0.5:t=fill[outv]")
+    filter_complex = ";".join(filter_parts)
+
+    try:
+        cmd = [
+            FFMPEG, "-y",
+            "-i", visual_track,
+            "-i", final_audio,
+            "-filter_complex", filter_complex,
+            "-map", "[outv]", "-map", "1:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
+            base_output, "-loglevel", "error",
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  Caption/Audiogram burn failed, assembling fallback... Error: {getattr(e, 'stderr', e)}")
+        cmd = [
+            FFMPEG, "-y",
+            "-i", visual_track,
+            "-i", final_audio,
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-c:a", "copy",
+            "-movflags", "+faststart",
+            "-metadata", f"title={title}",
+            base_output, "-loglevel", "error",
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+
+    if has_ass and dialogue:
+        temp_face = str(Path(base_output).with_suffix(".face.mp4"))
+        try:
+            apply_face_badge_overlays(
+                video_path=base_output,
+                dialogue=dialogue,
+                per_turn_times=per_turn_times or [],
+                output_path=temp_face,
+                is_shorts=False,
+            )
+            if Path(temp_face).exists():
+                Path(base_output).unlink()
+                import shutil
+                shutil.move(temp_face, base_output)
+        except Exception as e:
+            print(f"  Face badge overlay skipped: {e}")
+
+    gated_idiom_windows = _gate_idiom_windows_after_pause_reveals(idiom_windows, dialogue)
+    if gated_idiom_windows and per_turn_times:
+        try:
+            from idiom_card_renderer import render_idiom_cards_batch
+            resolved = resolve_idiom_timestamps(gated_idiom_windows, per_turn_times)
+            card_pngs = render_idiom_cards_batch(gated_idiom_windows, output_dir=TEMP_DIR / "idiom_cards")
+            apply_idiom_overlays(base_output, resolved, card_pngs, output_path=base_output, is_shorts=False)
+        except Exception as e:
+            print(f"  Idiom overlay skipped: {e}")
+
+    # Apply summary card text overlay
+    if per_turn_times:
+        summary_scene = None
+        summary_scene_idx = None
+        for _idx, sc in enumerate(scenes):
+            if str(sc.get("scene_label", "")).lower() == "summary card":
+                summary_scene = sc
+                summary_scene_idx = _idx
+                break
+        if summary_scene is not None and summary_scene_idx is not None:
+            try:
+                from summary_card_renderer import render_summary_card
+                s_turn = max(0, min(int(summary_scene.get("start_turn", 0)), len(per_turn_times) - 1))
+                e_turn = max(s_turn, min(int(summary_scene.get("end_turn", s_turn)), len(per_turn_times) - 1))
+                summary_start = per_turn_times[s_turn][0]
+                summary_end = per_turn_times[e_turn][1]
+
+                bg_path = scene_image_paths[summary_scene_idx] if summary_scene_idx < len(scene_image_paths) else None
+                summary_dir = TEMP_DIR / "summary_card"
+                summary_png = render_summary_card(
+                    idiom_windows=idiom_windows or [],
+                    output_dir=summary_dir,
+                    is_shorts=False,
+                    bg_image_path=bg_path,
+                )
+                if Path(summary_png).exists():
+                    temp_summary = str(Path(base_output).with_suffix(".summary.mp4"))
+                    apply_summary_overlay(
+                        video_path=base_output,
+                        summary_start=summary_start,
+                        summary_end=summary_end,
+                        summary_png=summary_png,
+                        output_path=temp_summary,
+                    )
+                    if Path(temp_summary).exists():
+                        Path(base_output).unlink()
+                        import shutil
+                        shutil.move(temp_summary, base_output)
+            except Exception as e:
+                print(f"  Summary card overlay skipped: {e}")
+
+    append_channel_bumpers(base_output, channel=channel, portrait=False)
+
+    size_mb = Path(output_path).stat().st_size / 1024 / 1024
+    print(f"  ✓ Podcast video assembly complete: {output_path} ({size_mb:.1f} MB)")
+    return output_path
