@@ -10,7 +10,7 @@ from groq_client import groq_chat_json, groq_part_cooldown
 
 # Free tier TPM is 8k; keep topic/thumbnail calls safe at 4096, bump script calls separately.
 ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
-ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "3500"))
+ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "8192"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
