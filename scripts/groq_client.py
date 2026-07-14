@@ -136,13 +136,23 @@ def groq_chat_json(
             last_error = response.text
             continue
 
+        if response.status_code == 413:
+            wait = 62.0
+            print(
+                f"  Groq payload too large (413) — waiting {wait:.0f}s for TPM "
+                f"window reset (retry {attempt}/{max_retries})..."
+            )
+            time.sleep(wait)
+            last_error = response.text
+            continue
+
         if response.status_code == 400 and is_json_validation_error(response):
             last_error = response.text
             if attempt < max_retries:
-                wait = min(2 * attempt, 10)
+                wait = 62.0
                 print(
-                    f"  Groq JSON validation failed — retrying with stricter JSON "
-                    f"instructions in {wait}s (retry {attempt}/{max_retries})..."
+                    f"  Groq JSON validation failed — waiting {wait:.0f}s for TPM "
+                    f"window reset (retry {attempt}/{max_retries})..."
                 )
                 time.sleep(wait)
                 continue
