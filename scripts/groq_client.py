@@ -77,17 +77,27 @@ def groq_chat_json(
     temperature: float = 0.7,
     max_retries: int = 8,
     timeout: int = 120,
+    json_schema: dict | None = None,
+    schema_name: str | None = None,
 ) -> dict:
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("Missing GROQ_API_KEY. Add it to .env for Groq script generation.")
+
+    if json_schema and schema_name:
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "strict": False, "schema": json_schema},
+        }
+    else:
+        response_format = {"type": "json_object"}
 
     payload = {
         "model": GROQ_MODEL,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "response_format": {"type": "json_object"},
+        "response_format": response_format,
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -148,11 +158,15 @@ def groq_chat_json(
 
         if response.status_code == 400 and is_json_validation_error(response):
             last_error = response.text
+            print(
+                f"  Groq JSON validation failed (attempt {attempt}/{max_retries}): "
+                f"{response.text[:200]}"
+            )
             if attempt < max_retries:
-                wait = 62.0
+                wait = min(2 * attempt, 10)
                 print(
-                    f"  Groq JSON validation failed — waiting {wait:.0f}s for TPM "
-                    f"window reset (retry {attempt}/{max_retries})..."
+                    f"  Retrying with stricter JSON instructions in {wait}s "
+                    f"(retry {attempt + 1}/{max_retries})..."
                 )
                 time.sleep(wait)
                 continue
