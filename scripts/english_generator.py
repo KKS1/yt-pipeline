@@ -383,14 +383,36 @@ def validate_podcast_script(raw_input):
             print(f"❌ Role Consistency Failure: Speaker {speaker} is switching between roles: {roles}")
             return script_data, False
 
-    # 4. VALIDATE VISUAL PROMPT CONTEXT ALIGNMENT
+    # 4. VALIDATE 6-STAGE STRUCTURE: Back-to-Studio reflection check
+    # After the last StoryActor turn, there should be at least one Caller turn
+    # before host analysis begins (the "linger confusion" reflection beat).
+    last_story_actor_idx = -1
+    for i, t in enumerate(dialogue):
+        if t.get("speaker", "").startswith("StoryActor"):
+            last_story_actor_idx = i
+    
+    if last_story_actor_idx >= 0 and last_story_actor_idx < len(dialogue) - 1:
+        # Check if there's a Caller turn after the last StoryActor turn
+        has_caller_reflection = any(
+            t.get("speaker") == "Caller"
+            for t in dialogue[last_story_actor_idx + 1:]
+        )
+        if not has_caller_reflection:
+            print("⚠️ Structure Warning: No Caller reflection turn found after the story ends. Expected a 'back to studio' beat where Caller expresses lingering confusion.")
+
+    # 5. VALIDATE VISUAL PROMPT CONTEXT ALIGNMENT
     scenes = script_data.get("scenes", [])
     if scenes:
         # Extract story content from dialogue
         story_text = " ".join([t.get("text", "") for t in dialogue if t.get("speaker") in ["Caller", "StoryActor1", "StoryActor2"]]).lower()
         
         # Generic location keywords that shouldn't appear unless story actually involves them
-        generic_locations = ["marketplace", "subway", "train station", "train platform", "bus stop", "airport terminal"]
+        generic_locations = [
+            "marketplace", "subway", "train station", "train platform",
+            "bus stop", "airport terminal", "high school", "school hallway",
+            "classroom", "coffee shop", "shopping mall", "gym",
+            "lockers", "hallway", "cafeteria",
+        ]
         
         for scene in scenes:
             visual_prompt = scene.get("visual_prompt", "").lower()
@@ -2331,6 +2353,73 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
 # ─── PODCAST PIPELINE ─────────────────────────────────────────────────────────
 
+def _extract_podcast_story_context(dialogue: list) -> str:
+    """Extract a compact story-context summary from dialogue for the storyboard prompt.
+
+    Parses the dialogue to identify the story setting, characters, and a text excerpt
+    so the storyboard Groq call has enough context to generate accurate visuals
+    instead of hallucinating unrelated locations.
+    """
+    story_speakers = {
+        "Caller", "StoryActor1", "StoryActor2",
+        "StoryActor1_Female", "StoryActor2_Male",
+        "StoryActor1_AltMale", "StoryActor2_AltFemale",
+    }
+    story_lines = []
+    for t in dialogue:
+        if t.get("speaker") in story_speakers:
+            story_lines.append(t.get("text", ""))
+    full_story = " ".join(story_lines)
+
+    if not full_story.strip():
+        return ""
+
+    # Extract setting/location cues from story text (use word boundaries to avoid
+    # false positives like "bus" matching inside "business")
+    location_keywords = {
+        "office": "office/workplace", "meeting": "meeting room",
+        "zoom": "video call/virtual meeting",
+        "presentation": "presentation/meeting", "client": "client meeting",
+        "interview": "interview setting", "restaurant": "restaurant",
+        "cafe": "cafe", "coffee": "cafe", "bar": "bar/pub",
+        "hotel": "hotel", "airport": "airport", "hospital": "hospital",
+        "doctor": "medical office", "clinic": "clinic",
+        "school": "school", "classroom": "classroom", "university": "university",
+        "library": "library", "street": "street/outdoors", "park": "park",
+        "gym": "gym", "store": "store/shop", "shop": "store/shop",
+        "mall": "shopping mall", "supermarket": "grocery store",
+        "home": "home", "house": "house", "apartment": "apartment",
+        "kitchen": "kitchen", "bedroom": "bedroom",
+        "car": "car/vehicle", "bus": "bus", "train": "train",
+        "beach": "beach", "mountain": "mountain",
+        "wedding": "wedding", "party": "party", "concert": "concert",
+        "theater": "theater",
+    }
+    detected = set()
+    story_lower = full_story.lower()
+    for kw, label in location_keywords.items():
+        if re.search(r'\b' + re.escape(kw) + r'\b', story_lower):
+            detected.add(label)
+
+    # Identify story characters
+    characters = []
+    for t in dialogue:
+        sp = t.get("speaker", "")
+        if sp.startswith("StoryActor") and sp not in characters:
+            characters.append(sp)
+
+    setting = ", ".join(sorted(detected)) if detected else "unspecified setting"
+    chars = ", ".join(characters) if characters else "Caller only"
+    word_count = len(full_story.split())
+
+    return (
+        f"STORY SETTING: {setting}. "
+        f"CHARACTERS IN STORY: {chars}. "
+        f"STORY LENGTH: ~{word_count} words across {len(story_lines)} dialogue turns. "
+        f"STORY EXCERPT (first 500 chars): {full_story[:500]}"
+    )
+
+
 def generate_podcast_storyboard(script: dict, topic: str = "") -> dict:
     """Post-dialogue Groq call: group dialogue into Pixar-style visual scenes with podcast host switching."""
     dialogue = script.get("dialogue", [])
@@ -2346,28 +2435,32 @@ def generate_podcast_storyboard(script: dict, topic: str = "") -> dict:
     theme = script.get("theme") or script.get("title", "English Lesson")
     num_turns = len(dialogue)
 
-    topic_context = f"\n\nTOPIC/STORY CONTEXT: {topic}" if topic else ""
+    story_context = _extract_podcast_story_context(dialogue)
+    topic_context = f"\n\nTOPIC: {topic}" if topic else ""
+    story_context_block = f"\n\n{story_context}" if story_context else ""
     
     prompt = f"""You are an expert AI storyboard director for a 3D Pixar-style YouTube channel.
-Analyze the input script. Group the dialogue turns into sequence of scenes.{topic_context}
+Analyze the input script. Group the dialogue turns into sequence of scenes.{topic_context}{story_context_block}
 
-The podcast follows this structure:
-1. Story Hook (In Media Res) - High-tension moment from caller's story
+The podcast follows this 6-stage structure:
+1. Story Hook (turns 0-1) - 2-line teaser, high tension
 2. Radio Studio Intro - Emma & Liam welcome listeners and introduce caller
-3. Caller Story - Caller describes their incident in detail
-4. Host Analysis - Emma & Liam react and explain correct English usage
-5. Quiz & Wrap-up - Interactive challenge and episode conclusion
+3. Caller Story - Full story acted out through dialogue
+4. Back to Studio - Caller reflects with lingering confusion
+5. Host Analysis - Emma & Liam explain correct English usage
+6. Quiz & Wrap-up - Interactive challenge and episode conclusion
 
 Emma and Liam are radio show hosts sitting in a modern radio station.
 Host segments (Radio Studio Intro, Host Analysis, Quiz & Wrap-up) should use the podcast_host.png image.
-Story segments (Story Hook, Caller Story) should use unique Pixar-style scene images.
+Story segments (Story Hook, Caller Story, Back to Studio) should use unique Pixar-style scene images.
 
 CRITICAL RULES:
 1. For host segments (Emma/Liam as radio hosts in studio), set "image_filename": "podcast_host.png" and "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style."
-2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc. CRITICAL: The visual prompts MUST match the actual story content from the dialogue. If the story is about a board meeting, use office/meeting settings. If about travel, use travel settings. Do NOT use generic marketplace/train/subway prompts unless the story actually involves those settings.
-3. The style must ALWAYS be: "{style_suffix}" for story scenes.
-4. Create 10-15 scenes total with appropriate labels: "Story Hook", "Radio Studio Intro", "Caller Story", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
-5. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
+2. For story segments (Story Hook, Caller Story), generate unique, highly descriptive Pixar-style prompts with filenames like "scene_2_crisis_moment.png" etc.
+3. VISUAL-DIALOGUE ALIGNMENT: The "STORY EXCERPT" and "STORY SETTING" above describe the actual story. Every non-host scene's visual_prompt MUST depict settings, objects, and actions from that story. If the story mentions a Zoom call, show a person at a computer on a video call. If it mentions a restaurant, show a restaurant. NEVER use generic settings (high school, coffee shop, marketplace, hallway) unless the story EXPLICITLY mentions them. DO NOT invent settings or character appearances not described in the story excerpt.
+4. The style must ALWAYS be: "{style_suffix}" for story scenes.
+5. Create 10-15 scenes total with appropriate labels matching the 6 stages: "Story Hook", "Radio Studio Intro", "Caller Story", "Back to Studio", "Host Analysis", "Quiz & Wrap-up". Ensure scenes sequentially cover all turns from 0 to {num_turns - 1}. Break up longer segments into multiple scenes for visual variety.
+6. You MUST add one final scene with "scene_label": "Summary Card". Its "start_turn" MUST be set to the turn where the hosts begin the closing/summary line, and "end_turn" should be the last turn. Its "image_filename" should be "scene_summary.png" and "visual_prompt" should describe an atmospheric background matching the story setting (no characters).
 
 Output ONLY valid JSON with this schema:
 {{
@@ -2436,12 +2529,40 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-This is a radio show podcast format structured to maximize CTR and AVD:
-1. **Story Hook (In Media Res)**: Start with a high-tension moment from the middle of a story - Caller acts as a story character in first-person describing a crisis or incident.
-2. **Radio Studio Intro**: Emma and Liam (hosts) welcome listeners to the English Vibes Podcast radio station, then introduce a caller who has a story to share.
-3. **Caller Story**: The caller rings in and tells their incident story in detail, describing what happened, the mistake they made, or the confusion they experienced. The story should be acted out through dialogue between Caller and StoryActor1/StoryActor2 (characters within the story).
-4. **Host Analysis**: Emma and Liam react to the caller's story, explain what went wrong, teach the correct English usage, idioms, and phrasal verbs. They provide clear explanations and examples.
-5. **Quiz & Wrap-up**: Present an interactive quiz challenge to test understanding, then wrap up the episode.
+This is a radio show podcast format structured to maximize CTR and AVD. Follow this EXACT 6-stage sequence — NO stage may be skipped, reordered, or merged:
+
+Stage 1: STORY HOOK — exactly 2 turns (in media res)
+- Turn 1: Caller in media res — ONE punchy line, 1-2 sentences max, high tension. Drop the listener into the peak moment. Example: "I was presenting to my biggest client when they suddenly yelled 'No cap!' and I froze."
+- Turn 2: StoryActor responds with ONE short reaction line (confusion, surprise, or a question).
+- STOP. Do NOT continue the story past these 2 turns. Cut immediately to the studio.
+
+Stage 2: RADIO STUDIO INTRO — 3-4 turns
+- Emma welcomes listeners to the English Vibes Podcast.
+- Liam introduces today's topic/theme.
+- Emma says "We've got a caller on the line" and hands off.
+- Liam says "Take it away, [Caller name]."
+- These are the first host turns. They set up the show, NOT the story.
+
+Stage 3: CALLER STORY — 15-20 turns (the FULL story)
+- Caller begins telling their complete story from the top — this is where the full incident plays out.
+- StoryActor1 and StoryActor2 act as characters IN the story (first-person dialogue).
+- The story builds through: setup → rising tension → complication → climax.
+- This is the ONLY place the full story is told. DO NOT repeat or re-enact story beats from Stage 1 — those were just a teaser hook.
+
+Stage 4: BACK TO STUDIO — CALLER REFLECTION — 2-3 turns
+- Cut back to the studio. Emma or Liam asks a question like "So what happened after that?" or "What confused you the most about that?"
+- Caller responds with 1-2 lines expressing LINGERING CONFUSION — they still don't fully understand why the language mistake happened or what the correct usage was.
+- This creates a natural transition for the hosts to step in and teach.
+
+Stage 5: HOST ANALYSIS — 8-12 turns
+- Emma and Liam react to the caller's story.
+- They explain what went wrong (the language mistake, idiom, or phrasal verb).
+- They teach the correct English usage with clear examples.
+- Include the interactive quiz challenge: Host cues the challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" turn → Host reveals correct answer with brief explanation.
+
+Stage 6: WRAP-UP — 2-3 turns
+- One host summarizes the key takeaway from the episode.
+- End with pinned comment question or CTA. No "thanks for watching" or "like and subscribe" — keep it conversational.
 
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_michael): Radio show hosts. They speak in first-person ("I", "my", "we"). They welcome callers, react to stories, explain language mistakes, teach correct usage, and keep the show engaging.
@@ -2454,10 +2575,12 @@ CRITICAL: Always ensure StoryActor1 and StoryActor2 have DISTINCT voices from ea
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 40 and 65 turns to ensure 5+ minute runtime.
-3. PERSPECTIVE GUARD: Emma and Liam must stay in host role and not break into story dialogue. Caller and StoryActors speak in first-person as their characters.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 40 and 65 turns to ensure 5+ minute runtime. Distribute turns across stages: Hook (2) + Studio Intro (3-4) + Full Story (15-20) + Back-to-Studio (2-3) + Host Analysis (8-12) + Quiz/Wrap-up (5-8) = 35-49 range. Add turns within stages as needed to reach 40+.
+3. PERSPECTIVE GUARD: Emma and Liam must stay in host role and never break into story dialogue. Caller and StoryActors speak in first-person as their characters.
 4. CHARACTER-DRIVEN STORYTELLING: Stories should be acted out through dialogue between Caller and StoryActor1/StoryActor2, not narrated.
-5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the climax. The sequence must be: (1) Host cues the challenge, (2) Option A/B/C turns, (3) Host "[PAUSE 3 SECONDS]" turn, (4) Host explains correct answer.
+5. NO DUPLICATE STORY: Stage 1 (Hook) is a 2-line teaser ONLY. Stage 3 (Caller Story) is the ONE and ONLY place the full story is told. Never repeat the same story beats in both stages.
+6. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge in Stage 5. The sequence must be: (1) Host cues the challenge, (2) Option A/B/C turns, (3) Host "[PAUSE 3 SECONDS]" turn, (4) Host explains correct answer.
+7. STAGE COMPLIANCE: Validate your output against the 6 stages above before returning. Confirm: Hook has exactly 2 turns, Studio Intro follows immediately, Story is told once in Stage 3, Caller returns to studio for reflection in Stage 4, Host Analysis follows in Stage 5.
 
 JSON OUTPUT FORMAT (Follow this structure exactly):
 {{
@@ -2469,27 +2592,52 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     {{
       "turn_number": 1,
       "speaker": "Caller",
-      "text": "I couldn't believe what just happened in the meeting..."
+      "text": "I was presenting to my biggest client when they suddenly yelled 'No cap!' and I froze."
     }},
     {{
       "turn_number": 2,
       "speaker": "StoryActor1",
-      "text": "What did you say?"
+      "text": "Wait, what? The internet went down?"
     }},
     {{
       "turn_number": 3,
-      "speaker": "Caller",
-      "text": "I blurted out the wrong phrase and everyone froze."
-    }},
-    {{
-      "turn_number": 4,
       "speaker": "Emma",
       "text": "Welcome to the English Vibes Podcast! I'm Emma."
     }},
     {{
-      "turn_number": 5,
+      "turn_number": 4,
       "speaker": "Liam",
-      "text": "And I'm Liam. Today, we're talking about [Topic]..."
+      "text": "And I'm Liam. Today we're diving into modern slang that catches people off guard."
+    }},
+    {{
+      "turn_number": 5,
+      "speaker": "Emma",
+      "text": "We've got Bella on the line who just experienced this firsthand."
+    }},
+    {{
+      "turn_number": 6,
+      "speaker": "Liam",
+      "text": "Take it away, Bella."
+    }},
+    {{
+      "turn_number": 7,
+      "speaker": "Caller",
+      "text": "Thanks! So I was on a Zoom call with my client..."
+    }},
+    {{
+      "turn_number": 26,
+      "speaker": "Emma",
+      "text": "So Bella, what confused you the most about that whole experience?"
+    }},
+    {{
+      "turn_number": 27,
+      "speaker": "Caller",
+      "text": "I still don't understand why they said 'no cap' — I thought it was something negative."
+    }},
+    {{
+      "turn_number": 28,
+      "speaker": "Liam",
+      "text": "That's actually a really common confusion..."
     }}
   ],
   "thumbnail_text": "TEXT",
@@ -2497,7 +2645,9 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
   "theme": "Short 2-5 word label"
 }}
 
-CRITICAL: The dialogue MUST start with Story Hook (Caller or StoryActor in media res), NOT with Emma/Liam. The Radio Studio Intro with Emma/Liam comes AFTER the initial story hook.
+NOTE: The example above shows abbreviated turn numbers for clarity. Your output must have sequential turn_number values (1, 2, 3, 4, ...) covering all 40-65 turns across the 6 stages. The key structural points are: Hook (turns 1-2) → Studio (turns 3-6) → Full Story (turns 7-~25) → Back-to-Studio reflection (turns ~26-28) → Host Analysis + Quiz (turns ~29-end).
+
+CRITICAL: The dialogue MUST start with Story Hook (Caller + StoryActor in media res), NOT with Emma/Liam. The Radio Studio Intro comes AFTER the 2-line hook. After the full story, the Caller MUST return to the studio for a reflection beat before Host Analysis begins.
 """
     is_valid = False
     attempts = 0
