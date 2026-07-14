@@ -8,9 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from groq_client import groq_chat_json, groq_part_cooldown
 
-# Free tier TPM is 8k; prompt (~3K) + output must stay under 8K total.
+# Free tier TPM is 12k; three 7k-cap calls in a row exceed it. Lower cap + pause between parts.
 ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
-ENGLISH_SCRIPT_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_SCRIPT_MAX_TOKENS", "4096"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
@@ -203,15 +202,6 @@ def validate_organic_english_script(raw_input):
         print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 22.")
         return script_data, False
 
-    # 1b. VALIDATE TOTAL WORD COUNT (minimum 350 words for ~2 min runtime)
-    total_words = sum(len(t.get("text", "").split()) for t in dialogue)
-    if total_words < 350:
-        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 350 words for adequate video length.")
-        return script_data, False
-
-    avg_words = total_words // max(turn_count, 1)
-    print(f"  [info] Word count: {total_words} total, ~{avg_words} avg per turn")
-
     # Track structural validation targets
     has_pause = False
     has_narrator = False
@@ -280,19 +270,10 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 10 to 65 range for podcast format)
-    if turn_count < 10 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 10 and 65.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 35 to 65 range for podcast format)
+    if turn_count < 35 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
         return script_data, False
-
-    # 1b. VALIDATE TOTAL WORD COUNT (minimum 450 words for podcast runtime)
-    total_words = sum(len(t.get("text", "").split()) for t in dialogue)
-    if total_words < 450:
-        print(f"❌ Duration Failure: Script has only {total_words} total words across {turn_count} turns. Need at least 450 words for adequate video length.")
-        return script_data, False
-
-    avg_words = total_words // max(turn_count, 1)
-    print(f"  [info] Word count: {total_words} total, ~{avg_words} avg per turn")
 
     # 2. VALIDATE THEME FIELD (optional — fall back to title if missing)
     theme = script_data.get("theme", "")
@@ -1607,10 +1588,7 @@ def sanitize_dialogue_part(dialogue: list, max_outro_turns_at_end: int = 0, is_i
 # def combine_english_parts(part1_data: dict, part2_data: dict, part3_data: dict, topic: str) -> dict:
 #     ... (removed as part of storytelling format migration)
 
-def call_groq_json(
-    user_prompt: str,
-    max_tokens: int = ENGLISH_MAX_TOKENS,
-) -> dict:
+def call_groq_json(user_prompt: str) -> dict:
     res = groq_chat_json(
         messages=[
             {
@@ -1627,7 +1605,7 @@ def call_groq_json(
             },
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=max_tokens,
+        max_tokens=ENGLISH_MAX_TOKENS,
         temperature=0.7,
     )
     # Ensure we always return a dictionary; sometimes the LLM returns a list of items directly.
@@ -1804,7 +1782,7 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
             print(f"  [pause_split] Split same-line mixed pause at turn {turn.get('turn_number')} into separate turns")
             continue
         
-        # Check for multi-line mixed pause (pause on its own line with other text below)
+        # Check if this is a multi-line mixed pause (pause marker + other text)
         lines = text.split('\n')
         pause_line = None
         remaining_lines = []
@@ -1817,14 +1795,12 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
         
         if pause_line and remaining_lines:
             # Split into two separate turns
-            # First turn: pause marker only
             pause_turn = dict(turn)
             pause_turn["text"] = pause_line
             pause_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
             new_dialogue.append(pause_turn)
             turn_offset += 1
             
-            # Second turn: remaining text
             content_turn = dict(turn)
             content_turn["text"] = '\n'.join(remaining_lines).strip()
             content_turn["turn_number"] = turn.get("turn_number", 0) + turn_offset
@@ -1942,7 +1918,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
       ]
     }}
     """
-    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+    script_data = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
@@ -2075,7 +2051,7 @@ JSON SCHEMA:
   ]
 }}
 """
-    script = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+    script = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script = separate_mixed_pause_turns(script)
     script.setdefault("day", day_number)
@@ -2090,10 +2066,6 @@ JSON SCHEMA:
         title_options = script.get("title_options") or []
         if title_options:
             script["title"] = title_options[0]
-
-    thumbnail = generate_thumbnail_text(f"{day.get('title')} | {series_title}", is_challenge=True)
-    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
-    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
 
     script = _clean_challenge_dialogue(script, day_number)
     return attach_storyboard_to_script(script, portrait=False)
@@ -2172,7 +2144,7 @@ TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development). EACH TURN MUST CONTAIN MINIMUM 20-30 WORDS — avoid one-word agreements, short greetings, or bare reactions. Characters should elaborate with substance and emotional depth.
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
 4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow — the story NEVER stops for a lesson. After a character uses an idiom or phrasal verb, the Narrator's next line should feel like a natural continuation of the scene, not a classroom aside. For example: after Emma says "things got out of hand," the Narrator might say "And just like that, the situation Emma feared most was exactly what was happening." The explanation is embedded in the storytelling, not bolted onto it. Limit to 1-2 brief inline explanations maximum. Use natural phrasing — never meta-language like "phrasal verb breakdown", "phrase verb spotlight", "let me explain", or "here's what that means". The Narrator must remain in third-person storytelling mode at all times. If the Narrator feels like they're pausing the scene to teach, rewrite the line so the lesson flows as part of the story.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario — then on SEPARATE lines, each option on its own line starting with the word "Option" (e.g. "Option A: No thanks." / "Option B: No thanks, but I'll take a coffee." / "Option C: No, I don't want anything.") — this is critical for TTS pronunciation, never use bare "A)" "B)" "C)" labels, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
@@ -2224,19 +2196,13 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(
-            prompt_short_story, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS,
-        )
+        raw_script = call_groq_json(prompt_short_story)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_organic_english_script(raw_script)
 
     if not is_valid:
         print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
-
-    thumbnail = generate_thumbnail_text(topic, is_challenge=False)
-    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
-    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
 
     return attach_storyboard_to_script(script, portrait=False)
 
@@ -2354,7 +2320,7 @@ JSON SCHEMA:
   ]
 }}
 """
-    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+    script_data = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data.setdefault("video_format", "shorts")
@@ -2433,7 +2399,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
       ]
     }}
     """
-    script_data = call_groq_json(prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS)
+    script_data = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script_data = separate_mixed_pause_turns(script_data)
     script_data["video_format"] = "shorts_quiz"
@@ -2939,7 +2905,7 @@ FORMAT: Radio podcast, 40-65 dialogue turns, 7 stages in this EXACT order:
 
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
 2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
-3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened. Hosts react naturally. Then Liam or Emma hands off.
+3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened. Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
 4. FULL STORY (12-18 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
 6. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
@@ -2954,7 +2920,6 @@ VOICES:
 
 RULES:
 - 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
-- EACH DIALOGUE TURN MUST BE A FULLY DEVELOPED THOUGHT: minimum 15-20 words per turn. Avoid one-word agreements, short greetings, or bare reactions. Hosts should elaborate, explain, and react with substance — think radio-show cadence, not text messages. Characters in the story should speak with detail and emotional depth.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Emma/Liam never break into story dialogue.
@@ -2973,19 +2938,13 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
-        raw_script = call_groq_json(
-            prompt, max_tokens=ENGLISH_SCRIPT_MAX_TOKENS,
-        )
+        raw_script = call_groq_json(prompt)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
         script, is_valid = validate_podcast_script(raw_script)
 
     if not is_valid:
         print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
-
-    thumbnail = generate_thumbnail_text(topic, is_challenge=False)
-    script["thumbnail_text"] = thumbnail.get("thumbnail_text") or script.get("title", "")
-    script["thumbnail_concept"] = thumbnail.get("thumbnail_concept", "")
 
     # Post-process description and attach custom storyboard
     script = generate_podcast_storyboard(script, topic=topic)
