@@ -39,33 +39,33 @@ METADATA RULES:
 - Pinned comments must ask a specific question that viewers can answer quickly.
 
 DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
-🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
+🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions, idioms and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
+
+📑 About This Lesson:
+What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
 
 📺 Watch the playlist here: {playlist_url}
 
 💬 Comment below: [specific question]
 
- Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
-
-📑 About This Lesson:
-What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
+🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
 
 📑 Timeline:
 {scene_timeline}
 
-#EnglishVibesHub #LearnEnglish #EnglishListeningPractice #EnglishForBeginners #EnglishPodcast ...
+#LearnEnglish #EnglishListeningPractice #EnglishSpeakingPractice #EnglishVibesHub #[TopicTag] #EnglishForBeginners #EnglishPodcast ...
 
 QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
 🎯 English listening practice conversational: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
+
+📑 About This Lesson:
+What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
 
 📺 Watch the playlist here: {playlist_url}
 
 💬 Comment below: [specific question]
 
 🔔 Subscribe for more quick English quizzes!
-
-📑 About This Lesson:
-What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
 
 #Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub #[TopicTag] #EnglishListeningPractice #EnglishSpeakingPractice
 """
