@@ -33,8 +33,8 @@ ENGLISH_VOICES = {
     "Guest": "af_sky",          # Upgrade: Crisp, youthful American female accent
     "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
     "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
-    "StoryActor2": "af_heart",     # Premium female voice (was af_sarah)
-    "StoryActor1_Female": "af_bella",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
+    "StoryActor2": "af_bella",     # Premium female voice (was af_sarah)
+    "StoryActor1_Female": "af_heart",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
     "StoryActor2_Male": "am_echo",    # Alternative male voice for StoryActor2 (distinct from StoryActor1 and Liam)
     "StoryActor1_AltMale": "am_michael",    # Alternative male voice if StoryActor2 is also male (uses Liam's voice but acceptable as alt)
     "StoryActor2_AltFemale": "af_sky", # Alternative female voice if StoryActor1 is also female (distinct from Emma's af_heart)
