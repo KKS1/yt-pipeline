@@ -269,10 +269,10 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_EMMA_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_LIAM_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_GUEST_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_EMMA_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,4,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_LIAM_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,4,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_GUEST_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,4,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,4,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
 Style: {STYLE_COUNTDOWN},{_eff_fontname()},{countdown_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&H88000000,1,0,0,0,100,100,0,0,1,5,1,5,40,40,0,1
 
