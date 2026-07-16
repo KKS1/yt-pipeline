@@ -328,8 +328,8 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     if total_chars > 40 and len(words) > 2:
         split_at = len(words) // 2
 
-    # Set up base style rule: entire line starts as secondary color (White)
-    # and fills up with the primary color (Speaker's Highlight Color)
+    # Set up base style rule: entire line starts as secondary color (Speaker's Highlight Color)
+    # and fills up with the primary color (White)
     if speaker.lower() == "emma":
         highlight = COLOUR_EMMA_HL
     elif speaker.lower() == "guest":
@@ -338,7 +338,7 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
         highlight = COLOUR_LIAM_HL
 
     # Initialize the line by forcing the active text color mapping
-    parts.append(rf"{{\1c{highlight}&\2c{COLOUR_WHITE}&}}")
+    parts.append(rf"{{\1c{COLOUR_WHITE}&\2c{highlight}&}}")
 
     for i, w in enumerate(words):
         word_text = w["word"].strip()
@@ -352,11 +352,11 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
         if _is_idiom_chunk(word_text, extra_idiom_phrases):
             # Golden accent style override for idiom words
             parts.append(
-                rf"{line_break}{{\k{dur_cs}\1c{COLOUR_IDIOM_HL}&\2c{COLOUR_IDIOM_HL}&\b1\fs+2}}{display_word}{{\1c{highlight}&\2c{COLOUR_WHITE}&\b1\fs-2}} "
+                rf"{line_break}{{\k{dur_cs}\1c{COLOUR_IDIOM_HL}&\2c{COLOUR_IDIOM_HL}&\b1\fs+2}}{display_word}{{\1c{COLOUR_WHITE}&\2c{highlight}&\b1\fs-2}} "
             )
         else:
             # Modern karaoke: uses standard \k tag. 
-            # The color changes from \2c (White) to \1c (Highlight) and stays filled!
+            # The color changes from \2c (Highlight) to \1c (White) and stays filled!
             parts.append(rf"{line_break}{{\k{dur_cs}}}{display_word} ")
 
     return badge + "".join(parts).rstrip()
