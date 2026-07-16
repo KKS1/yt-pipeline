@@ -2958,6 +2958,15 @@ VOICES:
 - "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
 - "Guest" (bf_emma): Optional. Always female.
 
+NATURAL EXPRESSION REQUIREMENTS:
+- StoryActors (Caller, StoryActor1, StoryActor2) MUST use authentic, natural English expressions in their dialogue
+- Include at least 2-3 distinct phrasal verbs used naturally in context throughout the story
+- Include at least 1-2 idioms appropriate to the situation
+- Use colloquial expressions and varied vocabulary beyond basic English
+- Characters should speak like real people in stressful situations, not textbook examples
+- Expressions must fit the emotional context and urgency of the scene
+- Emma and Liam should highlight and explain these expressions during Stage 6 (Host Analysis)
+
 RULES:
 - 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
