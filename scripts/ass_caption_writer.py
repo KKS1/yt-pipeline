@@ -269,9 +269,9 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_EMMA_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_LIAM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
-Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_WHITE},{COLOUR_GUEST_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_EMMA},{_eff_fontname()},{font_size_normal},{COLOUR_EMMA_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_LIAM},{_eff_fontname()},{font_size_normal},{COLOUR_LIAM_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
+Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_GUEST_HL},{COLOUR_WHITE},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,2,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
 Style: {STYLE_COUNTDOWN},{_eff_fontname()},{countdown_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&H88000000,1,0,0,0,100,100,0,0,1,5,1,5,40,40,0,1
@@ -316,9 +316,7 @@ def _badge_override(speaker: str) -> str:
 def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str], emphasized_phrases: list[str] = None) -> str:
     """
     Build the ASS Text field for one dialogue caption chunk.
-
-    words: list of {"word": str, "start": float, "end": float}
-    Returns the full ASS text string including karaoke \\k tags.
+    Keeps previously spoken words highlighted in the speaker's color.
     """
     badge = _badge_override(speaker)
     parts = []
@@ -330,6 +328,18 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     if total_chars > 15 and len(words) > 2:
         split_at = len(words) // 2
 
+    # Set up base style rule: entire line starts as secondary color (White)
+    # and fills up with the primary color (Speaker's Highlight Color)
+    if speaker.lower() == "emma":
+        highlight = COLOUR_EMMA_HL
+    elif speaker.lower() == "guest":
+        highlight = COLOUR_GUEST_HL
+    else:
+        highlight = COLOUR_LIAM_HL
+
+    # Initialize the line by forcing the active text color mapping
+    parts.append(rf"{{\1c{highlight}&\2c{COLOUR_WHITE}&}}")
+
     for i, w in enumerate(words):
         word_text = w["word"].strip()
         if not word_text:
@@ -337,24 +347,17 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
         dur_cs = _cs(w["end"] - w["start"])
 
         line_break = r"\N" if i == split_at else ""
-
-        # Use original word without capitalization
         display_word = word_text
 
         if _is_idiom_chunk(word_text, extra_idiom_phrases):
             # Golden accent style override for idiom words
             parts.append(
-                rf"{line_break}{{\k{dur_cs}\c{COLOUR_IDIOM_HL}&\b1\fs+2}}{display_word}{{\r}} "
+                rf"{line_break}{{\k{dur_cs}\1c{COLOUR_IDIOM_HL}&\2c{COLOUR_IDIOM_HL}&\b1\fs+2}}{display_word}{{\1c{highlight}&\2c{COLOUR_WHITE}&\b1\fs-2}} "
             )
         else:
-            # Normal karaoke: word highlight in speaker colour when spoken
-            if speaker.lower() == "emma":
-                highlight = COLOUR_EMMA_HL
-            elif speaker.lower() == "guest":
-                highlight = COLOUR_GUEST_HL
-            else:
-                highlight = COLOUR_LIAM_HL
-            parts.append(rf"{line_break}{{\k{dur_cs}\2c{highlight}&}}{display_word} ")
+            # Modern karaoke: uses standard \k tag. 
+            # The color changes from \2c (White) to \1c (Highlight) and stays filled!
+            parts.append(rf"{line_break}{{\k{dur_cs}}}{display_word} ")
 
     return badge + "".join(parts).rstrip()
 
