@@ -2946,9 +2946,9 @@ FORMAT: Radio podcast, 40-65 dialogue turns, 7 stages in this EXACT order:
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
 2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
 3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened. Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
-4. FULL STORY (12-18 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
+4. FULL STORY (8-12 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
-6. HOST ANALYSIS (8-12 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
+6. HOST ANALYSIS (8-10 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
@@ -2967,8 +2967,14 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Expressions must fit the emotional context and urgency of the scene
 - Emma and Liam should highlight and explain these expressions during Stage 6 (Host Analysis)
 
+ANTI-REPETITION RULE: In Stage 4 (Full Story), avoid repeating the same filler word or phrase (like "anyway", "so", "well") more than 2-3 times total. If a character overuses a transition word, it feels robotic and unnatural. Cut repetitive dialogue even if it reduces turn count.
+
+SHARP HOST BACK-AND-FORTH: In Stage 6 (Host Analysis), Emma and Liam should NOT echo each other. Emma delivers the structural rules and framework, while Liam delivers explicit phrasing examples and concrete sentences. This creates a sharper teaching rhythm.
+
+ACCELERATED TRANSITION: After Stage 4 (Full Story) ends, immediately transition into Stage 6 (Host Analysis) teaching the two definitive rules for the topic. Do not linger in Stage 5 (Back to Studio) with extended reflection - keep it to 2-3 turns maximum where Caller expresses lingering confusion, then move straight to the teaching.
+
 RULES:
-- 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-18, Back=2-3, Analysis=8-12, Wrap=2-3.
+- 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=8-12, Back=2-3, Analysis=8-10, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Emma/Liam never break into story dialogue.
