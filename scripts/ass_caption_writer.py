@@ -325,7 +325,7 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
     # Heuristic for multiline: split at approx middle word if chunk is long enough
     total_chars = sum(len(w["word"]) for w in words)
     split_at = -1
-    if total_chars > 15 and len(words) > 2:
+    if total_chars > 40 and len(words) > 2:
         split_at = len(words) // 2
 
     # Set up base style rule: entire line starts as secondary color (White)
