@@ -53,10 +53,10 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 📑 Timeline:
 {scene_timeline}
 
-#EnglishVibesHub #LearnEnglish #EnglishListeningPractice #EnglishForBeginners ...
+#EnglishVibesHub #LearnEnglish #EnglishListeningPractice #EnglishForBeginners #EnglishPodcast ...
 
 QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
-🎯 English listening practice via Story: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
+🎯 English listening practice conversational: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
 
 📺 Watch the playlist here: {playlist_url}
 
@@ -111,7 +111,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "") -> str:
     """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
     text = str(description or "").strip()
     if not text:
-        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice"
+        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
     
     hashtag_re = re.compile(r"#\w+")
     
@@ -133,7 +133,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "") -> str:
     
     # Build optimized hashtag line with comprehensive tags
     core_tags = "#LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary"
+    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary #EnglishPodcast"
     
     # Extract topic-specific hashtag from theme if available
     topic_tag = ""
@@ -486,7 +486,7 @@ def ensure_english_seo_opener(description: str, theme: str = "") -> str:
     # Build customized opener with proper keyword front-loading
     # Rule: First 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
     if theme_clean:
-        seo_line = f"🎯 English listening practice via Story: {theme_clean}. Master natural English for real conversations and speak like a native!"
+        seo_line = f"🎯 English listening practice conversational podcast: {theme_clean}. Master natural English for real conversations and speak like a native!"
     else:
         seo_line = "🎯 English listening practice: learn practical English expressions. Master natural English for real conversations and speak like a native!"
     
@@ -937,7 +937,7 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
 
     # Build optimized hashtag line with topic-specific tag
     core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice"
+    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
     
     # Extract topic-specific hashtag from theme if available
     topic_tag = ""
