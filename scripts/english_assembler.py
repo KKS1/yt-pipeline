@@ -30,7 +30,7 @@ ENGLISH_VOICES = {
     "Narrator": "af_bella",     # Keep: Best formal, structured American female narration (used by english pipeline)
     "Emma": "af_heart",         # Keep: Lively, high-energy, great for emotional dialogue
     "Liam": "am_michael",       # Upgrade: Replaces am_echo with the absolute best male voice
-    "Guest": "bf_emma",         # Upgrade: Replaces af_sarah with a British female accent
+    "Guest": "af_nicole",         # Upgrade: Replaces af_sarah with a British female accent
     "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
     "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
     "StoryActor2": "af_heart",     # Premium female voice (was af_sarah)
