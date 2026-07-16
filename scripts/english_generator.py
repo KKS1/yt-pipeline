@@ -852,13 +852,13 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     
     # Add subscribe with bell icon if missing (comes before timeline)
     if not re.search(r"🔔\s*Subscribe", text, re.IGNORECASE):
-        additions.append("🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
+        additions.append("\n\n🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.")
     
     # Add timeline only for long-form videos (not shorts)
     if include_timeline and "{scene_timeline}" not in text and not re.search(
         r"\b(?:timeline|chapters?)\b", text, re.IGNORECASE
     ):
-        additions.append("� Timeline:\n{scene_timeline}")
+        additions.append("📑 Timeline:\n{scene_timeline}")
 
     if additions:
         # If text starts with SEO opener, insert additions after it
