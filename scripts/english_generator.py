@@ -2123,7 +2123,7 @@ TOPIC: {topic}
 VOICE CAST & CHARACTER ASSIGNMENT ROLES:
 - "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow (never pausing the story for a lesson), and guides transitions between beats.
 - "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
-- "Guest" (Voice Profile: af_nicole): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). ALWAYS female character. Speaks naturally based on the scene setting requirements.
+- "Guest" (Voice Profile: af_sky): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). ALWAYS female character. Speaks naturally based on the scene setting requirements.
 
 NATURAL EXPRESSION REQUIREMENTS:
 - Emma and Liam MUST use authentic, natural English expressions in their dialogue
@@ -2956,7 +2956,7 @@ VOICES:
 - "Caller" (af_bella): Appears in Stage 1 (hook — 1 line), Stage 3 (caller story setup — 2-3 lines explaining what happened), Stage 5 (back-to-studio reflection — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
 - "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
 - "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
-- "Guest" (af_nicole): Optional. Always female.
+- "Guest" (af_sky): Optional. Always female.
 
 NATURAL EXPRESSION REQUIREMENTS:
 - StoryActors (Caller, StoryActor1, StoryActor2) MUST use authentic, natural English expressions in their dialogue
