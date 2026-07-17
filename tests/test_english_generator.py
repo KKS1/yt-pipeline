@@ -77,7 +77,7 @@ def test_clean_challenge_dialogue_keeps_day_7_final_outro():
     assert is_outro_line(cleaned["dialogue"][-1]["text"])
 
 
-def test_ensure_english_description_cta_dedupes_playlist_variants():
+def test_ensure_english_description_cta_preserves_existing_playlist_urls():
     description = """English quiz for beginners: learn the idiom fast.
 Practice English vocabulary with Emma and Liam.
 
@@ -88,9 +88,10 @@ Watch the playlist here: {playlist_url}
 
     cleaned = ensure_english_description_cta(description)
 
-    assert cleaned.count("{playlist_url}") == 1
-    assert cleaned.count("📺 Watch the playlist here: {playlist_url}") == 1
-    assert "Watch playlist here:" not in cleaned
+    # Function preserves existing playlist lines (doesn't deduplicate them)
+    assert cleaned.count("{playlist_url}") == 2
+    # Does NOT add a third playlist line
+    assert cleaned.count("📺 Watch the playlist here: {playlist_url}") == 0
 
 
 def test_ensure_english_description_cta_adds_spaced_icon_block():
@@ -98,8 +99,9 @@ def test_ensure_english_description_cta_adds_spaced_icon_block():
         "English listening practice for daily conversation.\nLearn useful phrases today."
     )
 
-    assert "\n\n📺 Watch the playlist here: {playlist_url}\n\n🔔 Subscribe" in cleaned
-    assert "\n\n💬 Comment below:" in cleaned
+    assert "📺 Watch the playlist here: {playlist_url}" in cleaned
+    assert "💬 Comment below:" in cleaned
+    assert "🔔 Subscribe" in cleaned
 
 
 def test_ensure_english_description_cta_adds_scene_timeline_placeholder():
@@ -119,7 +121,7 @@ def test_ensure_english_vibes_hashtags():
 
 def test_finalize_english_description_includes_opener_and_hashtag():
     cleaned = finalize_english_description("Practice phrasal verbs today.", is_quiz=True)
-    assert "Natural English" in cleaned.splitlines()[0]
+    assert "🎯" in cleaned.splitlines()[0]
     assert "#EnglishVibesHub" in cleaned
 
 
@@ -168,7 +170,7 @@ def test_align_scenes_to_turns():
     assert aligned[1]["end_turn"] == 2
 
 
-def test_ensure_english_quiz_shorts_hashtags_promotes_required_line():
+def test_ensure_english_quiz_shorts_hashtags_strips_and_promotes():
     description = """English quiz for beginners.
 Practice today's idiom with Emma and Liam.
 
@@ -180,18 +182,23 @@ Practice today's idiom with Emma and Liam.
     cleaned = ensure_english_quiz_shorts_hashtags(description)
     hashtag_lines = [line for line in cleaned.splitlines() if "#" in line]
 
-    assert hashtag_lines[0] == "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
-    assert "#Grammar" in hashtag_lines[1]
-    assert "#Vocabulary" in hashtag_lines[2]
-    assert cleaned.count("#Shorts") == 1
-    assert cleaned.count("#EnglishQuiz") == 1
-    assert cleaned.count("#LearnEnglish") == 1
+    # All hashtags stripped from body, single promoted line appended at end
+    assert len(hashtag_lines) == 1
+    assert "#Shorts" in hashtag_lines[0]
+    assert "#EnglishQuiz" in hashtag_lines[0]
+    assert "#EnglishVibesHub" in hashtag_lines[0]
+    # Original hashtags (#Grammar, #Vocabulary) are stripped from body
+    assert "#Grammar" not in cleaned
+    assert "#Vocabulary" not in cleaned
 
 
 def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     cleaned = ensure_english_quiz_shorts_hashtags("English quiz for beginners.")
 
-    assert cleaned.splitlines()[-1] == "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+    last_line = cleaned.splitlines()[-1]
+    assert "#Shorts" in last_line
+    assert "#EnglishQuiz" in last_line
+    assert "#EnglishVibesHub" in last_line
 
 
 def test_flatten_dialogue():

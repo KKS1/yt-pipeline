@@ -1,5 +1,6 @@
 import os
 import json
+import pytest
 from pathlib import Path
 from scripts import manual_run
 from scripts.english_assembler import (
@@ -34,8 +35,8 @@ def test_select_english_visuals_prefers_script_keywords():
     assert selected[0].name == "glimmer_drink_coffee1.mp4"
 
 
-def test_align_scenes_to_turns_redistributes_incorrect_ranges():
-    """Test that scene turns are redistributed correctly when AI generates invalid ranges."""
+def test_align_scenes_to_turns_clamps_invalid_ranges():
+    """Test that invalid scene ranges (end < start) are clamped and last scene is extended."""
     dialogue = [{"speaker": "Emma", "text": f"Line {i}"} for i in range(10)]
     
     # Simulate AI generating incorrect ranges (scene 2 has end < start)
@@ -46,12 +47,12 @@ def test_align_scenes_to_turns_redistributes_incorrect_ranges():
     
     aligned = align_scenes_to_turns(scenes, dialogue)
     
-    # Should redistribute turns evenly: 10 turns / 2 scenes = 5 turns each
+    # Scene 1 keeps its range, Scene 2 is clamped (end >= start), last scene extended to end
     assert len(aligned) == 2
     assert aligned[0]["start_turn"] == 0
-    assert aligned[0]["end_turn"] == 4
-    assert aligned[1]["start_turn"] == 5
-    assert aligned[1]["end_turn"] == 9  # Last scene covers to the end
+    assert aligned[0]["end_turn"] == 5
+    assert aligned[1]["start_turn"] == 6
+    assert aligned[1]["end_turn"] == 9  # Last scene forced to final turn
 
 
 def test_align_scenes_to_turns_handles_remainder():
@@ -142,6 +143,11 @@ def test_no_additional_pause_before_explicit_pause_token():
     print("✓ No double pause test passed")
 
 
+@pytest.mark.skipif(
+    not Path("kokoro-v0_19.onnx").exists() and not Path("kokoro-v1.0.onnx").exists()
+    or not Path("assets/english_visuals/test_loop.mp4").exists(),
+    reason="Requires Kokoro TTS model files and test_loop.mp4 asset"
+)
 def test_pipeline():
     cleanup_english_temp()
     

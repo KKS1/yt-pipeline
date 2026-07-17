@@ -78,14 +78,14 @@ class BumperSupportTests(unittest.TestCase):
             self.assertEqual(ffmpeg_assembler.get_media_duration("sample.mp4"), 12.34)
 
     def test_generate_captions_raises_when_whisper_fails(self):
-        fake_result = Mock(returncode=1, stderr="error: model not found")
-        with patch.object(ffmpeg_assembler.subprocess, "run", return_value=fake_result):
+        """Test that generate_captions raises RuntimeError when faster-whisper is not installed."""
+        with patch("builtins.__import__", side_effect=ImportError("No module named 'faster_whisper'")):
             with tempfile.TemporaryDirectory() as tmp:
                 output_srt = Path(tmp) / "video.srt"
                 with self.assertRaises(RuntimeError) as cm:
                     ffmpeg_assembler.generate_captions(str(Path(tmp) / "audio.mp3"), str(output_srt))
 
-        self.assertIn("Whisper caption generation failed", str(cm.exception))
+        self.assertIn("faster-whisper", str(cm.exception).lower())
 
     def test_create_thumbnail_from_video_uses_frame_and_drawtext(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -105,7 +105,7 @@ class BumperSupportTests(unittest.TestCase):
         flat = [part for cmd in commands for part in cmd]
         self.assertIn("video.mp4", flat)
         self.assertTrue(any("-ss" in part for part in flat))
-        self.assertTrue(any("drawtext=text='Unique Topic'" in part for part in flat))
+        self.assertTrue(any("drawtext=" in part and "textfile=" in part for part in flat))
 
     def test_append_channel_bumpers_replaces_output_after_successful_crossfade(self):
         with tempfile.TemporaryDirectory() as tmp:

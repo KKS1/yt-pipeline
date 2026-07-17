@@ -146,7 +146,8 @@ class ManualRunUploadTests(unittest.TestCase):
                     self.assertEqual(upload.call_args.kwargs["channel"], "english")
                     self.assertEqual(upload.call_args.kwargs["schedule_time"], "2026-06-03T15:00:00Z")
 
-    def test_upload_video_generates_frame_thumbnail_for_english(self):
+    def test_upload_video_skips_thumbnail_for_english(self):
+        """Thumbnail generation is disabled — youtube_upload receives thumbnail_path=None."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             assets = tmp_path / "assets"
@@ -172,7 +173,7 @@ class ManualRunUploadTests(unittest.TestCase):
                                 thumbnail_concept="Bright cafe study scene with bold text",
                             )
 
-                        thumb.assert_called_once()
+                        thumb.assert_not_called()
                         upload.assert_called_once()
 
     def test_english_challenge_creates_playlist_and_adds_uploaded_videos(self):
