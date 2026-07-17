@@ -167,17 +167,31 @@ class ChromeAIGenerator:
             print(f"  Current page: {self.page.url}")
             print(f"  Page title: {await self.page.title()}")
             
+            # Debug: Look for any buttons on the page
+            all_buttons = await self.page.query_selector_all('button, [role="button"], cr-icon-button')
+            print(f"  Found {len(all_buttons)} button-like elements on page")
+            for i, btn in enumerate(all_buttons[:10]):  # Show first 10
+                try:
+                    text = await btn.inner_text()
+                    aria_label = await btn.get_attribute('aria-label')
+                    classes = await btn.get_attribute('class')
+                    print(f"    Button {i}: text='{text}', aria-label='{aria_label}', class='{classes}'")
+                except:
+                    print(f"    Button {i}: (could not get attributes)")
+            
             # Look for AI mode button in search bar
             # Based on actual Chrome HTML: <cr-icon-button id="entrypoint" class="ai-mode-button" ...>
             # Also looking for '+' button as user mentioned
+            # User provided actual button: <button jsname="ko0Zye" class="UbbAWe" aria-label="Add files, tools, and select a model">
+            # Note: jsname and class can be dynamic, so rely on aria-label
             ai_selectors = [
-                '#entrypoint.ai-mode-button',
-                'cr-icon-button.ai-mode-button',
-                '[id="entrypoint"][class*="ai-mode-button"]',
+                'button[aria-label="Add files, tools, and select a model"]',
+                'button[aria-label*="Add files"]',
+                'button[aria-label*="files, tools"]',
+                'button[aria-label*="tools, and select a model"]',
                 'button[aria-label*="Enhance your search with tabs, files, or an AI tool"]',
                 'button[aria-label*="AI"]',
                 'button[aria-label*="Google AI"]',
-                'cr-icon-button[iron-icon="cr:add"]',
                 'button:has-text("+")',
                 '[role="button"]:has-text("+")',
             ]
@@ -200,12 +214,14 @@ class ChromeAIGenerator:
             await self.page.wait_for_timeout(2000)
             
             # Look for "create images" option
-            # Based on actual Chrome HTML: <button class="dropdown-item" role="menuitem" data-mode="4" aria-label="Tools: Create images">
+            # Based on actual Chrome HTML: <button class="izN7If" data-tool="4" role="menuitemradio" ...><span>Create images</span>
+            # Note: jsname and class can be dynamic, so rely on data-tool, role, and text
             image_selectors = [
-                'button.dropdown-item[data-mode="4"]',
-                'button[aria-label="Tools: Create images"]',
-                'button.dropdown-item:has-text("Create images")',
-                '[role="menuitem"][data-mode="4"]',
+                'button[data-tool="4"]',
+                'button[role="menuitemradio"]:has-text("Create images")',
+                'button:has-text("Create images")',
+                '[role="menuitemradio"][data-tool="4"]',
+                'button:has-text("🍌")',
             ]
             
             image_button = None
