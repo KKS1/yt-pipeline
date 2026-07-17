@@ -22,12 +22,12 @@ from playwright.async_api import async_playwright
 
 
 async def open_chrome_for_login():
-    """Open Chromium with Chrome profile and keep it open for manual login."""
+    """Open Chrome with Chrome profile and keep it open for manual login."""
     
     profile_path = os.getenv("CHROME_PROFILE_PATH", "/Users/kanwal/Library/Application Support/Google/Chrome/Default")
     
     print("=" * 60)
-    print("Opening Chromium for Manual Google Login")
+    print("Opening Chrome for Manual Google Login")
     print("=" * 60)
     print(f"\nChrome profile: {profile_path}")
     print(f"\nBrowser will open and stay open.")
@@ -38,10 +38,11 @@ async def open_chrome_for_login():
     try:
         playwright = await async_playwright().start()
         
-        # Launch Chrome with existing profile
+        # Launch real Chrome (not Chromium) to match chrome_ai_scraper profile format
         browser = await playwright.chromium.launch_persistent_context(
             user_data_dir=profile_path,
             headless=False,
+            channel="chrome",
             args=[
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
