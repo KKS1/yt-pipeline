@@ -813,17 +813,28 @@ def _build_manifest_entry(
     )
 
 
-def _fetch_scene_images_for_manifest(manifest: VisualManifest, *, skip_gemini: bool = False) -> None:
-    if skip_gemini:
+def _fetch_scene_images_for_manifest(manifest: VisualManifest, *, skip_gemini: bool = False, use_chrome_ai: bool = False) -> None:
+    if use_chrome_ai:
+        print("\n  --use-chrome-ai: using Chrome AI for scene image generation.")
+        from chrome_ai_scraper import fetch_scenes_for_manifest_entry
+    elif skip_gemini:
         print("\n  --skip-gemini: scene images not fetched via API.")
         return
-    from gemini_scene_images import fetch_scenes_for_manifest_entry
+    else:
+        print("\n  Using Gemini for scene image generation.")
+        from gemini_scene_images import fetch_scenes_for_manifest_entry
 
     for entry in manifest.entries:
         if entry.visual_mode != "scenes" or not entry.scenes:
             continue
         print(f"\n  Fetching scene images for: {entry.label}")
-        fetch_scenes_for_manifest_entry(PROJECT_ROOT, entry)
+        try:
+            fetch_scenes_for_manifest_entry(PROJECT_ROOT, entry)
+        except Exception as e:
+            print(f"  Error fetching scene images: {e}")
+            if use_chrome_ai:
+                print(f"  Chrome AI failed, falling back to manual instructions.")
+        
         scenes_dir = scenes_assets_dir(PROJECT_ROOT, entry.scenes_folder)
         ready, missing = check_scene_images_ready(scenes_dir, entry.scenes)
         entry.scene_images_ready = ready
@@ -1034,7 +1045,7 @@ def _assemble_english_video_from_script(
 
 # ── Manifest-only: generate scripts + write manifest, then exit ──────────────
 
-def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English podcast: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
@@ -1076,7 +1087,7 @@ def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notif
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_{slug(title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
     print("PHASE 1 COMPLETE — manifest written.")
@@ -1084,7 +1095,7 @@ def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notif
     print(f"{'=' * 50}\n")
 
 
-def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English Vibes Podcast: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_podcast_script
@@ -1124,7 +1135,7 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_podcast_{slug(title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
     print("PHASE 1 COMPLETE — manifest written.")
@@ -1132,7 +1143,7 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     print(f"{'=' * 50}\n")
 
 
-def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English Shorts: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_shorts_script
@@ -1173,15 +1184,16 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_shorts_{slug(title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
-def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English Quiz Shorts: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_quiz_shorts_script
@@ -1221,15 +1233,16 @@ def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, n
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_quiz_{slug(title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
-def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False):
+def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English Weekly Challenge: generate 7 scripts, write multi-entry manifest, exit."""
     from english_generator import generate_weekly_challenge_scripts
 
@@ -1292,7 +1305,7 @@ def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, not
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"challenge_{slug(series_title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
 
     print(f"\n{'=' * 50}")
@@ -1301,7 +1314,7 @@ def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, not
     print(f"{'=' * 50}\n")
 
 
-def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=False, legacy_visuals=False, **kwargs):
+def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, **kwargs):
     """Phase 1 for English Challenge Shorts only (7 quiz entries from existing or new package)."""
     from english_generator import generate_weekly_challenge_scripts, generate_weekly_challenge_quiz_script
 
@@ -1342,7 +1355,7 @@ def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=F
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"challenge_shorts_{slug(series_title)}.manifest.json"
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
     print(f"PHASE 1 COMPLETE — {len(entries)} quiz entries in manifest.")
@@ -1350,14 +1363,14 @@ def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=F
     print(f"{'=' * 50}\n")
 
 
-def run_fetch_scenes_only(manifest_path_str: str, skip_gemini: bool = False) -> None:
-    """Retry Gemini scene image generation for a manifest without re-running Groq."""
+def run_fetch_scenes_only(manifest_path_str: str, skip_gemini: bool = False, use_chrome_ai: bool = False) -> None:
+    """Retry scene image generation for a manifest without re-running Groq."""
     manifest_path = Path(manifest_path_str).expanduser()
     if not manifest_path.exists():
         print(f"Manifest not found: {manifest_path}")
         sys.exit(1)
     manifest = read_manifest(manifest_path)
-    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini)
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     save_resolved_manifest(manifest, manifest_path)
     _print_scene_manifest_next_steps(manifest_path, manifest)
 
@@ -1491,6 +1504,37 @@ MANIFEST_ONLY_ROUTER = {
     "english-challenge-shorts": run_manifest_only_challenge_shorts,
     "english-podcast": run_manifest_only_english_podcast,
 }
+
+
+def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+    """Run Phase 1 (manifest) + Phase 2 (resume) in one shot for a channel."""
+    manifest_fn = MANIFEST_ONLY_ROUTER.get(channel)
+    if not manifest_fn:
+        print(f"Channel '{channel}' does not support two-phase mode.")
+        sys.exit(1)
+    manifest_path = manifest_fn(
+        topic=topic, upload=upload, schedule_time=schedule_time,
+        notify_subscribers=notify_subscribers, review_visuals=review_visuals,
+        skip_gemini=skip_gemini, legacy_visuals=legacy_visuals, use_chrome_ai=use_chrome_ai,
+    )
+    if not manifest_path:
+        return
+    
+    # Re-read manifest to check scene readiness
+    manifest = read_manifest(Path(manifest_path))
+    missing_entries = [
+        e for e in manifest.entries
+        if e.visual_mode == "scenes" and not e.scene_images_ready
+    ]
+    if missing_entries:
+        print(f"\n  Cannot proceed to Phase 2 — {len(missing_entries)} entry/entries have missing scene images:")
+        for e in missing_entries:
+            print(f"    - {e.label}: assets/{e.scenes_folder}/")
+        print(f"\n  Fix: place the images manually, then run:")
+        print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
+        sys.exit(1)
+    
+    run_resume_from_manifest(manifest_path)
 
 
 def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
@@ -2922,6 +2966,11 @@ def main():
         help="Phase 1: skip Gemini scene image generation (place images manually).",
     )
     parser.add_argument(
+        "--use-chrome-ai",
+        action="store_true",
+        help="Phase 1: use Chrome AI for scene image generation instead of Gemini.",
+    )
+    parser.add_argument(
         "--legacy-visuals",
         action="store_true",
         help="Use legacy MP4 loop matching instead of scene-based visuals.",
@@ -2966,7 +3015,7 @@ def main():
 
     # ── Manifest-based two-phase pipeline ─────────────────────────
     if args.fetch_scenes_only:
-        run_fetch_scenes_only(args.fetch_scenes_only, skip_gemini=args.skip_gemini)
+        run_fetch_scenes_only(args.fetch_scenes_only, skip_gemini=args.skip_gemini, use_chrome_ai=args.use_chrome_ai)
         return
 
     # Handle --resume-from-manifest or --manifest (Phase 2)
@@ -2994,6 +3043,7 @@ def main():
             "notify_subscribers": notify_override,
             "skip_gemini": args.skip_gemini,
             "legacy_visuals": args.legacy_visuals,
+            "use_chrome_ai": args.use_chrome_ai,
         }
         if args.channel == "english-challenge-shorts":
             manifest_kwargs["json_path"] = args.json_package
@@ -3071,22 +3121,30 @@ def main():
             review_visuals=args.review_visuals,
         )
     elif args.channel == "english-shorts":
-        run_english_shorts(
+        _run_two_phase(
+            "english-shorts",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(
+        _run_two_phase(
+            "english-quiz",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:

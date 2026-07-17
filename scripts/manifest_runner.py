@@ -408,11 +408,6 @@ def resolve_manifest(
     print(f"\n  Manifest has {len(manifest.entries)} video(s) to process")
     for i, entry in enumerate(manifest.entries, 1):
         if entry.visual_mode == "scenes" and entry.scenes:
-            if entry.scene_images_ready:
-                print(f"\n  [{i}/{len(manifest.entries)}] Scene images already ready: {entry.label}")
-                act = input("    Re-check scene images? [y/N]: ").strip().lower()
-                if act not in ("y", "yes"):
-                    continue
             interactive_resolve_scenes(entry, project_root)
             continue
 
