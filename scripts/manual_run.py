@@ -857,6 +857,7 @@ def _print_scene_manifest_next_steps(manifest_path: Path, manifest: VisualManife
         folders = sorted(set(e.assets_folder for e in legacy_entries))
         for folder in folders:
             print(f"  Legacy loops: assets/{folder}/")
+    print(f"  python scripts/manual_run.py --fetch-scenes-only {manifest_path} --use-chrome-ai")
     print(f"  Run: python scripts/manual_run.py --resume-from-manifest {manifest_path}")
 
 
@@ -1530,7 +1531,8 @@ def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_
         print(f"\n  Cannot proceed to Phase 2 — {len(missing_entries)} entry/entries have missing scene images:")
         for e in missing_entries:
             print(f"    - {e.label}: assets/{e.scenes_folder}/")
-        print(f"\n  Fix: place the images manually, then run:")
+        print(f"\n  Fix: place the images manually, or you can retry with fetch-scens-only and then run:")
+        print(f"    python scripts/manual_run.py --channel {channel} --fetch-scenes-only {manifest_path} --use-chrome-ai")
         print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
         sys.exit(1)
     
