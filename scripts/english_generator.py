@@ -197,9 +197,9 @@ def validate_organic_english_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 14 to 22 range)
-    if turn_count < 14 or turn_count > 22:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 14 and 22.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 14+ turns for organic format)
+    if turn_count < 14:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be at least 14.")
         return script_data, False
 
     # Track structural validation targets
@@ -270,9 +270,9 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 35 to 65 range for podcast format)
-    if turn_count < 35 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 35 and 65.")
+    # 1. VALIDATE TURN BOUNDARIES (Podcast format — 20+ turns for full 7-stage structure)
+    if turn_count < 20 or turn_count > 65:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 20 and 65.")
         return script_data, False
 
     # 2. VALIDATE THEME FIELD (optional — fall back to title if missing)
@@ -2156,7 +2156,7 @@ TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 
 CRITICAL PIPELINE VALIDATION RULES:
 1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain between 14 and 22 turns. To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
+2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain at least 14 turns (no hard upper limit — write as many turns as the story needs). To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
 3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
 4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow — the story NEVER stops for a lesson. After a character uses an idiom or phrasal verb, the Narrator's next line should feel like a natural continuation of the scene, not a classroom aside. For example: after Emma says "things got out of hand," the Narrator might say "And just like that, the situation Emma feared most was exactly what was happening." The explanation is embedded in the storytelling, not bolted onto it. Limit to 1-2 brief inline explanations maximum. Use natural phrasing — never meta-language like "phrasal verb breakdown", "phrase verb spotlight", "let me explain", or "here's what that means". The Narrator must remain in third-person storytelling mode at all times. If the Narrator feels like they're pausing the scene to teach, rewrite the line so the lesson flows as part of the story.
 5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario — then on SEPARATE lines, each option on its own line starting with the word "Option" (e.g. "Option A: No thanks." / "Option B: No thanks, but I'll take a coffee." / "Option C: No, I don't want anything.") — this is critical for TTS pronunciation, never use bare "A:" "B:" "C:" labels, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
@@ -2953,7 +2953,7 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-FORMAT: Radio podcast, 40-65 dialogue turns, 7 stages in this EXACT order:
+FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
 2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
@@ -2986,7 +2986,7 @@ SHARP HOST BACK-AND-FORTH: In Stage 6 (Host Analysis), Emma and Liam should NOT 
 ACCELERATED TRANSITION: After Stage 4 (Full Story) ends, immediately transition into Stage 6 (Host Analysis) teaching the two definitive rules for the topic. Do not linger in Stage 5 (Back to Studio) with extended reflection - keep it to 2-3 turns maximum where Caller expresses lingering confusion, then move straight to the teaching.
 
 RULES:
-- 40-65 total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=8-12, Back=2-3, Analysis=8-10, Wrap=2-3.
+- 25+ total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=8-12, Back=2-3, Analysis=8-10, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Emma/Liam never break into story dialogue.
