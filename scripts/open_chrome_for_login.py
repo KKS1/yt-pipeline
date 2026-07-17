@@ -8,6 +8,11 @@ Keep the browser open so you can complete the login process with verification co
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -31,31 +36,43 @@ async def open_chrome_for_login():
     print("-" * 60)
     
     try:
-        async with async_playwright() as p:
-            # Launch Chrome with existing profile
-            browser = await p.chromium.launch_persistent_context(
-                user_data_dir=profile_path,
-                headless=False,
-                args=[
-                    "--no-sandbox",
-                    "--disable-blink-features=AutomationControlled",
-                ],
-                viewport={"width": 1920, "height": 1080},
-            )
-            
-            # Navigate to Google
-            page = browser.new_page()
-            await page.goto("https://accounts.google.com")
-            
-            print("\n✓ Browser opened. Please complete Google login.")
-            print("  Close the browser window when you're done.")
-            
-            # Keep browser open until manually closed
-            # This will block until the browser is closed
-            await browser.close()
-            
-            print("\n✓ Browser closed. Login session should now be saved.")
-            print("  You can now run: python scripts/test_chrome_ai.py")
+        playwright = await async_playwright().start()
+        
+        # Launch Chrome with existing profile
+        browser = await playwright.chromium.launch_persistent_context(
+            user_data_dir=profile_path,
+            headless=False,
+            args=[
+                "--no-sandbox",
+                "--disable-blink-features=AutomationControlled",
+            ],
+            viewport={"width": 1920, "height": 1080},
+        )
+        
+        # Navigate to Google accounts page
+        if len(browser.pages) > 0:
+            page = browser.pages[0]
+        else:
+            page = await browser.new_page()
+        
+        await page.goto("https://accounts.google.com")
+        
+        print("\n✓ Browser opened. Please complete Google login.")
+        print("  Press Ctrl+C here when you're done to close the browser.")
+        
+        # Keep browser open until user interrupts
+        try:
+            # Just wait indefinitely for user to interrupt
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received, closing browser...")
+        
+        await browser.close()
+        await playwright.stop()
+        
+        print("\n✓ Browser closed. Login session should now be saved.")
+        print("  You can now run: python scripts/test_chrome_ai.py")
             
     except Exception as e:
         print(f"\n✗ ERROR: {e}")

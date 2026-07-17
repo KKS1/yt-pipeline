@@ -8,6 +8,11 @@ Run this to verify the scraper works before using it in production.
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))

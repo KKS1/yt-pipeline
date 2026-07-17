@@ -15,11 +15,15 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime
+from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env
+load_dotenv(PROJECT_ROOT / ".env")
+
 # Configuration from environment
-CHROME_PROFILE_PATH = os.getenv("CHROME_PROFILE_PATH", "")
+CHROME_PROFILE_PATH = os.getenv("CHROME_PROFILE_PATH", "/Users/kanwal/Library/Application Support/Google/Chrome/Default")
 CHROME_AI_HEADLESS = os.getenv("CHROME_AI_HEADLESS", "false").lower() == "true"
 CHROME_AI_RATE_LIMIT_DELAY = int(os.getenv("CHROME_AI_RATE_LIMIT_DELAY", "30"))
 CHROME_AI_MAX_RETRIES = int(os.getenv("CHROME_AI_MAX_RETRIES", "3"))
@@ -159,13 +163,23 @@ class ChromeAIGenerator:
             await self.page.goto("https://www.google.com", timeout=30000)
             await self.page.wait_for_load_state("networkidle")
             
+            # Debug: Print page title and URL
+            print(f"  Current page: {self.page.url}")
+            print(f"  Page title: {await self.page.title()}")
+            
             # Look for AI mode button in search bar
             # Based on actual Chrome HTML: <cr-icon-button id="entrypoint" class="ai-mode-button" ...>
+            # Also looking for '+' button as user mentioned
             ai_selectors = [
                 '#entrypoint.ai-mode-button',
                 'cr-icon-button.ai-mode-button',
                 '[id="entrypoint"][class*="ai-mode-button"]',
                 'button[aria-label*="Enhance your search with tabs, files, or an AI tool"]',
+                'button[aria-label*="AI"]',
+                'button[aria-label*="Google AI"]',
+                'cr-icon-button[iron-icon="cr:add"]',
+                'button:has-text("+")',
+                '[role="button"]:has-text("+")',
             ]
             
             ai_button = None
