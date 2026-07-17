@@ -1517,8 +1517,24 @@ def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_
         notify_subscribers=notify_subscribers, review_visuals=review_visuals,
         skip_gemini=skip_gemini, legacy_visuals=legacy_visuals, use_chrome_ai=use_chrome_ai,
     )
-    if manifest_path:
-        run_resume_from_manifest(manifest_path)
+    if not manifest_path:
+        return
+    
+    # Re-read manifest to check scene readiness
+    manifest = read_manifest(Path(manifest_path))
+    missing_entries = [
+        e for e in manifest.entries
+        if e.visual_mode == "scenes" and not e.scene_images_ready
+    ]
+    if missing_entries:
+        print(f"\n  Cannot proceed to Phase 2 — {len(missing_entries)} entry/entries have missing scene images:")
+        for e in missing_entries:
+            print(f"    - {e.label}: assets/{e.scenes_folder}/")
+        print(f"\n  Fix: place the images manually, then run:")
+        print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
+        sys.exit(1)
+    
+    run_resume_from_manifest(manifest_path)
 
 
 def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
