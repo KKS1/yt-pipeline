@@ -295,7 +295,7 @@ def validate_podcast_script(raw_input):
     last_speaker = dialogue[-1].get("speaker", "") if dialogue else ""
     
     # Story Hook should start with Caller (in media res), not hosts
-    if first_speaker not in ["Caller", "StoryActor1", "StoryActor2"]:
+    if first_speaker not in ["Caller", "Caller_Male", "StoryActor1", "StoryActor2"]:
         print(f"⚠️ Structure Warning: Podcast should start with Story Hook (Caller/StoryActor), not {first_speaker}. Current start may not be in media res.")
     
     # Should have hosts (Emma/Liam) present
@@ -305,7 +305,7 @@ def validate_podcast_script(raw_input):
         return script_data, False
     
     # Should have Caller present
-    caller_turns = [t for t in dialogue if t.get("speaker") == "Caller"]
+    caller_turns = [t for t in dialogue if t.get("speaker") in ("Caller", "Caller_Male")]
     if not caller_turns:
         print("❌ Structure Failure: No Caller turns found in dialogue.")
         return script_data, False
@@ -343,12 +343,11 @@ def validate_podcast_script(raw_input):
                 print(f"❌ Persona Failure: Host {speaker} slipped into first-person story dialogue at turn {turn_num}.")
                 return script_data, False
 
-        if speaker == "Caller":
+        if speaker in ("Caller", "Caller_Male"):
             has_caller = True
             speaker_roles[speaker].add("caller")
-            # Caller should speak in first person (this is expected)
-            if not ("I " in text or "my " in text.lower() or "me " in text.lower()):
-                print(f"⚠️ Warning: Caller might not be speaking in first-person at turn {turn_num}")
+            # Caller may use first person ("I was confused when...") or third person ("my friend said...")
+            # Both are valid with the 3rd-person framing change
 
         if speaker in ["StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
             has_story_actors = True
@@ -371,7 +370,7 @@ def validate_podcast_script(raw_input):
                     break
 
         # Check for third-person slip-ups (invalid for character-driven format)
-        if speaker in ["Caller", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
+        if speaker in ["Caller", "Caller_Male", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale"]:
             if text.startswith("He ran") or text.startswith("She said") or text.startswith("They went"):
                 print(f"❌ Perspective Failure: Character {speaker} is speaking in third-person at turn {turn_num}.")
                 return script_data, False
@@ -423,7 +422,7 @@ def validate_podcast_script(raw_input):
     if first_story_actor_idx >= 0 and last_story_actor_idx > first_story_actor_idx:
         caller_in_story = [
             t for t in dialogue[first_story_actor_idx:last_story_actor_idx + 1]
-            if t.get("speaker") == "Caller"
+            if t.get("speaker") in ("Caller", "Caller_Male")
         ]
         if caller_in_story:
             print(f"⚠️ Structure Warning: Caller appears {len(caller_in_story)} time(s) within the story section (between StoryActor turns). Caller should only appear in hook (Stage 1), caller setup (Stage 3), and back-to-studio (Stage 5), not in Stage 4.")
@@ -432,7 +431,7 @@ def validate_podcast_script(raw_input):
     if first_host_idx >= 0 and first_story_actor_idx > first_host_idx:
         caller_setup_turns = [
             t for t in dialogue[first_host_idx:first_story_actor_idx]
-            if t.get("speaker") == "Caller"
+            if t.get("speaker") in ("Caller", "Caller_Male")
         ]
         if not caller_setup_turns:
             print("⚠️ Structure Warning: No Caller turns found between studio intro and story. Expected a 'Caller Story Setup' beat where Caller briefly tells hosts what happened before the flashback.")
@@ -440,7 +439,7 @@ def validate_podcast_script(raw_input):
     if last_story_actor_idx >= 0 and last_story_actor_idx < len(dialogue) - 1:
         # Check if there's a Caller turn after the last StoryActor turn
         has_caller_reflection = any(
-            t.get("speaker") == "Caller"
+            t.get("speaker") in ("Caller", "Caller_Male")
             for t in dialogue[last_story_actor_idx + 1:]
         )
         if not has_caller_reflection:
@@ -450,7 +449,7 @@ def validate_podcast_script(raw_input):
     scenes = script_data.get("scenes", [])
     if scenes:
         # Extract story content from dialogue
-        story_text = " ".join([t.get("text", "") for t in dialogue if t.get("speaker") in ["Caller", "StoryActor1", "StoryActor2"]]).lower()
+        story_text = " ".join([t.get("text", "") for t in dialogue if t.get("speaker") in ["Caller", "Caller_Male", "StoryActor1", "StoryActor2"]]).lower()
         
         # Generic location keywords that shouldn't appear unless story actually involves them
         generic_locations = [
@@ -2436,7 +2435,7 @@ def _extract_podcast_story_context(dialogue: list) -> str:
     instead of hallucinating unrelated locations.
     """
     story_speakers = {
-        "Caller", "StoryActor1", "StoryActor2",
+        "Caller", "Caller_Male", "StoryActor1", "StoryActor2",
         "StoryActor1_Female", "StoryActor2_Male",
         "StoryActor1_AltMale", "StoryActor2_AltFemale",
     }
@@ -2518,7 +2517,7 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             speaker_type.append(1)
         elif sp in story_speakers:
             speaker_type.append(2)
-        elif sp == "Caller":
+        elif sp in ("Caller", "Caller_Male"):
             speaker_type.append(3)
         else:
             speaker_type.append(0)
@@ -2622,7 +2621,6 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
     print(f"    back_to_studio_start: {back_to_studio_start}")
     print(f"    back_to_studio_end: {back_to_studio_end}")
     print(f"    host_analysis_start: {host_analysis_start}")
-    print(f"    quiz_start: {quiz_start}")
     # Host analysis end = quiz start
     # Search for the first turn after host analysis that contains quiz-related keywords
     pause_idx = None
@@ -2703,138 +2701,94 @@ def _fix_podcast_scene_alignment(scenes: list, dialogue: list) -> list:
             return (max(0, num_turns - 2), num_turns - 1)
         return None
 
-    # Assign each scene to a stage and collect Groq's ranges
-    scene_stages = []
-    for scene in scenes:
-        stage = label_to_stage(scene.get("scene_label", ""))
-        scene_stages.append(stage)
+    # ── Boundary-first rebuild ──────────────────────────────────────────────
+    # Discard Groq's broken turn ranges entirely. Build scenes directly from
+    # computed stage boundaries, using Groq's labels/images as hints.
+    # Result: max 4 scenes — Hook, Studio (pre-story), Flashback, Studio (post-story)
 
-    # DEBUG: Log scene stage assignments
-    print(f"  [podcast_align] Scene stage assignments:")
-    for i, (scene, stage) in enumerate(zip(scenes, scene_stages)):
-        print(f"    Scene {i+1} ({scene.get('scene_label', '?')}): stage={stage}, groq_range={scene.get('start_turn', '?')}-{scene.get('end_turn', '?')}")
+    # 1) Hook scene
+    hook_scene = {
+        "scene_id": 1,
+        "scene_label": "Story Hook",
+        "image_filename": "scene_hook.png",
+        "visual_prompt": "",
+        "start_turn": 0,
+        "end_turn": hook_end,
+    }
+    # Copy Groq's hook visual_prompt if available
+    for s in scenes:
+        if "hook" in s.get("scene_label", "").lower():
+            hook_scene["visual_prompt"] = s.get("visual_prompt", "")
+            hook_scene["image_filename"] = s.get("image_filename", "scene_hook.png")
+            break
 
-    # For each stage, collect its scenes and fix ranges
-    # Group scenes by stage while preserving order
-    from collections import OrderedDict
-    stage_groups = OrderedDict()
-    for i, (scene, stage) in enumerate(zip(scenes, scene_stages)):
-        stage_groups.setdefault(stage, []).append(i)
+    # 2) Pre-story studio scene (Studio Intro + Caller Setup merged)
+    studio_pre_start = first_host_turn
+    studio_pre_end = caller_setup_end if caller_setup_end is not None else (story_start - 1 if story_start else num_turns - 1)
+    studio_pre_scene = {
+        "scene_id": 2,
+        "scene_label": "Radio Studio",
+        "image_filename": "podcast_host.png",
+        "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style.",
+        "start_turn": studio_pre_start,
+        "end_turn": studio_pre_end,
+    }
 
-    corrected = [dict(s) for s in scenes]
-    for stage, indices in stage_groups.items():
-        sr = stage_range(stage)
-        if sr is None:
-            # Stage not found in dialogue — keep Groq's ranges, just clamp
-            print(f"  [podcast_align] Stage '{stage}' not found in dialogue, keeping Groq ranges")
-            for i in indices:
-                s = max(0, min(corrected[i].get("start_turn", 0), num_turns - 1))
-                e = max(s, min(corrected[i].get("end_turn", num_turns - 1), num_turns - 1))
-                corrected[i]["start_turn"] = s
-                corrected[i]["end_turn"] = e
-            continue
+    # 3) Flashback scenes (use Groq's story scenes with correct range)
+    story_scenes_groq = [s for s in scenes if label_to_stage(s.get("scene_label", "")) == "story"]
+    story_range = (story_start, story_end)
+    flashback_scenes = []
+    if story_scenes_groq and story_start is not None and story_end is not None:
+        story_span = story_end - story_start + 1
+        n_story = len(story_scenes_groq)
+        for si, gs in enumerate(story_scenes_groq):
+            # Divide the story range evenly among Groq's story scenes
+            chunk_start = story_start + (si * story_span // n_story)
+            chunk_end = story_start + ((si + 1) * story_span // n_story) - 1
+            if si == n_story - 1:
+                chunk_end = story_end  # last scene gets the remainder
+            flashback_scenes.append({
+                "scene_id": 3 + si,
+                "scene_label": gs.get("scene_label", f"Story Part {si + 1}"),
+                "image_filename": gs.get("image_filename", f"scene_story{si + 1}.png"),
+                "visual_prompt": gs.get("visual_prompt", ""),
+                "start_turn": chunk_start,
+                "end_turn": chunk_end,
+            })
+    elif story_start is not None and story_end is not None:
+        # No Groq story scenes — create one generic flashback scene
+        flashback_scenes.append({
+            "scene_id": 3,
+            "scene_label": "Caller Story",
+            "image_filename": "scene_story1.png",
+            "visual_prompt": "",
+            "start_turn": story_start,
+            "end_turn": story_end,
+        })
 
-        stage_start, stage_end = sr
-        print(f"  [podcast_align] Processing stage '{stage}': range={stage_start}-{stage_end}, scenes={len(indices)}")
+    # 4) Post-story studio scene (Back to Studio + Analysis + Quiz merged)
+    studio_post_start = back_to_studio_start if back_to_studio_start is not None else (last_story_turn + 1 if last_story_turn is not None else 0)
+    studio_post_scene = {
+        "scene_id": 3 + len(flashback_scenes),
+        "scene_label": "Back to Studio",
+        "image_filename": "podcast_host.png",
+        "visual_prompt": "Two podcast hosts, Emma and Liam, sitting in a modern radio station recording a podcast. Emma has brown hair in a neat ponytail. Liam has short blonde hair. Soft professional lighting, 3D Pixar style.",
+        "start_turn": studio_post_start,
+        "end_turn": num_turns - 1,
+    }
 
-        # Use Groq's ranges as hints, but clamp to stage range
-        # Then fix overlaps by shifting later scenes forward
-        prev_end = stage_start - 1
-        for idx_in_group, scene_idx in enumerate(indices):
-            groq_start = corrected[scene_idx].get("start_turn", stage_start)
-            groq_end = corrected[scene_idx].get("end_turn", stage_end)
-
-            # Clamp to stage range
-            start = max(stage_start, min(groq_start, stage_end))
-            end = max(start, min(groq_end, stage_end))
-
-            print(f"    Scene {scene_idx+1} ({corrected[scene_idx].get('scene_label', '?')}): groq={groq_start}-{groq_end}, clamped={start}-{end}, prev_end={prev_end}")
-
-            # If this scene starts before or at the previous scene's end, shift it forward
-            if start <= prev_end:
-                print(f"      -> Overlap detected, shifting start from {start} to {prev_end + 1}")
-                start = prev_end + 1
-                end = max(start, min(groq_end, stage_end))
-
-            # If shifting pushed start past stage end, this scene is empty — merge with previous
-            if start > stage_end:
-                print(f"      -> Start {start} > stage_end {stage_end}, merging with previous")
-                # Extend the previous scene to cover this scene's remaining range
-                if idx_in_group > 0:
-                    prev_scene_idx = indices[idx_in_group - 1]
-                    corrected[prev_scene_idx]["end_turn"] = stage_end
-                # Mark this scene for removal
-                corrected[scene_idx]["start_turn"] = stage_end
-                corrected[scene_idx]["end_turn"] = stage_start - 1  # Empty range
-                continue
-
-            # If end pushed past stage end, clamp
-            if end > stage_end:
-                print(f"      -> End {end} > stage_end {stage_end}, clamping to {stage_end}")
-                end = stage_end
-
-            corrected[scene_idx]["start_turn"] = start
-            corrected[scene_idx]["end_turn"] = end
-            prev_end = end
-            print(f"      -> Final: {start}-{end}")
-
-        # If only one scene in this stage, extend it to cover the full stage range
-        if len(indices) == 1:
-            scene_idx = indices[0]
-            print(f"    -> Single scene in stage, extending from {corrected[scene_idx].get('start_turn', '?')}-{corrected[scene_idx].get('end_turn', '?')} to full stage range {stage_start}-{stage_end}")
-            corrected[scene_idx]["start_turn"] = stage_start
-            corrected[scene_idx]["end_turn"] = stage_end
-
-    # Merge all post-story studio scenes (podcast_host.png) into one scene.
-    # Once back in the studio, the visual never changes — splitting adds no AVD value.
-    # Find the first scene that covers the back-to-studio or later stage, then extend
-    # it to cover everything through the end.
-    story_speakers = {"StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male",
-                      "StoryActor1_AltMale", "StoryActor2_AltFemale"}
-    last_story_idx = -1
-    for i, t in enumerate(dialogue):
-        if t.get("speaker", "") in story_speakers:
-            last_story_idx = i
-    print(f"  [podcast_align] last_story_idx: {last_story_idx}")
-    # Find the first studio scene after the last story turn
-    merge_start = None
-    for i, s in enumerate(corrected):
-        if s.get("start_turn", 0) > last_story_idx and s.get("image_filename", "") == "podcast_host.png":
-            if merge_start is None:
-                merge_start = i
-    # Merge all subsequent studio scenes into the first one
-    if merge_start is not None:
-        print(f"  [podcast_align] Merging studio scenes from index {merge_start} to end")
-        corrected[merge_start]["end_turn"] = num_turns - 1
-        # Update label to reflect it covers everything from back-to-studio onward
-        label = corrected[merge_start].get("scene_label", "")
-        if "back to studio" not in label.lower():
-            corrected[merge_start]["scene_label"] = "Back to Studio"
-        # Remove all subsequent studio scenes
-        corrected = corrected[:merge_start + 1]
+    corrected = [hook_scene, studio_pre_scene] + flashback_scenes + [studio_post_scene]
+    print(f"  [podcast_align] Rebuilt {len(corrected)} scenes from stage boundaries")
 
     # Remove empty scenes (start > end)
     corrected = [s for s in corrected if s.get("start_turn", 0) <= s.get("end_turn", 0)]
 
     # Ensure first scene starts at 0
     if corrected and corrected[0].get("start_turn", 0) != 0:
-        print(f"  [podcast_align] Adjusting first scene start from {corrected[0].get('start_turn', '?')} to 0")
         corrected[0]["start_turn"] = 0
     # Ensure last scene ends at final turn
     if corrected and corrected[-1].get("end_turn", 0) != num_turns - 1:
-        print(f"  [podcast_align] Adjusting last scene end from {corrected[-1].get('end_turn', '?')} to {num_turns - 1}")
         corrected[-1]["end_turn"] = num_turns - 1
-
-    # Final pass: fix any remaining gaps — extend current scene to fill gap to next scene
-    print(f"  [podcast_align] Final gap-fix pass:")
-    for i in range(len(corrected) - 1):
-        curr_end = corrected[i]["end_turn"]
-        next_start = corrected[i + 1]["start_turn"]
-        if next_start > curr_end + 1:
-            print(f"    Gap between scene {i+1} (ends {curr_end}) and scene {i+2} (starts {next_start}), extending to {next_start - 1}")
-            corrected[i]["end_turn"] = next_start - 1
-        elif next_start <= curr_end:
-            print(f"    OVERLAP between scene {i+1} (ends {curr_end}) and scene {i+2} (starts {next_start}) - NOT FIXED")
 
     print(f"  [podcast_align] Final scene coverage:")
     for i, scene in enumerate(corrected):
@@ -2957,21 +2911,22 @@ FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
 2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
-3. CALLER STORY SETUP (2-3 turns): Caller talks to Emma & Liam in the studio, briefly explaining what happened. Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
-4. FULL STORY (8-12 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told.
-5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller expresses LINGERING CONFUSION about the language mistake — they still don't understand what went wrong.
+3. CALLER STORY SETUP (2-3 turns): Caller tells Emma & Liam about a confusing English situation they witnessed involving a friend or colleague. Use 3rd-person framing: "my friend said...", "my colleague told me...", "someone at work said...". Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
+4. FULL STORY (6-8 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told. Keep it tight — 6-8 turns maximum.
+5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller still doesn't understand what went wrong with their friend's/colleague's English. References the character by role ("my friend", "my coworker"), not as themselves.
 6. HOST ANALYSIS (8-10 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
 - "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Appear in Stages 1-2 (hook/studio intro), 3 (caller setup reactions), 5-7 (back-to-studio/analysis/wrap-up). NEVER in Stage 4.
-- "Caller" (af_bella): Appears in Stage 1 (hook — 1 line), Stage 3 (caller story setup — 2-3 lines explaining what happened), Stage 5 (back-to-studio reflection — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
+- "Caller" (af_bella) OR "Caller_Male" (am_echo): Randomly alternate between female and male callers across episodes. The caller is a third-person narrator — they recount someone else's experience. Appears in Stage 1 (hook — 1 line), Stage 3 (recounting a friend/colleague's confusing English — 2-3 lines), Stage 5 (still confused about what went wrong — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
 - "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
 - "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
 - "Guest" (af_sky): Optional. Always female.
 
 NATURAL EXPRESSION REQUIREMENTS:
-- StoryActors (Caller, StoryActor1, StoryActor2) MUST use authentic, natural English expressions in their dialogue
+- StoryActors (StoryActor1, StoryActor2) MUST use authentic, natural English expressions in their dialogue
+- Caller uses 3rd-person framing throughout. "I" refers to the caller's own confusion ("I was confused when my friend said..."), NOT the story character's actions. Use "my friend said...", "my colleague told me...", "someone at work said..."
 - Include at least 2-3 distinct phrasal verbs used naturally in context throughout the story
 - Include at least 1-2 idioms appropriate to the situation
 - Use colloquial expressions and varied vocabulary beyond basic English
@@ -2986,9 +2941,10 @@ SHARP HOST BACK-AND-FORTH: In Stage 6 (Host Analysis), Emma and Liam should NOT 
 ACCELERATED TRANSITION: After Stage 4 (Full Story) ends, immediately transition into Stage 6 (Host Analysis) teaching the two definitive rules for the topic. Do not linger in Stage 5 (Back to Studio) with extended reflection - keep it to 2-3 turns maximum where Caller expresses lingering confusion, then move straight to the teaching.
 
 RULES:
-- 25+ total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=8-12, Back=2-3, Analysis=8-10, Wrap=2-3.
+- 25+ total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=6-8, Back=2-3, Analysis=8-10, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
+- Caller uses 3rd-person framing: "my friend said..." not "I said...". The caller narrates someone else's story.
 - Emma/Liam never break into story dialogue.
 - Story told ONCE in Stage 4. Hook is just a 2-line teaser. Caller Setup briefly sets up the story in studio.
 - Output ONLY valid JSON.

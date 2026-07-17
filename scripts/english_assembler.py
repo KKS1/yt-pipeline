@@ -31,7 +31,8 @@ ENGLISH_VOICES = {
     "Emma": "af_heart",         # Keep: Lively, high-energy, great for emotional dialogue
     "Liam": "am_michael",       # Upgrade: Replaces am_echo with the absolute best male voice
     "Guest": "af_sky",          # Upgrade: Crisp, youthful American female accent
-    "Caller": "af_bella",       # Reuses af_bella voice for first-person storyteller in podcast format
+    "Caller": "af_bella",       # Female caller voice for podcast format
+    "Caller_Male": "am_echo",   # Male caller voice for variety across episodes
     "StoryActor1": "am_michael",   # Premium male voice (was am_adam)
     "StoryActor2": "af_bella",     # Premium female voice (was af_sarah)
     "StoryActor1_Female": "af_heart",  # Alternative female voice for StoryActor1 (distinct from StoryActor2)
@@ -46,6 +47,7 @@ ENGLISH_TTS_SPEEDS = {
     "Liam": 0.90,               # Normal pace for protagonist
     "Guest": 0.90,              # Slightly slower for guest characters
     "Caller": 0.90,             # Normal pace for caller storytelling
+    "Caller_Male": 0.90,        # Normal pace for male caller
     "StoryActor1": 0.90,        # Normal pace for story characters
     "StoryActor2": 0.90,        # Normal pace for story characters
     "StoryActor1_Female": 0.90, # Alternative female voice
@@ -207,6 +209,7 @@ def apply_face_badge_overlays(
     narrator_src = prepare_face_badge("Narrator", size)
     guest_src = prepare_face_badge("Guest", size)
     caller_src = prepare_face_badge("Caller", size)
+    caller_male_src = prepare_face_badge("Caller_Male", size)
     story_actor1_src = prepare_face_badge("StoryActor1", size)
     story_actor2_src = prepare_face_badge("StoryActor2", size)
     story_actor1_female_src = prepare_face_badge("StoryActor1_Female", size)
@@ -221,6 +224,7 @@ def apply_face_badge_overlays(
         "narrator": narrator_src,
         "guest": guest_src,
         "caller": caller_src,
+        "caller_male": caller_male_src,
         "storyactor1": story_actor1_src,
         "storyactor2": story_actor2_src,
         "storyactor1_female": story_actor1_female_src,
@@ -252,6 +256,7 @@ def apply_face_badge_overlays(
         "narrator": [],
         "guest": [],
         "caller": [],
+        "caller_male": [],
         "storyactor1": [],
         "storyactor2": [],
         "storyactor1_female": [],
@@ -292,7 +297,7 @@ def apply_face_badge_overlays(
     prev_label = "0:v"
 
     # Overlay each character's badge when they speak
-    for char in ["emma", "liam", "narrator", "guest", "caller", "storyactor1", "storyactor2", "storyactor1_female", "storyactor2_male", "storyactor1_altmale", "storyactor2_altfemale"]:
+    for char in ["emma", "liam", "narrator", "guest", "caller", "caller_male", "storyactor1", "storyactor2", "storyactor1_female", "storyactor2_male", "storyactor1_altmale", "storyactor2_altfemale"]:
         if char in enable_expressions and available_badges[char]:
             inputs.extend(["-i", available_badges[char]])
             filter_parts.append(f"[{prev_label}][{idx}:v]overlay=x={x}:y={y}:enable='{enable_expressions[char]}'[v{idx}]")

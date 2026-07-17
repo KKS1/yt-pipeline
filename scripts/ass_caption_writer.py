@@ -52,12 +52,14 @@ COLOUR_BG_SEMI   = "&H00000000"   # opaque black for sharp shadows
 COLOUR_EMMA_HL   = "&H6666FF"     # coral-pink (BGR) highlights for Emma's spoken words
 COLOUR_LIAM_HL   = "&HFF9966"     # sky-blue (BGR) highlights for Liam's spoken words
 COLOUR_GUEST_HL  = "&H99CC66"     # teal-green (BGR) highlights for Guest's spoken words
+COLOUR_CALLER_HL = "&H00AAFF"     # warm amber (BGR) highlights for Caller's spoken words
 COLOUR_IDIOM_HL  = "&H00D7FF"     # gold (BGR) for idiom chunks
 
 # Badge colours drawn in the ASS vector path (ASS drawing primary colour)
 BADGE_EMMA_FILL  = "&H6666FF"     # coral
 BADGE_LIAM_FILL  = "&HFF9966"     # sky-blue
 BADGE_GUEST_FILL = "&H99CC66"     # teal-green
+BADGE_CALLER_FILL = "&H00AAFF"    # warm amber
 
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
@@ -308,6 +310,9 @@ def _badge_override(speaker: str) -> str:
     elif speaker.lower() == "guest":
         # teal-green background on 'G'
         return r"{\c&H99CC66&\bord0\shad0\p0}{\1c&H99CC66&}[G] {\r}"
+    elif speaker.lower() in ("caller", "caller_male"):
+        # warm amber background on 'C'
+        return r"{\c&H00AAFF&\bord0\shad0\p0}{\1c&H00AAFF&}[C] {\r}"
     else:
         # sky-blue background on 'L'
         return r"{\c&HFF9966&\bord0\shad0\p0}{\1c&HFF9966&}[L] {\r}"
@@ -334,6 +339,8 @@ def _karaoke_line(words: list[dict], speaker: str, extra_idiom_phrases: list[str
         highlight = COLOUR_EMMA_HL
     elif speaker.lower() == "guest":
         highlight = COLOUR_GUEST_HL
+    elif speaker.lower() in ("caller", "caller_male"):
+        highlight = COLOUR_CALLER_HL
     else:
         highlight = COLOUR_LIAM_HL
 
