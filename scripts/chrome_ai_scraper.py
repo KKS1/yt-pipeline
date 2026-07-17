@@ -399,28 +399,37 @@ class ChromeAIGenerator:
         except Exception as e:
             raise Exception(f"Failed to submit prompt: {e}")
     
-    async def _wait_for_image_generation(self, timeout: int = 60) -> bool:
-        """Wait for image generation to complete by checking for the generated image element."""
+    async def _wait_for_image_generation(self, previous_count: int = 0, timeout: int = 60) -> bool:
+        """Wait for a new image generation to complete.
+        
+        Args:
+            previous_count: number of matching images before prompt submission.
+                            Waits for count to exceed this value.
+        """
         try:
-            # Look for the actual generated image tag in Chrome AI mode
-            # <img alt="AI generated image" data-processed="true" ... />
-            image_selectors = [
-                'img[alt="AI generated image"][data-processed="true"]',
-                'img[alt="AI generated image"]',
-                'img[data-processed="true"]',
-            ]
+            js_count = """
+                () => {
+                    for (const sel of [
+                        'img[alt="AI generated image"][data-processed="true"]',
+                        'img[alt="AI generated image"]',
+                        'img[data-processed="true"]',
+                    ]) {
+                        const els = document.querySelectorAll(sel);
+                        if (els.length > 0) return els.length;
+                    }
+                    return 0;
+                }
+            """
             
             start_time = time.time()
             while time.time() - start_time < timeout:
-                for selector in image_selectors:
-                    try:
-                        image_element = await self.page.query_selector(selector)
-                        if image_element:
-                            print(f"  Image generated successfully")
-                            return True
-                    except:
-                        continue
-                
+                try:
+                    count = await self.page.evaluate(js_count)
+                    if count > previous_count:
+                        print(f"  Image generated successfully ({count} total)")
+                        return True
+                except:
+                    pass
                 await self.page.wait_for_timeout(2000)
             
             raise Exception("Timeout waiting for image generation")
@@ -429,10 +438,8 @@ class ChromeAIGenerator:
             raise Exception(f"Failed to wait for image generation: {e}")
     
     async def _download_image(self, output_path: Path) -> bool:
-        """Click the download button to save the generated image."""
+        """Click the download button of the most recently generated image."""
         try:
-            # Find the download button in Chrome AI mode
-            # <button aria-label="Download this AI generated image" title="Download image" data-processed="true" ... />
             download_selectors = [
                 'button[aria-label="Download this AI generated image"][data-processed="true"]',
                 'button[aria-label="Download this AI generated image"]',
@@ -443,9 +450,10 @@ class ChromeAIGenerator:
             download_button = None
             for selector in download_selectors:
                 try:
-                    download_button = await self.page.wait_for_selector(selector, timeout=10000)
-                    if download_button:
-                        print(f"  Found download button with selector: {selector}")
+                    elements = await self.page.query_selector_all(selector)
+                    if elements:
+                        download_button = elements[-1]  # last = most recent
+                        print(f"  Found download button ({len(elements)} total, using last)")
                         break
                 except:
                     continue
@@ -530,6 +538,21 @@ class ChromeAIGenerator:
                             raise Exception("Daily limit reached and no other accounts available")
                         await self._navigate_to_ai_mode()
                     
+                    # Count existing images before submitting new prompt
+                    previous_image_count = await self.page.evaluate("""
+                        () => {
+                            for (const sel of [
+                                'img[alt="AI generated image"][data-processed="true"]',
+                                'img[alt="AI generated image"]',
+                                'img[data-processed="true"]',
+                            ]) {
+                                const els = document.querySelectorAll(sel);
+                                if (els.length > 0) return els.length;
+                            }
+                            return 0;
+                        }
+                    """)
+                    
                     # Submit prompt
                     await self._submit_prompt(visual_prompt)
                     
@@ -540,10 +563,11 @@ class ChromeAIGenerator:
                         if not switched:
                             raise Exception("Daily limit reached and no other accounts available")
                         await self._navigate_to_ai_mode()
+                        previous_image_count = 0  # reset after re-navigate
                         await self._submit_prompt(visual_prompt)
                     
-                    # Wait for generation
-                    await self._wait_for_image_generation()
+                    # Wait for generation — expects count to exceed previous
+                    await self._wait_for_image_generation(previous_count=previous_image_count)
                     
                     # Download image via click
                     await self._download_image(output_path)

@@ -1190,6 +1190,7 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
 def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
@@ -1238,6 +1239,7 @@ def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, n
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
 def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
@@ -1502,6 +1504,21 @@ MANIFEST_ONLY_ROUTER = {
     "english-challenge-shorts": run_manifest_only_challenge_shorts,
     "english-podcast": run_manifest_only_english_podcast,
 }
+
+
+def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+    """Run Phase 1 (manifest) + Phase 2 (resume) in one shot for a channel."""
+    manifest_fn = MANIFEST_ONLY_ROUTER.get(channel)
+    if not manifest_fn:
+        print(f"Channel '{channel}' does not support two-phase mode.")
+        sys.exit(1)
+    manifest_path = manifest_fn(
+        topic=topic, upload=upload, schedule_time=schedule_time,
+        notify_subscribers=notify_subscribers, review_visuals=review_visuals,
+        skip_gemini=skip_gemini, legacy_visuals=legacy_visuals, use_chrome_ai=use_chrome_ai,
+    )
+    if manifest_path:
+        run_resume_from_manifest(manifest_path)
 
 
 def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
@@ -3088,22 +3105,30 @@ def main():
             review_visuals=args.review_visuals,
         )
     elif args.channel == "english-shorts":
-        run_english_shorts(
+        _run_two_phase(
+            "english-shorts",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
     elif args.channel == "english-quiz":
-        run_english_quiz_shorts(
+        _run_two_phase(
+            "english-quiz",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:
