@@ -1193,7 +1193,7 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
     print(f"{'=' * 50}\n")
 
 
-def run_manifest_only_quiz(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for English Quiz Shorts: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_quiz_shorts_script
