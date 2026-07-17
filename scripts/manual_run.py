@@ -1094,6 +1094,7 @@ def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notif
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
 def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
@@ -1142,6 +1143,7 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     print("PHASE 1 COMPLETE — manifest written.")
     _print_scene_manifest_next_steps(manifest_path, manifest)
     print(f"{'=' * 50}\n")
+    return str(manifest_path)
 
 
 def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
@@ -1536,6 +1538,103 @@ def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_
         print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
         sys.exit(1)
     
+    run_resume_from_manifest(manifest_path)
+
+
+def _run_interactive_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+    """Interactive pipeline: generate → review dialogue → fetch scenes → assemble.
+
+    Used for 'english' and 'english-podcast' where the user wants to review
+    the generated script before spending time on scene image generation.
+    """
+    manifest_fn = MANIFEST_ONLY_ROUTER.get(channel)
+    if not manifest_fn:
+        print(f"Channel '{channel}' does not support interactive pipeline mode.")
+        sys.exit(1)
+
+    print("\n" + "=" * 50)
+    print(f"INTERACTIVE PIPELINE — {channel.upper()}")
+    print("=" * 50)
+
+    # Phase 1: generate script + manifest (skip scene images for review)
+    print("\nPhase 1: Generating script...\n")
+    manifest_path = manifest_fn(
+        topic=topic, upload=upload, schedule_time=schedule_time,
+        notify_subscribers=notify_subscribers, review_visuals=review_visuals,
+        skip_gemini=True, legacy_visuals=legacy_visuals, use_chrome_ai=False,
+    )
+    if not manifest_path:
+        return
+
+    # Show the user where to review the dialogue
+    manifest = read_manifest(Path(manifest_path))
+    script_path = manifest.entries[0].script_path if manifest.entries else None
+
+    print(f"\n{'=' * 50}")
+    print("REVIEW GENERATED DIALOGUE")
+    print("=" * 50)
+    if script_path:
+        print(f"\n  Script: {script_path}")
+        print(f"  Manifest: {manifest_path}")
+    print(f"\n  Open the script file and review the dialogue.")
+    print(f"  Press Enter to continue, or type 'q' to abort.")
+
+    try:
+        user_input = input("\n> ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        user_input = "q"
+    if user_input == "q":
+        print("\nAborted. Manifest saved at:")
+        print(f"  {manifest_path}")
+        print(f"  You can resume later with:")
+        print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
+        return
+
+    # Phase 2: fetch scene images
+    scene_entries = [e for e in manifest.entries if e.visual_mode == "scenes"]
+    if scene_entries:
+        print(f"\n{'=' * 50}")
+        print("FETCH SCENE IMAGES")
+        print("=" * 50)
+        print("\n  How would you like to generate scene images?")
+        print("    [1] Chrome AI (Recommended)")
+        print("    [2] Gemini")
+        print("    [3] Skip (place images manually)")
+        try:
+            choice = input("\nChoice [1]: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            choice = "1"
+        choice = choice or "1"
+
+        if choice == "1":
+            fetch_skip_gemini = True
+            fetch_use_chrome_ai = True
+        elif choice == "2":
+            fetch_skip_gemini = False
+            fetch_use_chrome_ai = False
+        else:
+            fetch_skip_gemini = True
+            fetch_use_chrome_ai = False
+
+        if choice in ("1", "2"):
+            print(f"\nGenerating scene images...")
+            _fetch_scene_images_for_manifest(manifest, skip_gemini=fetch_skip_gemini, use_chrome_ai=fetch_use_chrome_ai)
+            save_resolved_manifest(manifest, Path(manifest_path))
+
+        # Check readiness
+        missing = [e for e in manifest.entries if e.visual_mode == "scenes" and not e.scene_images_ready]
+        if missing:
+            print(f"\n  {len(missing)} entry/entries still have missing scene images:")
+            for e in missing:
+                print(f"    - {e.label}: assets/{e.scenes_folder}/")
+            print(f"\n  Place the missing images, then resume with:")
+            print(f"    python scripts/manual_run.py --channel {channel} --resume-from-manifest {manifest_path}")
+            return
+
+    # Phase 3: assemble + upload
+    print(f"\n{'=' * 50}")
+    print("PHASE 3 — Assemble & Upload")
+    print("=" * 50)
     run_resume_from_manifest(manifest_path)
 
 
@@ -3098,20 +3197,28 @@ def main():
     elif args.channel == "family":
         run_family(topic=args.topic, schedule_time=effective_schedule_time)
     elif args.channel == "english":
-        run_english(
+        _run_interactive_two_phase(
+            "english",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-podcast":
-        run_english_podcast(
+        _run_interactive_two_phase(
+            "english-podcast",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-challenge":
         run_english_challenge(
