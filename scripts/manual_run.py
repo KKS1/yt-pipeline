@@ -814,13 +814,12 @@ def _build_manifest_entry(
 
 
 def _fetch_scene_images_for_manifest(manifest: VisualManifest, *, skip_gemini: bool = False, use_chrome_ai: bool = False) -> None:
-    if skip_gemini:
-        print("\n  --skip-gemini: scene images not fetched via API.")
-        return
-    
     if use_chrome_ai:
         print("\n  --use-chrome-ai: using Chrome AI for scene image generation.")
         from chrome_ai_scraper import fetch_scenes_for_manifest_entry
+    elif skip_gemini:
+        print("\n  --skip-gemini: scene images not fetched via API.")
+        return
     else:
         print("\n  Using Gemini for scene image generation.")
         from gemini_scene_images import fetch_scenes_for_manifest_entry

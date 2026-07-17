@@ -25,7 +25,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 # Configuration from environment
 CHROME_PROFILE_PATH = os.getenv("CHROME_PROFILE_PATH", "/Users/kanwal/Library/Application Support/Google/Chrome/Default")
 CHROME_AI_HEADLESS = os.getenv("CHROME_AI_HEADLESS", "false").lower() == "true"
-CHROME_AI_RATE_LIMIT_DELAY = int(os.getenv("CHROME_AI_RATE_LIMIT_DELAY", "30"))
+CHROME_AI_RATE_LIMIT_DELAY = int(os.getenv("CHROME_AI_RATE_LIMIT_DELAY", "2"))
 CHROME_AI_MAX_RETRIES = int(os.getenv("CHROME_AI_MAX_RETRIES", "3"))
 
 
@@ -156,6 +156,121 @@ class ChromeAIGenerator:
         
         print(f"  Rotated to account: {next_account}")
     
+    async def _check_daily_limit(self) -> bool:
+        """Check if the page shows 'Daily limit reached' for image generation."""
+        try:
+            limit_indicators = [
+                ':text("Daily limit reached")',
+                ':text("daily limit")',
+                ":text(\"You've reached your daily limit\")",
+                '[aria-label*="Daily limit"]',
+            ]
+            for selector in limit_indicators:
+                try:
+                    element = await self.page.query_selector(selector)
+                    if element and await element.is_visible():
+                        print(f"  Daily limit detected on current account")
+                        return True
+                except:
+                    continue
+            return False
+        except:
+            return False
+    
+    async def _switch_google_account(self) -> bool:
+        """Switch to a different Google account via the profile menu.
+        
+        Clicks the profile avatar in top-right, then selects the next
+        available account from the dropdown.
+        """
+        try:
+            # Find the profile avatar button (top-right corner)
+            avatar_selectors = [
+                'a[aria-label*="Google Account"]',
+                'a[aria-label*="Account"]',
+                'a[data-ogsr-up]',
+                'div[role="button"][aria-label*="Account"]',
+                'img[data-ogsr-up]',  # profile image
+            ]
+            
+            avatar = None
+            for selector in avatar_selectors:
+                try:
+                    avatar = await self.page.wait_for_selector(selector, timeout=5000)
+                    if avatar:
+                        break
+                except:
+                    continue
+            
+            if not avatar:
+                raise Exception("Could not find profile avatar")
+            
+            await avatar.click()
+            await self.page.wait_for_timeout(1500)
+            
+            # Now look for the account list in the dropdown
+            # Each account is typically an <a> or clickable div with the email visible
+            # Try to find accounts that are NOT the current one
+            all_account_links = await self.page.query_selector_all(
+                '[data-identifier], [data-email], [role="link"][data-navrole]'
+            )
+            
+            # Also try finding by visible email text
+            if not all_account_links:
+                all_account_links = await self.page.query_selector_all('ul[role="list"] a, .gb_A .gb_D')
+            
+            switched = False
+            for link in all_account_links:
+                try:
+                    # Check if this is a different account
+                    email = (await link.get_attribute("data-identifier") or 
+                             await link.get_attribute("data-email") or "")
+                    
+                    # Skip if this is the current account or empty
+                    current_email = self.available_accounts[self.current_account_index] if self.available_accounts else ""
+                    if email and email == current_email:
+                        continue
+                    if email and email == "default_account":
+                        continue
+                    
+                    # Click this different account
+                    print(f"  Switching to Google account: {email}")
+                    await link.click()
+                    await self.page.wait_for_timeout(3000)
+                    
+                    # Update current account tracking
+                    if email and email not in self.available_accounts:
+                        self.available_accounts.append(email)
+                        self.account_usage[email] = {"generated": 0, "last_used": None}
+                    if email:
+                        self.current_account_index = self.available_accounts.index(email) if email in self.available_accounts else 0
+                    
+                    switched = True
+                    break
+                except:
+                    continue
+            
+            if not switched:
+                # Fallback: try clicking any non-first account link
+                try:
+                    all_links = await self.page.query_selector_all('a[href*="accounts.google.com"]')
+                    for link in all_links:
+                        text = await link.inner_text()
+                        if text and text != self.available_accounts[0] if self.available_accounts else True:
+                            print(f"  Switching to account via fallback: {text}")
+                            await link.click()
+                            await self.page.wait_for_timeout(3000)
+                            switched = True
+                            break
+                except:
+                    pass
+            
+            return switched
+            
+        except Exception as e:
+            print(f"  Warning: Failed to switch account: {e}")
+            return False
+    
     async def _navigate_to_ai_mode(self):
         """Navigate to Chrome AI mode for image generation."""
         try:
@@ -250,8 +365,7 @@ class ChromeAIGenerator:
         """Submit visual prompt to Chrome AI and wait for generation."""
         try:
             # Look for prompt input field
-            # Based on actual Chrome HTML: <textarea placeholder="Describe your image" aria-label="Search" role="combobox" name="q">
-            # Note: jsname, class, id can be dynamic, so rely on placeholder, aria-label, role, name
+            # <textarea placeholder="Describe your image" aria-label="Search" role="combobox" name="q">
             input_selectors = [
                 'textarea[placeholder="Describe your image"]',
                 'textarea[placeholder*="Describe your"]',
@@ -275,32 +389,9 @@ class ChromeAIGenerator:
             if not prompt_input:
                 raise Exception("Could not find prompt input field")
             
-            # Enter prompt
+            # Enter prompt and press Enter to submit immediately
             await prompt_input.fill(prompt_text)
-            await self.page.wait_for_timeout(1000)
-            
-            # Look for generate button
-            generate_selectors = [
-                'button:has-text("generate")',
-                'button:has-text("Generate")',
-                '[data-test-id="generate-button"]',
-                'button[type="submit"]',
-            ]
-            
-            generate_button = None
-            for selector in generate_selectors:
-                try:
-                    generate_button = await self.page.wait_for_selector(selector, timeout=5000)
-                    if generate_button:
-                        break
-                except:
-                    continue
-            
-            if not generate_button:
-                raise Exception("Could not find generate button")
-            
-            # Click generate
-            await generate_button.click()
+            await prompt_input.press("Enter")
             print(f"  Submitted prompt: {prompt_text[:50]}...")
             
             return True
@@ -398,6 +489,9 @@ class ChromeAIGenerator:
         
         print(f"\nGenerating {len(scenes)} scene images via Chrome AI...")
         
+        # Navigate to AI mode once before starting
+        await self._navigate_to_ai_mode()
+        
         for i, scene in enumerate(scenes, start=1):
             scene_id = scene.get("scene_id", i)
             visual_prompt = scene.get("visual_prompt", "").strip()
@@ -416,20 +510,37 @@ class ChromeAIGenerator:
                 missing.append(image_filename)
                 continue
             
-            # Rotate account if needed
-            await self._rotate_account()
-            
             # Try generation with retries
             success = False
-            for attempt in range(CHROME_AI_MAX_RETRIES):
+            needs_navigate = False  # track if we need to re-navigate
+            for attempt in range(CHROME_AI_MAX_RETRIES * len(self.available_accounts)):
                 try:
-                    print(f"  [{i}/{len(scenes)}] Generating {output_path.name} (attempt {attempt + 1})")
+                    print(f"  [{i}/{len(scenes)}] Generating {output_path.name} (attempt {attempt + 1}, account {self.available_accounts[self.current_account_index]})")
                     
-                    # Navigate to AI mode
-                    await self._navigate_to_ai_mode()
+                    # Only re-navigate if needed (first scene, after error, or after account switch)
+                    if needs_navigate:
+                        await self._navigate_to_ai_mode()
+                        needs_navigate = False
+                    
+                    # Check for daily limit on current account
+                    if await self._check_daily_limit():
+                        print(f"    Daily limit on account {self.available_accounts[self.current_account_index]}, switching...")
+                        switched = await self._switch_google_account()
+                        if not switched:
+                            raise Exception("Daily limit reached and no other accounts available")
+                        await self._navigate_to_ai_mode()
                     
                     # Submit prompt
                     await self._submit_prompt(visual_prompt)
+                    
+                    # Check again after prompt submission (limit may show up then)
+                    if await self._check_daily_limit():
+                        print(f"    Daily limit after prompt submission, switching...")
+                        switched = await self._switch_google_account()
+                        if not switched:
+                            raise Exception("Daily limit reached and no other accounts available")
+                        await self._navigate_to_ai_mode()
+                        await self._submit_prompt(visual_prompt)
                     
                     # Wait for generation
                     await self._wait_for_image_generation()
@@ -454,8 +565,9 @@ class ChromeAIGenerator:
                     
                 except Exception as e:
                     print(f"    Attempt {attempt + 1} failed: {e}")
-                    if attempt < CHROME_AI_MAX_RETRIES - 1:
-                        await asyncio.sleep(5)  # Brief delay before retry
+                    needs_navigate = True  # re-navigate on next attempt
+                    if attempt < CHROME_AI_MAX_RETRIES * len(self.available_accounts) - 1:
+                        await asyncio.sleep(3)
             
             if not success:
                 print(f"  [{i}/{len(scenes)}] Failed to generate {output_path.name}")
