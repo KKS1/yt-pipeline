@@ -70,6 +70,7 @@ class ChromeAIGenerator:
             
             print(f"  Chrome AI scraper initialized (headless={self.headless})")
             print(f"  Detected {len(self.available_accounts)} Google account(s)")
+            return self
             
         except ImportError:
             raise ImportError(
@@ -159,12 +160,12 @@ class ChromeAIGenerator:
             await self.page.wait_for_load_state("networkidle")
             
             # Look for AI mode button in search bar
-            # This selector may need adjustment based on Chrome's current UI
+            # Based on actual Chrome HTML: <cr-icon-button id="entrypoint" class="ai-mode-button" ...>
             ai_selectors = [
-                'button[aria-label*="AI"]',
-                'button[aria-label*="Google AI"]',
-                '[data-test-id="ai-mode-button"]',
-                'div[role="button"]:has-text("AI")',
+                '#entrypoint.ai-mode-button',
+                'cr-icon-button.ai-mode-button',
+                '[id="entrypoint"][class*="ai-mode-button"]',
+                'button[aria-label*="Enhance your search with tabs, files, or an AI tool"]',
             ]
             
             ai_button = None
@@ -172,6 +173,7 @@ class ChromeAIGenerator:
                 try:
                     ai_button = await self.page.wait_for_selector(selector, timeout=5000)
                     if ai_button:
+                        print(f"  Found AI mode button with selector: {selector}")
                         break
                 except:
                     continue
@@ -184,11 +186,12 @@ class ChromeAIGenerator:
             await self.page.wait_for_timeout(2000)
             
             # Look for "create images" option
+            # Based on actual Chrome HTML: <button class="dropdown-item" role="menuitem" data-mode="4" aria-label="Tools: Create images">
             image_selectors = [
-                'button:has-text("create images")',
-                'button:has-text("Create images")',
-                '[data-test-id="create-images"]',
-                'div[role="menuitem"]:has-text("images")',
+                'button.dropdown-item[data-mode="4"]',
+                'button[aria-label="Tools: Create images"]',
+                'button.dropdown-item:has-text("Create images")',
+                '[role="menuitem"][data-mode="4"]',
             ]
             
             image_button = None
@@ -196,6 +199,7 @@ class ChromeAIGenerator:
                 try:
                     image_button = await self.page.wait_for_selector(selector, timeout=5000)
                     if image_button:
+                        print(f"  Found create images button with selector: {selector}")
                         break
                 except:
                     continue
