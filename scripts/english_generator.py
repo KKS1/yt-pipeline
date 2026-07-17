@@ -107,51 +107,132 @@ _PLAYLIST_LINE_RE = re.compile(
 )
 
 
-def ensure_english_vibes_hashtags(description: str, theme: str = "") -> str:
-    """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
-    text = str(description or "").strip()
-    if not text:
-        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
-    
+_TOPIC_STOP_WORDS = frozenset({
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "up", "about", "into", "through", "during", "before", "after",
+    "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
+    "neither", "each", "every", "all", "any", "few", "more", "most",
+    "other", "some", "such", "no", "only", "own", "same", "than",
+    "too", "very", "just", "because", "as", "until", "while",
+    "disaster", "nightmare", "story", "practice", "learn", "english",
+})
+
+# Map English-learning themes to high-value related hashtags
+_THEME_HASHTAG_MAP = {
+    "airport": ["#AirportEnglish", "#TravelEnglish"],
+    "restaurant": ["#RestaurantEnglish", "#OrderingFood"],
+    "hotel": ["#HotelEnglish", "#TravelEnglish"],
+    "doctor": ["#DoctorEnglish", "#MedicalEnglish"],
+    "hospital": ["#HospitalEnglish", "#MedicalEnglish"],
+    "interview": ["#JobInterview", "#BusinessEnglish"],
+    "meeting": ["#BusinessMeeting", "#BusinessEnglish"],
+    "phone": ["#PhoneEnglish", "#PhoneCall"],
+    "shopping": ["#ShoppingEnglish", "#RetailEnglish"],
+    "bank": ["#BankEnglish", "#FinanceEnglish"],
+    "classroom": ["#ClassroomEnglish", "#AcademicEnglish"],
+    "workplace": ["#WorkplaceEnglish", "#BusinessEnglish"],
+    "supermarket": ["#SupermarketEnglish", "#ShoppingEnglish"],
+    "cafe": ["#CafeEnglish", "#OrderingFood"],
+    "taxi": ["#TaxiEnglish", "#TravelEnglish"],
+    "uber": ["#RideShareEnglish", "#TravelEnglish"],
+    "gym": ["#GymEnglish", "#FitnessEnglish"],
+    "gossip": ["#GossipEnglish", "#CasualConversation"],
+    "argument": ["#ArgumentEnglish", "#ConflictResolution"],
+    "apology": ["#ApologyEnglish", "#PoliteEnglish"],
+    "complaint": ["#ComplaintEnglish", "#CustomerService"],
+    "wedding": ["#WeddingEnglish", "#SocialEnglish"],
+    "dating": ["#DatingEnglish", "#SocialEnglish"],
+    "job": ["#JobEnglish", "#CareerEnglish"],
+    "office": ["#OfficeEnglish", "#BusinessEnglish"],
+    "weather": ["#WeatherEnglish", "#SmallTalk"],
+    "food": ["#FoodEnglish", "#OrderingFood"],
+    "travel": ["#TravelEnglish", "#AirportEnglish"],
+    "money": ["#MoneyEnglish", "#FinanceEnglish"],
+    "home": ["#HomeEnglish", "#DailyEnglish"],
+    "family": ["#FamilyEnglish", "#DailyEnglish"],
+    "friend": ["#FriendEnglish", "#CasualConversation"],
+    "school": ["#SchoolEnglish", "#AcademicEnglish"],
+    "car": ["#DrivingEnglish", "#TravelEnglish"],
+    "bus": ["#BusEnglish", "#TravelEnglish"],
+    "train": ["#TrainEnglish", "#TravelEnglish"],
+}
+
+
+def _build_topic_hashtags(theme: str) -> str:
+    """Extract 1-2 high-value topic hashtags from a theme string.
+
+    Uses a known-theme lookup first, then falls back to extracting the
+    most meaningful noun-like words from the theme.
+    """
+    if not theme:
+        return ""
+    theme_lower = theme.lower()
+
+    # Check known-theme map for high-value related hashtags
+    for keyword, tags in _THEME_HASHTAG_MAP.items():
+        if keyword in theme_lower:
+            return " ".join(tags)
+
+    # Fallback: extract meaningful words from theme
+    theme_clean = re.sub(r"[^\w\s]", "", theme_lower).strip()
+    words = [
+        w for w in theme_clean.split()
+        if w not in _TOPIC_STOP_WORDS and len(w) > 2
+    ]
+    if not words:
+        return ""
+    # Build 1-2 topic hashtags from meaningful words
+    if len(words) >= 2:
+        return f"#{words[0].capitalize()}{words[1].capitalize()} #{'English' + words[0].capitalize()}"
+    return f"#{words[0].capitalize()} #English{words[0].capitalize()}"
+
+
+def _strip_all_hashtags(text: str) -> str:
+    """Remove all hashtags from a description, preserving other content lines."""
     hashtag_re = re.compile(r"#\w+")
-    
-    # Remove all existing hashtags from anywhere in the text to rebuild them properly
     cleaned_lines = []
     for line in text.splitlines():
         if not line.strip():
             cleaned_lines.append("")
             continue
-        # Preserve lines without hashtags (like playlist, subscribe, etc.)
         if not hashtag_re.search(line):
             cleaned_lines.append(line)
             continue
-        # Remove hashtags from hashtag lines
         cleaned = hashtag_re.sub("", line).strip()
         cleaned = re.sub(r" {2,}", " ", cleaned)
         if cleaned:
             cleaned_lines.append(cleaned)
+    return "\n".join(cleaned_lines)
+
+
+def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_shorts: bool = False) -> str:
+    """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
+    text = str(description or "").strip()
+    if not text:
+        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
+    
+    cleaned_text = _strip_all_hashtags(text)
     
     # Build optimized hashtag line with comprehensive tags
     core_tags = "#LearnEnglish #EnglishVibesHub"
     practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary #EnglishPodcast"
     
-    # Extract topic-specific hashtag from theme if available
-    topic_tag = ""
-    if theme:
-        # Convert theme to hashtag format (remove spaces, special chars)
-        topic_clean = re.sub(r"[^\w\s]", "", str(theme).strip())
-        topic_words = topic_clean.split()
-        if topic_words:
-            # Use first meaningful word or phrase as topic tag
-            topic_tag = "#" + "".join(word.capitalize() for word in topic_words[:2])
+    # Extract topic-specific hashtags from theme
+    topic_tags = _build_topic_hashtags(theme)
     
     # SEO ordering: core tags → topic-specific → practice tags
-    hashtag_line = f"{core_tags} {topic_tag} {practice_tags}".strip()
-    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)  # Remove extra spaces
+    parts = [core_tags]
+    if topic_tags:
+        parts.append(topic_tags)
+    parts.append(practice_tags)
+    hashtag_line = " ".join(parts)
+    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
     
-    # Append hashtags at the very end
-    cleaned_text = "\n".join(cleaned_lines).strip()
-    # Ensure blank line before hashtags
+    # Append hashtags at the very end with blank line separator
+    cleaned_text = cleaned_text.strip()
     if cleaned_text and not cleaned_text.endswith("\n"):
         cleaned_text += "\n\n"
     cleaned_text += hashtag_line
@@ -477,17 +558,31 @@ def validate_podcast_script(raw_input):
     return script_data, True
 
 
-def ensure_english_seo_opener(description: str, theme: str = "") -> str:
-    """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic."""
+def ensure_english_seo_opener(description: str, theme: str = "", *, format: str = "longform") -> str:
+    """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic.
+
+    Args:
+        format: One of "longform", "shorts", or "quiz" — controls the opener phrasing.
+    """
     text = str(description or "").strip()
     theme_clean = str(theme or "").strip()
-    
-    # Build customized opener with proper keyword front-loading
-    # Rule: First 2-3 words MUST include "English listening practice", "English speaking practice", "English Quiz", or "Learn English"
-    if theme_clean:
-        seo_line = f"🎯 English listening practice conversational podcast: {theme_clean}. Master natural English for real conversations and speak like a native!"
-    else:
-        seo_line = "🎯 English listening practice: learn practical English expressions. Master natural English for real conversations and speak like a native!"
+
+    # Build format-specific opener with proper keyword front-loading
+    if format == "shorts":
+        if theme_clean:
+            seo_line = f"🎯 Learn natural English in 30 seconds: {theme_clean}. Master expressions to speak like a native!"
+        else:
+            seo_line = "🎯 Learn natural English in 30 seconds: practical expressions you can use today. Speak like a native!"
+    elif format == "quiz":
+        if theme_clean:
+            seo_line = f"🎯 English quiz — {theme_clean}. Master natural English for real conversations and speak like a native!"
+        else:
+            seo_line = "🎯 English quiz — test your vocabulary. Master natural English for real conversations and speak like a native!"
+    else:  # longform (default)
+        if theme_clean:
+            seo_line = f"🎯 English listening practice: {theme_clean}. Master natural English for real conversations and speak like a native!"
+        else:
+            seo_line = "🎯 English listening practice: learn practical English expressions. Master natural English for real conversations and speak like a native!"
     
     if not text:
         return seo_line
@@ -790,23 +885,199 @@ def remove_duplicate_phrases(description: str) -> str:
     return text.strip()
 
 
+# Canonical section order for YouTube descriptions (top to bottom).
+# Each entry is a regex that matches the start of a section line.
+_SECTION_ORDER = [
+    ("seo", re.compile(r"^🎯")),
+    ("about", re.compile(r"^📑\s*About")),
+    ("playlist", re.compile(r"^📺\s*Watch\s+the\s+playlist", re.IGNORECASE)),
+    ("comment", re.compile(r"^💬\s*Comment", re.IGNORECASE)),
+    ("subscribe", re.compile(r"^🔔\s*Subscribe", re.IGNORECASE)),
+    ("timeline", re.compile(r"^📑\s*Timeline", re.IGNORECASE)),
+]
+
+
+def normalize_description_spacing(text: str) -> str:
+    """Ensure exactly one blank line between every section in a description.
+
+    Also splits lines that contain multiple section markers (e.g., 💬 and 🔔
+    on the same line from LLM output) into separate lines.
+    """
+    if not text or not text.strip():
+        return text
+
+    # Split lines that have multiple section markers mashed together
+    # e.g. "💬 Comment below: X 🔔 Subscribe to Y" → two lines
+    section_emoji_re = re.compile(r'(\s)([🎯📺💬🔔📑])\s')
+    lines = text.splitlines()
+    expanded: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            expanded.append("")
+            continue
+        # Find split points where a section emoji appears mid-line (not at start)
+        # First, strip leading emoji to avoid false match at line start
+        leading_match = re.match(r'^([🎯📺💬🔔📑])\s*', stripped)
+        if leading_match:
+            rest = stripped[leading_match.end():]
+        else:
+            rest = stripped
+        parts = section_emoji_re.split(rest)
+        if len(parts) > 1:
+            # parts alternates: [text, space, emoji, text, space, emoji, ...]
+            # Reconstruct lines
+            first_text = parts[0].rstrip()
+            if leading_match:
+                first_line = f"{leading_match.group(1)} {first_text}".strip()
+            else:
+                first_line = first_text
+            if first_line:
+                expanded.append(first_line)
+            i = 1
+            while i < len(parts):
+                _space = parts[i]      # whitespace
+                emoji = parts[i + 1]   # emoji
+                text_part = parts[i + 2].rstrip() if i + 2 < len(parts) else ""
+                new_line = f"{emoji} {text_part}".strip()
+                if new_line:
+                    expanded.append(new_line)
+                i += 3
+        else:
+            expanded.append(stripped)
+
+    # Collapse consecutive blank lines to a single marker
+    normalized: list[str] = []
+    for line in expanded:
+        if not line.strip():
+            if normalized and normalized[-1] == "":
+                continue
+            normalized.append("")
+        else:
+            normalized.append(line.strip())
+
+    # Ensure blank line between consecutive section markers
+    _section_re = re.compile(r"^[🎯📺💬🔔📑#]")
+    final: list[str] = []
+    for i, line in enumerate(normalized):
+        if i > 0 and _section_re.match(line) and _section_re.match(normalized[i - 1]):
+            # Both current and previous are section markers — insert blank line
+            if final and final[-1] != "":
+                final.append("")
+        final.append(line)
+
+    # Remove leading/trailing blank lines
+    while final and final[0] == "":
+        final.pop(0)
+    while final and final[-1] == "":
+        final.pop()
+
+    result = "\n".join(final)
+    # Ensure exactly two newlines (one blank line) between sections
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result
+
+
+def ensure_description_section_order(text: str) -> str:
+    """Reorder description sections into the canonical YouTube SEO order.
+
+    Sections not matching any known pattern are kept in place relative to
+    the section they follow. Hashtags are always moved to the very end.
+    """
+    if not text or not text.strip():
+        return text
+
+    lines = text.splitlines()
+
+    # Separate hashtag lines from the rest
+    hashtag_lines = [l for l in lines if l.strip().startswith("#")]
+    non_hashtag_lines = [l for l in lines if not l.strip().startswith("#")]
+
+    # Group non-hashtag lines into sections.  A "section" starts when we
+    # encounter a line matching one of the _SECTION_ORDER patterns.
+    sections: list[tuple[str, list[str]]] = []  # (key, lines)
+    current_key = "_preamble"
+    current_lines: list[str] = []
+
+    for line in non_hashtag_lines:
+        stripped = line.strip()
+        matched_key = None
+        for key, pattern in _SECTION_ORDER:
+            if pattern.search(stripped):
+                matched_key = key
+                break
+        if matched_key and matched_key != current_key:
+            # Start a new section
+            if current_lines:
+                sections.append((current_key, current_lines))
+            current_key = matched_key
+            current_lines = [line]
+        else:
+            current_lines.append(line)
+    if current_lines:
+        sections.append((current_key, current_lines))
+
+    # Rebuild in canonical order, keeping unknown sections after the
+    # section they most naturally follow.
+    seen_keys: set[str] = set()
+    ordered_sections: list[list[str]] = []
+
+    for key, _ in _SECTION_ORDER:
+        for sec_key, sec_lines in sections:
+            if sec_key == key and sec_key not in seen_keys:
+                ordered_sections.append(sec_lines)
+                seen_keys.add(sec_key)
+                break
+
+    # Append any sections that didn't match a known key (in original order)
+    for sec_key, sec_lines in sections:
+        if sec_key not in seen_keys:
+            ordered_sections.append(sec_lines)
+            seen_keys.add(sec_key)
+
+    # Reassemble: join sections with blank-line separators, then append hashtags
+    result_parts: list[str] = []
+    for sec_lines in ordered_sections:
+        # Strip trailing blank lines from each section before joining
+        while sec_lines and sec_lines[-1].strip() == "":
+            sec_lines.pop()
+        result_parts.append("\n".join(sec_lines))
+
+    result = "\n\n".join(result_parts)
+
+    # Append hashtags at the end
+    if hashtag_lines:
+        result = result.rstrip() + "\n\n" + "\n".join(hashtag_lines)
+
+    # Final spacing normalization
+    result = normalize_description_spacing(result)
+    return result
+
+
 def finalize_english_description(
     description: str,
     *,
     include_timeline: bool = False,
     is_quiz: bool = False,
+    is_shorts: bool = False,
+    format: str = "longform",
     theme: str = "",
 ) -> str:
-    """Apply all English description post-processors in optimal order."""
+    """Apply all English description post-processors in optimal order.
+
+    Args:
+        format: One of "longform", "shorts", or "quiz" — controls SEO opener phrasing.
+        is_shorts: When True, includes #Shorts in the hashtag set.
+    """
     # Extract existing structured content to preserve it
     existing_comment = None
     comment_match = re.search(r'💬\s*Comment\s+below:[^#🔔]+', description, re.IGNORECASE)
     if comment_match:
         existing_comment = comment_match.group(0).strip()
     
-    # Processing order: fragment cleanup → dedup → SEO opener → timeline removal → CTAs → About section → hashtags
+    # Processing order: fragment cleanup → dedup → SEO opener → timeline removal → CTAs → About section → hashtags → ordering → spacing
     text = remove_duplicate_phrases(description)  # Includes fragment cleanup
-    text = ensure_english_seo_opener(text, theme=theme)
+    text = ensure_english_seo_opener(text, theme=theme, format=format)
     
     if not include_timeline:
         text = remove_timeline_from_shorts(text)
@@ -827,7 +1098,12 @@ def finalize_english_description(
         # Place hashtags at end with SEO ordering
         text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
     else:
-        text = ensure_english_vibes_hashtags(text, theme=theme)
+        text = ensure_english_vibes_hashtags(text, theme=theme, is_shorts=is_shorts)
+
+    # Enforce canonical section order (playlist before comment before subscribe, etc.)
+    text = ensure_description_section_order(text)
+    # Final spacing normalization
+    text = normalize_description_spacing(text)
     return text
 
 
@@ -919,42 +1195,25 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
     if not text:
         return "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
 
-    hashtag_re = re.compile(r"#\w+")
+    cleaned_text = _strip_all_hashtags(text)
 
-    # Remove ALL hashtags from anywhere in the text (not just target ones)
-    cleaned_lines = []
-    for line in text.splitlines():
-        if not line.strip():
-            cleaned_lines.append("")
-            continue
-        # Remove all hashtags from each line
-        cleaned = hashtag_re.sub("", line).strip()
-        cleaned = re.sub(r" {2,}", " ", cleaned)  # Remove extra spaces
-        if cleaned:
-            cleaned_lines.append(cleaned)
-        # Skip lines that become empty after hashtag removal
-
-    # Build optimized hashtag line with topic-specific tag
+    # Build optimized hashtag line with topic-specific tags
     core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
     practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
     
-    # Extract topic-specific hashtag from theme if available
-    topic_tag = ""
-    if theme:
-        # Convert theme to hashtag format (remove spaces, special chars)
-        topic_clean = re.sub(r"[^\w\s]", "", str(theme).strip())
-        topic_words = topic_clean.split()
-        if topic_words:
-            # Use first meaningful word or phrase as topic tag
-            topic_tag = "#" + "".join(word.capitalize() for word in topic_words[:2])
+    # Extract topic-specific hashtags from theme
+    topic_tags = _build_topic_hashtags(theme)
     
     # SEO ordering: core tags → topic-specific → practice tags
-    hashtag_line = f"{core_tags} {topic_tag} {practice_tags}".strip()
-    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)  # Remove extra spaces
+    parts = [core_tags]
+    if topic_tags:
+        parts.append(topic_tags)
+    parts.append(practice_tags)
+    hashtag_line = " ".join(parts)
+    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
 
-    # Append hashtags at the very end
-    cleaned_text = "\n".join(cleaned_lines).strip()
-    # Ensure blank line before hashtags
+    # Append hashtags at the very end with blank line separator
+    cleaned_text = cleaned_text.strip()
     if cleaned_text and not cleaned_text.endswith("\n"):
         cleaned_text += "\n\n"
     cleaned_text += hashtag_line
@@ -1280,13 +1539,18 @@ Output ONLY valid JSON with this schema:
 def attach_storyboard_to_script(script: dict, *, portrait: bool = False) -> dict:
     """Generate storyboard scenes and apply description post-processing."""
     script = generate_english_storyboard(script, portrait=portrait)
-    is_quiz = script.get("video_format") in ("shorts_quiz", "shorts")
+    video_format = script.get("video_format", "")
+    is_quiz = video_format in ("shorts_quiz",)
+    is_shorts = video_format in ("shorts", "shorts_quiz")
+    desc_format = "quiz" if is_quiz else ("shorts" if is_shorts else "longform")
     theme = script.get("theme") or script.get("title", "")
     if script.get("description"):
         script["description"] = finalize_english_description(
             script["description"],
             include_timeline=False,  # Timeline handled separately by _inject_scene_timeline in manual_run.py
             is_quiz=is_quiz,
+            is_shorts=is_shorts,
+            format=desc_format,
             theme=theme,
         )
     return script
@@ -1935,7 +2199,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     script_data["video_format"] = "shorts_quiz"
     theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True, theme=theme
+        script_data.get("description", ""), is_quiz=True, format="quiz", theme=theme
     )
     return attach_storyboard_to_script(script_data, portrait=True)
 
@@ -2070,7 +2334,7 @@ JSON SCHEMA:
     script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
     theme = script.get("theme") or script.get("title", "")
     script["description"] = finalize_english_description(
-        script.get("description", ""), include_timeline=True, theme=theme
+        script.get("description", ""), include_timeline=True, format="longform", theme=theme
     )
 
     if not script.get("title"):
@@ -2336,7 +2600,7 @@ JSON SCHEMA:
     script_data = separate_mixed_pause_turns(script_data)
     script_data.setdefault("video_format", "shorts")
     theme = script_data.get("theme") or script_data.get("title", "")
-    script_data["description"] = finalize_english_description(script_data.get("description", ""), theme=theme)
+    script_data["description"] = finalize_english_description(script_data.get("description", ""), theme=theme, is_shorts=True, format="shorts")
 
     if not script_data.get("title"):
         title_options = script_data.get("title_options") or []
@@ -2416,7 +2680,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     script_data["video_format"] = "shorts_quiz"
     theme = script_data.get("theme") or script_data.get("title", "")
     script_data["description"] = finalize_english_description(
-        script_data.get("description", ""), is_quiz=True, theme=theme
+        script_data.get("description", ""), is_quiz=True, format="quiz", theme=theme
     )
 
     # Update pinned comment with channel CTA
@@ -2978,6 +3242,7 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
             script["description"],
             include_timeline=False,
             is_quiz=False,
+            format="longform",
             theme=theme,
         )
     return script

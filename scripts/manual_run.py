@@ -136,6 +136,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 def _description_with_playlist_url(description: str, command_channel: str | None) -> str:
     """Inject the fixed playlist URL for standalone English upload descriptions."""
+    from english_generator import ensure_description_section_order, normalize_description_spacing
+
     playlist_url = ENGLISH_DESCRIPTION_PLAYLIST_URLS.get(command_channel or "")
     text = str(description or "").strip().replace("\\n", "\n")
     if not playlist_url:
@@ -145,12 +147,34 @@ def _description_with_playlist_url(description: str, command_channel: str | None
     # Pattern: {https://...} or {http://...}
     text = re.sub(r'\{https?://[^\}]+\}', playlist_url, text)
     
-    if "{playlist_url}" in text:
-        return text.replace("{playlist_url}", playlist_url)
-    if playlist_url in text:
-        return text
     playlist_line = f"📺 Watch the playlist here: {playlist_url}"
-    return f"{text}\n\n{playlist_line}" if text else playlist_line
+
+    if "{playlist_url}" in text:
+        text = text.replace("{playlist_url}", playlist_url)
+    elif playlist_url not in text:
+        # Playlist not present at all — append it
+        text = f"{text}\n\n{playlist_line}" if text else playlist_line
+
+    # Ensure the playlist line is positioned correctly (above comment, above hashtags)
+    # Remove any existing playlist lines and re-insert at the canonical position
+    lines = text.splitlines()
+    cleaned = [l for l in lines if not re.match(r"^\s*📺\s*Watch\s+the\s+playlist\s+here:", l, re.IGNORECASE)]
+
+    # Find the insertion point: after 🎯 opener (+ optional About section), before 💬 comment
+    insert_idx = len(cleaned)  # default: end
+    for i, line in enumerate(cleaned):
+        stripped = line.strip()
+        if stripped.startswith("💬") or stripped.startswith("🔔") or stripped.startswith("📑 Timeline") or stripped.startswith("#"):
+            insert_idx = i
+            break
+
+    cleaned.insert(insert_idx, playlist_line)
+    text = "\n".join(cleaned)
+
+    # Final ordering and spacing pass
+    text = ensure_description_section_order(text)
+    text = normalize_description_spacing(text)
+    return text
 
 def prompt_multiline(prompt_text: str) -> str:
     """Read multi-line input until user types END on its own line."""
