@@ -250,11 +250,17 @@ class ChromeAIGenerator:
         """Submit visual prompt to Chrome AI and wait for generation."""
         try:
             # Look for prompt input field
+            # Based on actual Chrome HTML: <textarea placeholder="Describe your image" aria-label="Search" role="combobox" name="q">
+            # Note: jsname, class, id can be dynamic, so rely on placeholder, aria-label, role, name
             input_selectors = [
+                'textarea[placeholder="Describe your image"]',
+                'textarea[placeholder*="Describe your"]',
+                'textarea[aria-label="Search"]',
+                'textarea[role="combobox"]',
+                'textarea[name="q"]',
+                'textarea[placeholder*="image"]',
                 'textarea[placeholder*="describe"]',
-                'textarea[placeholder*="prompt"]',
                 'div[contenteditable="true"]',
-                '[data-test-id="prompt-input"]',
             ]
             
             prompt_input = None
