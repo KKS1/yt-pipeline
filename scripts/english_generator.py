@@ -2919,7 +2919,7 @@ FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 
 VOICES:
 - "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Appear in Stages 1-2 (hook/studio intro), 3 (caller setup reactions), 5-7 (back-to-studio/analysis/wrap-up). NEVER in Stage 4.
-- "Caller" (af_bella) OR "Caller_Male" (am_echo): Randomly alternate between female and male callers across episodes. The caller is a third-person narrator — they recount someone else's experience. Appears in Stage 1 (hook — 1 line), Stage 3 (recounting a friend/colleague's confusing English — 2-3 lines), Stage 5 (still confused about what went wrong — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
+- "Caller" (af_bella) OR "Caller_Male" (am_echo): Randomly alternate between female and male callers across episodes. Give the caller a realistic first name (e.g. Maya, Sarah, Jake, David, Priya, Carlos). The hosts address them by name. The JSON speaker key MUST be "Caller" or "Caller_Male", but the actual dialogue text uses their name. The caller is a third-person narrator — they recount someone else's experience. Appears in Stage 1 (hook — 1 line), Stage 3 (recounting a friend/colleague's confusing English — 2-3 lines), Stage 5 (still confused about what went wrong — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
 - "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
 - "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
 - "Guest" (af_sky): Optional. Always female.
@@ -2945,6 +2945,7 @@ RULES:
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Caller uses 3rd-person framing: "my friend said..." not "I said...". The caller narrates someone else's story.
+- Caller has a realistic first name. Hosts say "Hey Maya, thanks for calling in" — NOT "Hey Caller". But the JSON speaker key stays "Caller" or "Caller_Male".
 - Emma/Liam never break into story dialogue.
 - Story told ONCE in Stage 4. Hook is just a 2-line teaser. Caller Setup briefly sets up the story in studio.
 - Output ONLY valid JSON.
