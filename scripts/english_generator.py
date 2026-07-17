@@ -1722,9 +1722,21 @@ JSON SCHEMA:
         # Remove summary scene if no idioms/phrasal verbs were found
         if not cleaned:
             scenes = script_data.get("scenes", [])
-            original_count = len(scenes)
-            script_data["scenes"] = [s for s in scenes if str(s.get("scene_label", "")).lower() != "summary card"]
-            if len(script_data["scenes"]) < original_count:
+            summary_idx = None
+            for _i, s in enumerate(scenes):
+                if str(s.get("scene_label", "")).lower() == "summary card":
+                    summary_idx = _i
+                    break
+            if summary_idx is not None:
+                summary_end = scenes[summary_idx].get("end_turn", 0)
+                # Extend previous scene so there's no gap after removal
+                if summary_idx > 0:
+                    prev = scenes[summary_idx - 1]
+                    if summary_end > prev.get("end_turn", 0):
+                        prev["end_turn"] = summary_end
+                        print(f"  Extended scene {summary_idx} end_turn to {summary_end} (absorbing summary range)")
+                scenes.pop(summary_idx)
+                script_data["scenes"] = scenes
                 print(f"  Removed summary scene (no idioms/phrasal verbs to summarize)")
     except Exception as exc:
         print(f"  Idiom annotation skipped (Groq error): {exc}")
