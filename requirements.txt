@@ -21,3 +21,6 @@ pydub>=0.25.1
 
 # Dynamic character compositing
 Pillow>=10.0.0
+
+# Chrome AI scraper
+playwright>=1.40.0
