@@ -55,10 +55,11 @@ class ChromeAIGenerator:
             from playwright.async_api import async_playwright
             self.playwright = await async_playwright().start()
             
-            # Launch Chrome with existing profile
+            # Launch real Chrome (not headless-shell) to avoid bot detection
             self.browser = await self.playwright.chromium.launch_persistent_context(
                 user_data_dir=self.profile_path,
                 headless=self.headless,
+                channel="chrome",
                 args=[
                     "--no-sandbox",
                     "--disable-blink-features=AutomationControlled",
