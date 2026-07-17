@@ -308,15 +308,15 @@ class ChromeAIGenerator:
         except Exception as e:
             raise Exception(f"Failed to submit prompt: {e}")
     
-    async def _wait_for_image_generation(self, timeout: int = 60) -> Optional[str]:
-        """Wait for image generation to complete and return image URL."""
+    async def _wait_for_image_generation(self, timeout: int = 60) -> bool:
+        """Wait for image generation to complete by checking for the generated image element."""
         try:
-            # Look for generated image
+            # Look for the actual generated image tag in Chrome AI mode
+            # <img alt="AI generated image" data-processed="true" ... />
             image_selectors = [
-                'img[src*="generated"]',
-                'img[src*="ai"]',
-                '[data-test-id="generated-image"]',
-                'div[role="img"]',
+                'img[alt="AI generated image"][data-processed="true"]',
+                'img[alt="AI generated image"]',
+                'img[data-processed="true"]',
             ]
             
             start_time = time.time()
@@ -325,10 +325,8 @@ class ChromeAIGenerator:
                     try:
                         image_element = await self.page.query_selector(selector)
                         if image_element:
-                            src = await image_element.get_attribute("src")
-                            if src and src.startswith("http"):
-                                print(f"  Image generated successfully")
-                                return src
+                            print(f"  Image generated successfully")
+                            return True
                     except:
                         continue
                 
@@ -339,19 +337,43 @@ class ChromeAIGenerator:
         except Exception as e:
             raise Exception(f"Failed to wait for image generation: {e}")
     
-    async def _download_image(self, image_url: str, output_path: Path) -> bool:
-        """Download generated image to specified path."""
+    async def _download_image(self, output_path: Path) -> bool:
+        """Click the download button to save the generated image."""
         try:
-            # Download image using page's request context
-            response = await self.context.request.get(image_url)
+            # Find the download button in Chrome AI mode
+            # <button aria-label="Download this AI generated image" title="Download image" data-processed="true" ... />
+            download_selectors = [
+                'button[aria-label="Download this AI generated image"][data-processed="true"]',
+                'button[aria-label="Download this AI generated image"]',
+                'button[title="Download image"][data-processed="true"]',
+                'button[title="Download image"]',
+            ]
             
-            if response.status == 200:
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                output_path.write_bytes(await response.body())
-                print(f"  Downloaded image to: {output_path.name}")
-                return True
-            else:
-                raise Exception(f"Failed to download image: HTTP {response.status}")
+            download_button = None
+            for selector in download_selectors:
+                try:
+                    download_button = await self.page.wait_for_selector(selector, timeout=10000)
+                    if download_button:
+                        print(f"  Found download button with selector: {selector}")
+                        break
+                except:
+                    continue
+            
+            if not download_button:
+                raise Exception("Could not find download button")
+            
+            # Set up download handler before clicking
+            async with self.page.expect_download(timeout=30000) as download_info:
+                await download_button.click()
+            
+            download = await download_info.value
+            
+            # Save to output path
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            await download.save_as(str(output_path))
+            
+            print(f"  Downloaded image to: {output_path.name}")
+            return True
                 
         except Exception as e:
             raise Exception(f"Failed to download image: {e}")
@@ -410,10 +432,10 @@ class ChromeAIGenerator:
                     await self._submit_prompt(visual_prompt)
                     
                     # Wait for generation
-                    image_url = await self._wait_for_image_generation()
+                    await self._wait_for_image_generation()
                     
-                    # Download image
-                    await self._download_image(image_url, output_path)
+                    # Download image via click
+                    await self._download_image(output_path)
                     
                     # Update account usage
                     current_account = self.available_accounts[self.current_account_index]
