@@ -122,7 +122,7 @@ def test_ensure_english_vibes_hashtags():
 def test_finalize_english_description_includes_opener_and_hashtag():
     cleaned = finalize_english_description("Practice phrasal verbs today.", is_quiz=True)
     assert "🎯" in cleaned.splitlines()[0]
-    assert "#EnglishVibesHub" in cleaned
+    assert "#LearnEnglish" in cleaned
 
 
 def test_build_scene_timeline_formats_timestamps():
@@ -186,7 +186,7 @@ Practice today's idiom with Emma and Liam.
     assert len(hashtag_lines) == 1
     assert "#Shorts" in hashtag_lines[0]
     assert "#EnglishQuiz" in hashtag_lines[0]
-    assert "#EnglishVibesHub" in hashtag_lines[0]
+    assert "#LearnEnglish" in hashtag_lines[0]
     # Original hashtags (#Grammar, #Vocabulary) are stripped from body
     assert "#Grammar" not in cleaned
     assert "#Vocabulary" not in cleaned
@@ -198,7 +198,7 @@ def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     last_line = cleaned.splitlines()[-1]
     assert "#Shorts" in last_line
     assert "#EnglishQuiz" in last_line
-    assert "#EnglishVibesHub" in last_line
+    assert "#LearnEnglish" in last_line
 
 
 def test_flatten_dialogue():

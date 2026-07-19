@@ -18,7 +18,7 @@ PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, curiosity-driven, and under 70 characters (YouTube truncates on mobile at ~60 chars).
-- Use ONE of these title structures — do NOT use the same one twice in a row:
+- Use ONE of these title structures — DO NOT repeat the same structure consecutively across uploads:
   A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
   B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
   C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
@@ -27,6 +27,7 @@ METADATA RULES:
   F. Problem-solution: "Stop Saying [X] — Say This Instead"
   G. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
   H. Story-driven: "I [X] and Everything Went Wrong"
+- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
 - Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
 - Descriptions: Front-load a clear SEO line using natural language — e.g. "English listening practice for [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
 - Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
@@ -211,26 +212,22 @@ def _strip_all_hashtags(text: str) -> str:
 
 
 def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_shorts: bool = False) -> str:
-    """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
+    """Ensure hashtags appear at the end of the description — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
+        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice"
     
     cleaned_text = _strip_all_hashtags(text)
     
-    # Build optimized hashtag line with comprehensive tags
-    core_tags = "#LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary #EnglishPodcast"
+    # Build hashtag line — cap at 5 total for YouTube best practices
+    core_tags = ["#LearnEnglish", "#EnglishVibesHub"]
+    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
+    # Pick the single most relevant practice tag
+    practice_tag = "#EnglishListeningPractice" if not is_shorts else "#Shorts"
     
-    # Extract topic-specific hashtags from theme
-    topic_tags = _build_topic_hashtags(theme)
-    
-    # SEO ordering: core tags → topic-specific → practice tags
-    parts = [core_tags]
-    if topic_tags:
-        parts.append(topic_tags)
-    parts.append(practice_tags)
-    hashtag_line = " ".join(parts)
+    # Assemble: core (2) + topic (0-2) + practice (1) = 3-5
+    tags = core_tags + topic_tags_list[:2] + [practice_tag]
+    hashtag_line = " ".join(tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
     
     # Append hashtags at the very end with blank line separator
@@ -564,7 +561,7 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
     """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic.
 
     Args:
-        format: One of "longform", "shorts", or "quiz" — controls the opener phrasing.
+        format: One of "longform", "shorts", "quiz", or "podcast" — controls the opener phrasing.
     """
     text = str(description or "").strip()
     theme_clean = str(theme or "").strip()
@@ -580,6 +577,11 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
             seo_line = f"🎯 English quiz — {theme_clean}. Master natural English for real conversations and speak like a native!"
         else:
             seo_line = "🎯 English quiz — test your vocabulary. Master natural English for real conversations and speak like a native!"
+    elif format == "podcast":
+        if theme_clean:
+            seo_line = f"🎯 English podcast — {theme_clean}. Listen, learn, and speak like a native!"
+        else:
+            seo_line = "🎯 English podcast — learn natural English through real conversations. Listen, learn, and speak like a native!"
     else:  # longform (default)
         if theme_clean:
             seo_line = f"🎯 English listening practice: {theme_clean}. Master natural English for real conversations and speak like a native!"
@@ -1192,26 +1194,20 @@ def remove_timeline_from_shorts(description: str) -> str:
 
 
 def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> str:
-    """Place quiz Shorts hashtags at the END with optimal SEO ordering."""
+    """Place quiz Shorts hashtags at the END — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+        return "#Shorts #EnglishQuiz #LearnEnglish"
 
     cleaned_text = _strip_all_hashtags(text)
 
-    # Build optimized hashtag line with topic-specific tags
-    core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
+    # Build hashtag line — cap at 5 total
+    core_tags = ["#Shorts", "#EnglishQuiz", "#LearnEnglish"]
+    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
     
-    # Extract topic-specific hashtags from theme
-    topic_tags = _build_topic_hashtags(theme)
-    
-    # SEO ordering: core tags → topic-specific → practice tags
-    parts = [core_tags]
-    if topic_tags:
-        parts.append(topic_tags)
-    parts.append(practice_tags)
-    hashtag_line = " ".join(parts)
+    # Assemble: core (3) + topic (0-2) = 3-5
+    tags = core_tags + topic_tags_list[:2]
+    hashtag_line = " ".join(tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
 
     # Append hashtags at the very end with blank line separator
@@ -2481,6 +2477,17 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     if not is_valid:
         print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
 
+    # ── POST-PROCESS: description pipeline (same as shorts/quiz) ──
+    theme = script.get("theme") or script.get("title", "")
+    if script.get("description"):
+        script["description"] = finalize_english_description(
+            script["description"],
+            include_timeline=False,
+            is_quiz=False,
+            format="longform",
+            theme=theme,
+        )
+
     return attach_storyboard_to_script(script, portrait=False)
 
 
@@ -2990,7 +2997,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
-    - [13-20s] Context Hint: Liam provides an educational example sentence or hint.
+    - [13-18s] Context Hint: Liam provides an educational example sentence or hint.
+    - [18-20s] Thinking Pause: Insert a [PAUSE 2 SECONDS] turn to let viewers commit to their answer before the reveal.
     - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and ends with a phrase that seamlessly loops back to the hook (e.g., "Let's try another one..."). Do NOT repeat the original question.
 
     PACING:
@@ -3581,7 +3589,7 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
             script["description"],
             include_timeline=False,
             is_quiz=False,
-            format="longform",
+            format="podcast",
             theme=theme,
         )
     return script
