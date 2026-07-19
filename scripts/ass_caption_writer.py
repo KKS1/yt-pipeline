@@ -449,22 +449,21 @@ def _add_pause_guess_events(
             pulse_cs = int(round(duration * 100))
             half_cs = pulse_cs // 2
             # \p1 vector drawing: mic head (rounded rect) + stand + base
-            mic_drawing = (
-                r"\p1"
+            mic_coords = (
                 r"m -18 -45 b -18 -65 18 -65 18 -45"   # top curve right
                 r" b 18 -25 18 -5 -18 -5"               # right side down
                 r" b -18 -5 -18 -25 -18 -45"             # bottom curve left
                 r" m 0 -5 l 0 50"                         # stand
                 r" m -20 50 l 20 50"                      # base
-                r"\p0"
             )
             mic_text = (
                 rf"{{\fad(200,300)"
                 rf"\pos({mic_x},{mic_y})"
                 rf"\t(0,{half_cs},\fscx115\fscy115)"
                 rf"\t({half_cs},{pulse_cs},\fscx100\fscy100)"
-                rf"\1c&H00D7FF&\3c&H005C99&\4c&H000000&\shad2}}"
-                f"{mic_drawing}"
+                rf"\1c&H00D7FF&\3c&H005C99&\4c&H000000&\shad2\p1}}"
+                f"{mic_coords}"
+                r"{\p0}"
             )
             events.append(
                 f"Dialogue: 2,{_ass_timestamp(pause_start)},{_ass_timestamp(pause_end)},"
