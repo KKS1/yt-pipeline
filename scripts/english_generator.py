@@ -2581,8 +2581,9 @@ Under 70 characters. Rotate between these proven structures:
 - Include a scene-based timeline section using the placeholder {scene_timeline}.
 - Include a subscribe CTA, and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
 - Include a pinned comment question that drives engagement (e.g., "What is YOUR daily routine? Tell me in English!").
-- Hashtags: Use exactly 3-5 at the end: #SlowEnglish #EnglishForBeginners #EnglishVibesHub + 1-2 topic-specific.
+- Hashtags: Use exactly 5 at the end: #LearnEnglish #EnglishForBeginners #EnglishConversation #ShadowingEnglish #SlowEnglish
 - DO NOT use more than 5 hashtags — YouTube throttles over-tagged descriptions.
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
 
 DESCRIPTION TEMPLATE:
 🎯 [Exact search query match]. [Benefit statement — what the viewer will gain from watching].
@@ -2601,7 +2602,7 @@ DESCRIPTION TEMPLATE:
 📑 Timeline:
 {scene_timeline}
 
-#SlowEnglish #EnglishForBeginners #EnglishVibesHub #[TopicTag]
+#LearnEnglish #EnglishForBeginners #EnglishConversation #ShadowingEnglish #SlowEnglish
 """
 
 SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
