@@ -949,7 +949,7 @@ def _assemble_english_video_from_script(
     except Exception as e:
         print(f"  Idiom annotation skipped: {e}")
 
-    res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed)
+    res = generate_podcast_audio(script, return_turn_times=True, speed=tts_speed, slow_english=slow_english)
     if isinstance(res, tuple):
         audio_path, per_turn_times = res
     else:

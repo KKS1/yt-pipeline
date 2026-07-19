@@ -331,7 +331,7 @@ def apply_face_badge_overlays(
     subprocess.run(cmd, check=True)
     return output_path
 
-def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98):
+def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98, slow_english: bool = False):
     """
     Generate TTS for each line of dialogue using the designated voices,
     then concatenate them into a single audio file.
@@ -359,7 +359,10 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         text = line.get("text", "")
         voice = ENGLISH_VOICES.get(speaker, "af_sarah")
         # Use character-specific speed if available, otherwise use fallback speed
-        speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
+        if slow_english:
+            speaker_speed = SLOW_ENGLISH_TTS_SPEED
+        else:
+            speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
 
         out_path = str(TEMP_DIR / f"english_line_{i:03d}.m4a")
         dur = 0.0
