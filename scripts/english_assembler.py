@@ -56,6 +56,14 @@ ENGLISH_TTS_SPEEDS = {
     "StoryActor2_AltFemale": 0.90,   # Alternative female voice
 }
 
+# Slow English A1-A2: Only Emma + Liam, slower speed
+SLOW_ENGLISH_VOICES = {
+    "Emma": "af_heart",
+    "Liam": "am_michael",
+}
+
+SLOW_ENGLISH_TTS_SPEED = 0.80
+
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
 FADE_DURATION = 0.5  # crossfade duration in _xfade_video_clip_pair, used to extend pause-ending scene clips
@@ -323,7 +331,7 @@ def apply_face_badge_overlays(
     subprocess.run(cmd, check=True)
     return output_path
 
-def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98):
+def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, speed: float = 0.98, slow_english: bool = False):
     """
     Generate TTS for each line of dialogue using the designated voices,
     then concatenate them into a single audio file.
@@ -351,7 +359,10 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
         text = line.get("text", "")
         voice = ENGLISH_VOICES.get(speaker, "af_sarah")
         # Use character-specific speed if available, otherwise use fallback speed
-        speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
+        if slow_english:
+            speaker_speed = SLOW_ENGLISH_TTS_SPEED
+        else:
+            speaker_speed = ENGLISH_TTS_SPEEDS.get(speaker, speed)
 
         out_path = str(TEMP_DIR / f"english_line_{i:03d}.m4a")
         dur = 0.0

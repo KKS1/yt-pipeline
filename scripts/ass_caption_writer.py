@@ -590,6 +590,7 @@ def generate_ass_captions(
     video_width: int = 1920,
     video_height: int = 1080,
     per_turn_times: Optional[list[tuple[float, float]]] = None,
+    slow_english: bool = False,
 ) -> str:
     """
     Transcribe `audio_path` with faster-whisper at word level and write an
@@ -624,6 +625,10 @@ def generate_ass_captions(
     if is_shorts:
         font_size_normal = 120
         font_size_idiom  = 135
+    elif slow_english:
+        # Slow English: slightly larger font for better readability at slower pace
+        font_size_normal = 105
+        font_size_idiom  = 115
     else:
         font_size_normal = 95
         font_size_idiom  = 105

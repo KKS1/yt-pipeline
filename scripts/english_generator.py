@@ -13,10 +13,12 @@ ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
+PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
+
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, curiosity-driven, and under 70 characters (YouTube truncates on mobile at ~60 chars).
-- Use ONE of these title structures — do NOT use the same one twice in a row:
+- Use ONE of these title structures — DO NOT repeat the same structure consecutively across uploads:
   A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
   B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
   C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
@@ -25,6 +27,7 @@ METADATA RULES:
   F. Problem-solution: "Stop Saying [X] — Say This Instead"
   G. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
   H. Story-driven: "I [X] and Everything Went Wrong"
+- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
 - Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
 - Descriptions: Front-load a clear SEO line using natural language — e.g. "English listening practice for [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
 - Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
@@ -33,7 +36,8 @@ METADATA RULES:
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - For quiz videos, include an "About This Lesson" section with AI-generated explanation of the idiom/theme before hashtags.
-- Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
 - IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
@@ -53,7 +57,7 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 📑 Timeline:
 {scene_timeline}
 
-#LearnEnglish #EnglishListeningPractice #EnglishSpeakingPractice #EnglishVibesHub #[TopicTag] #EnglishForBeginners #EnglishPodcast ...
+#LearnEnglish #EnglishListeningPractice #SpeakEnglish #[TopicTag] #EnglishForBeginners
 
 QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
 🎯 English listening practice conversational: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
@@ -67,7 +71,35 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 
 🔔 Subscribe for more quick English quizzes!
 
-#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub #[TopicTag] #EnglishListeningPractice #EnglishSpeakingPractice
+#Shorts #EnglishQuiz #LearnEnglish #EnglishForBeginners #[TopicTag]
+"""
+
+PODCAST_METADATA_RULES = """
+METADATA RULES (PODCAST — under 3 min clips):
+- Titles must be high-CTR, curiosity-driven, and under 70 characters.
+- Podcast clips are SHORT (under 3 min). Titles must signal a quick listen, NOT a long episode.
+- NEVER use "Episode X", "Part X", or series numbering in titles — viewers swipe past these.
+- Use ONE of these title structures — DO NOT repeat the same structure consecutively:
+  A. Emotional hook: "When [X] Happened, Everything Changed"
+  B. Story cliffhanger: "She Said [X] and You Won't Believe What Happened Next"
+  C. Mistake-in-action: "He Used [X] Wrong and It Was Embarrassing"
+  D. Curiosity gap: "The [X] Nobody Talks About (But Everyone Gets Wrong)"
+  E. Relatable pain: "If You've Ever [X], You Know This Feeling"
+  F. Cultural shock: "Why [X] Is Completely Normal (But Sounds Wrong)"
+  G. Direct address: "You're Saying [X] Wrong — Here's Why"
+  H. Story-driven: "I Heard [X] and Couldn't Believe It"
+- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
+- Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
+- Descriptions: Front-load a clear SEO line — e.g. "English podcast: [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
+- Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
+- Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
+- Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
+- Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
+- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
+- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
+- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
+- Pinned comments must ask a specific question that viewers can answer quickly.
 """
 
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
@@ -209,26 +241,22 @@ def _strip_all_hashtags(text: str) -> str:
 
 
 def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_shorts: bool = False) -> str:
-    """Ensure comprehensive hashtags appear at the end of the description with optimal SEO ordering."""
+    """Ensure hashtags appear at the end of the description — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
+        return "#LearnEnglish #EnglishListeningPractice #SpeakEnglish"
     
     cleaned_text = _strip_all_hashtags(text)
     
-    # Build optimized hashtag line with comprehensive tags
-    core_tags = "#LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishVocabulary #EnglishPodcast"
+    # Build hashtag line — cap at 5 total for YouTube best practices
+    core_tags = ["#LearnEnglish", "#EnglishListeningPractice"]
+    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
+    # Pick the single most relevant practice tag
+    practice_tag = "#EnglishListeningPractice" if not is_shorts else "#Shorts"
     
-    # Extract topic-specific hashtags from theme
-    topic_tags = _build_topic_hashtags(theme)
-    
-    # SEO ordering: core tags → topic-specific → practice tags
-    parts = [core_tags]
-    if topic_tags:
-        parts.append(topic_tags)
-    parts.append(practice_tags)
-    hashtag_line = " ".join(parts)
+    # Assemble: core (2) + topic (0-2) + practice (1) = 3-5
+    tags = core_tags + topic_tags_list[:2] + [practice_tag]
+    hashtag_line = " ".join(tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
     
     # Append hashtags at the very end with blank line separator
@@ -562,7 +590,7 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
     """Ensure first line uses high-intent SEO opener with 🎯 icon, customized with theme/topic.
 
     Args:
-        format: One of "longform", "shorts", or "quiz" — controls the opener phrasing.
+        format: One of "longform", "shorts", "quiz", or "podcast" — controls the opener phrasing.
     """
     text = str(description or "").strip()
     theme_clean = str(theme or "").strip()
@@ -578,6 +606,11 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
             seo_line = f"🎯 English quiz — {theme_clean}. Master natural English for real conversations and speak like a native!"
         else:
             seo_line = "🎯 English quiz — test your vocabulary. Master natural English for real conversations and speak like a native!"
+    elif format == "podcast":
+        if theme_clean:
+            seo_line = f"🎯 English podcast — {theme_clean}. Listen, learn, and speak like a native!"
+        else:
+            seo_line = "🎯 English podcast — learn natural English through real conversations. Listen, learn, and speak like a native!"
     else:  # longform (default)
         if theme_clean:
             seo_line = f"🎯 English listening practice: {theme_clean}. Master natural English for real conversations and speak like a native!"
@@ -599,7 +632,7 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
     opener = lines[0].lower()
     
     # Check if opener already has proper SEO keywords
-    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english"]
+    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english", "slow english", "easy english"]
     has_proper_opener = any(keyword in opener for keyword in required_keywords)
     
     if has_proper_opener:
@@ -1190,26 +1223,20 @@ def remove_timeline_from_shorts(description: str) -> str:
 
 
 def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> str:
-    """Place quiz Shorts hashtags at the END with optimal SEO ordering."""
+    """Place quiz Shorts hashtags at the END — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
+        return "#Shorts #EnglishQuiz #LearnEnglish"
 
     cleaned_text = _strip_all_hashtags(text)
 
-    # Build optimized hashtag line with topic-specific tags
-    core_tags = "#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub"
-    practice_tags = "#EnglishListeningPractice #EnglishSpeakingPractice #EnglishPodcast"
+    # Build hashtag line — cap at 5 total
+    core_tags = ["#Shorts", "#EnglishQuiz", "#LearnEnglish"]
+    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
     
-    # Extract topic-specific hashtags from theme
-    topic_tags = _build_topic_hashtags(theme)
-    
-    # SEO ordering: core tags → topic-specific → practice tags
-    parts = [core_tags]
-    if topic_tags:
-        parts.append(topic_tags)
-    parts.append(practice_tags)
-    hashtag_line = " ".join(parts)
+    # Assemble: core (3) + topic (0-2) = 3-5
+    tags = core_tags + topic_tags_list[:2]
+    hashtag_line = " ".join(tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
 
     # Append hashtags at the very end with blank line separator
@@ -2093,6 +2120,32 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
     return script_data
 
 
+def renumber_dialogue_turns(script_data: dict) -> dict:
+    """Ensure dialogue turn numbers are sequential starting from 1, with no gaps.
+
+    This fixes LLM-generated scripts where turn numbers skip (e.g. 1,2,3,5,8...).
+    Also updates scene start_turn/end_turn references to match the new numbering.
+    """
+    dialogue = script_data.get("dialogue", [])
+    if not dialogue:
+        return script_data
+
+    old_to_new = {}
+    for i, turn in enumerate(dialogue, start=1):
+        old_num = turn.get("turn_number", i)
+        old_to_new[old_num] = i
+        turn["turn_number"] = i
+
+    # Update scene turn references
+    for scene in script_data.get("scenes", []):
+        old_start = scene.get("start_turn", 0)
+        old_end = scene.get("end_turn", 0)
+        scene["start_turn"] = old_to_new.get(old_start, old_start)
+        scene["end_turn"] = old_to_new.get(old_end, old_end)
+
+    return script_data
+
+
 def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
     cleaned = dict(script)
     cleaned["dialogue"] = sanitize_dialogue_part(
@@ -2183,7 +2236,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (Searchable keyword-rich title under 60 characters. Front-load with 'English Quiz' or 'English listening practice'. Include topic first, then Day {day_num} in the suffix at the end. Use keyword variations. e.g., 'English Quiz: Hair Salon Vocabulary - Day {day_num}')",
-      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder for scene chapters, subscribe CTA, playlist placeholder, and hashtags mirroring 'tags')",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
@@ -2312,7 +2365,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')",
   "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "theme": "string (short topic label for storyboard, e.g. 'Phrasal Verbs at Work')",
@@ -2479,11 +2532,394 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
     if not is_valid:
         print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
 
+    # ── POST-PROCESS: description pipeline (same as shorts/quiz) ──
+    theme = script.get("theme") or script.get("title", "")
+    if script.get("description"):
+        script["description"] = finalize_english_description(
+            script["description"],
+            include_timeline=False,
+            is_quiz=False,
+            format="longform",
+            theme=theme,
+        )
+
     return attach_storyboard_to_script(script, portrait=False)
 
 
 # ─────────────────────────────────────────────
-# SLOW ENGLISH PIPELINE — idiom-focused
+# SLOW ENGLISH PIPELINE — A1-A2 Listening Practice
+# ─────────────────────────────────────────────
+
+SLOW_ENGLISH_METADATA_RULES = """
+METADATA RULES FOR SLOW ENGLISH A1-A2:
+
+── TITLE RULES (HIGH CTR) ──
+Titles must create curiosity, promise a benefit, or trigger emotion — NOT just label the content.
+Under 70 characters. Rotate between these proven structures:
+
+  A. Benefit hook: "English You Can ACTUALLY Understand: [Topic]"
+  B. Immersive first-person: "Your First English Conversation: [Topic]"
+  C. Curiosity gap: "This Is How [Topic] Sounds in Slow English"
+  D. Challenge/identity: "Can You Follow This? Slow English — [Topic]"
+  E. Relatable pain: "Finally Understand English: [Topic] (Slow & Clear)"
+  F. Story-driven: "A Day at [Place]: Slow English Story for Beginners"
+  G. Number hook: "[X] Minutes of Slow English You'll Love: [Topic]"
+  H. Social proof: "1000s of Beginners Learned English With This: [Topic]"
+
+- Use selective ALL CAPS for 1-2 power words that create emphasis (ACTUALLY, FINALLY, THIS, EASY, YOUR).
+- NEVER use the pipe character "|" as the first separator — it looks like a textbook, not a thumbnail.
+- Titles must feel like a promise or a question, not a category label.
+
+── DESCRIPTION RULES (HIGH SEO) ──
+- First line must match the EXACT search query a beginner would type — e.g. "slow english daily routine" or "easy english listening practice for beginners".
+- Second line expands with a benefit: "Follow a slow, clear conversation you can understand — no fast speech, no complicated words."
+- Include 2-3 long-tail keyword variations naturally in the first 3 lines:
+  * "slow english listening practice"
+  * "english for beginners"
+  * "easy english conversation"
+  * "a1 english" / "a2 english"
+  * "learn english with stories"
+- DO NOT repeat the same keyword phrase more than twice across the entire description.
+- Include a scene-based timeline section using the placeholder {scene_timeline}.
+- Include a subscribe CTA, and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Include a pinned comment question that drives engagement (e.g., "What is YOUR daily routine? Tell me in English!").
+- Hashtags: Use exactly 5 at the end: #LearnEnglish #EnglishForBeginners #EnglishConversation #ShadowingEnglish #SlowEnglish
+- DO NOT use more than 5 hashtags — YouTube throttles over-tagged descriptions.
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
+
+DESCRIPTION TEMPLATE:
+🎯 [Exact search query match]. [Benefit statement — what the viewer will gain from watching].
+
+📖 What you'll learn:
+• [2-3 key vocabulary themes from the topic]
+• Simple sentences you can repeat and practice
+• Natural English conversation at a slow, clear pace
+
+📺 Watch the full playlist: {playlist_url}
+
+💬 Comment below: [Specific engagement question related to the topic]
+
+🔔 Subscribe for new slow English lessons every week!
+
+📑 Timeline:
+{scene_timeline}
+
+#LearnEnglish #EnglishForBeginners #EnglishConversation #ShadowingEnglish #SlowEnglish
+"""
+
+SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
+    "Soft watercolor illustration style, warm pastel colors, simple clean lines, calm and friendly atmosphere, 16:9 aspect ratio."
+)
+
+# A1-A2 core vocabulary ceiling — the prompt will be instructed to use ONLY these words
+# plus proper nouns and the topic-specific vocabulary listed per topic.
+SLOW_ENGLISH_TOPICS = [
+    "Daily Routine",
+    "At the Coffee Shop",
+    "My Family",
+    "At the Grocery Store",
+    "My Home",
+    "The Weather Today",
+    "Getting Dressed",
+    "Breakfast Time",
+    "On My Way to Work",
+    "At the Park",
+    "At the Restaurant",
+    "Going Shopping",
+    "At the Doctor",
+    "My Weekend",
+    "At the Airport",
+]
+
+
+def generate_slow_english_script(topic=None):
+    """Generate a slow English A1-A2 listening practice script.
+
+    Two-character dialogue (Emma & Liam) discussing a single everyday topic
+    at a deliberately slow pace with simple vocabulary and short sentences.
+    """
+    if not topic:
+        # Pick from curated slow English topics, avoiding recently published ones
+        topics_data = get_published_topics()
+        published_slow = topics_data.get("slow", [])[-30:]
+        remaining = [
+            t for t in SLOW_ENGLISH_TOPICS
+            if not any(t.lower() in p.lower() for p in published_slow)
+        ]
+        if not remaining:
+            remaining = SLOW_ENGLISH_TOPICS
+        topic = random.choice(remaining)
+    else:
+        if is_already_published(topic, "slow"):
+            print(f"\n  [WARNING] Manual slow English topic '{topic}' was found in 'slow' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("slow", [])[-30:]
+    avoid_instruction = f"\nAvoid repeating vocabulary or phrases from these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+
+    print(f"\nSelected Slow English topic: {topic}")
+    print("Generating A1-A2 slow dialogue script...")
+
+    prompt = f"""
+You are a scriptwriter for the English learning channel EnglishVibesHub (@EnglishVibesHub-s6w). Write a slow English A1-A2 listening practice dialogue that viewers will watch FROM START TO FINISH.
+
+TOPIC: {topic}
+{avoid_instruction}
+
+{SLOW_ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
+
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES FOR HIGH AVD (Average View Duration)
+═══════════════════════════════════════════════════════════════
+
+1. HOOK (First 15 seconds — this decides if they stay):
+   - Do NOT start with "Hello, Liam!" or "Hi, Emma!" — that's a retention killer.
+   - Start with a QUESTION or INTRIGUING STATEMENT that makes the viewer want to hear more:
+     * "Liam, do you know how to say all the things you do every day?"
+     * "Emma, I have a problem. I don't know how to describe my morning."
+     * "Can you describe your day in English? Let's try — slowly."
+   - The first line must create an OPEN LOOP — a question the viewer wants answered.
+
+2. OPEN LOOPS (create reasons to keep watching):
+   - Mention something early that gets resolved later:
+     * "I'll teach you 5 magic words at the end" (Stage 2)
+     * "After this conversation, you'll know how to talk about your whole day" (Stage 2)
+     * "Stay until the end — we'll practice together" (Stage 1)
+   - At least ONE open loop must span across stages.
+
+3. PACING VARIETY (prevent monotony):
+   - Every 4-5 turns, change the rhythm:
+     * One turn with a short exclamation ("Oh! That's interesting!")
+     * One turn where they disagree or are surprised
+     * One turn with a question from Liam (not just answers)
+   - Do NOT have the same sentence length for more than 3 consecutive turns.
+
+4. ENGAGEMENT BEATS (trigger comments and re-watches):
+   - Include 1-2 moments where they ask the VIEWER something:
+     * "What about you? Do you wake up early?"
+     * "Can you say this with us? Liam will say it first, then you try!"
+   - Include one [PAUSE 3 SECONDS] for the listener to REPEAT a key phrase.
+   - IMPORTANT: Every [PAUSE 3 SECONDS] must be preceded by Liam repeating the phrase as a model for the viewer.
+
+5. REWARD AT THE END (reason to watch the full video):
+   - Stage 4 (Key Words Recap) must feel like a GIFT, not a boring list:
+     * "Okay! Here are the 5 words you just learned. Now you can talk about your whole day!"
+   - Stage 5 (Goodbye) must tease the next episode:
+     * "Next time, we'll talk about [related topic]. See you then!"
+
+═══════════════════════════════════════════════════════════════
+SLOW ENGLISH VOCABULARY & GRAMMAR RULES
+═══════════════════════════════════════════════════════════════
+
+- Vocabulary: Use ONLY the 1,200 most common English words. NO idioms, NO phrasal verbs, NO slang.
+- Sentence length: Each sentence must be 5-12 words maximum. Simple SVO (Subject-Verb-Object) structure.
+- Contractions: Use only "I'm", "you're", "it's", "that's", "we're", "don't", "can't".
+- Grammar: Present simple tense only. No past tense, no future tense, no conditionals.
+- Repetition: Each key vocabulary word MUST appear 3-5 times across the dialogue.
+- Pacing: Use [PAUSE 1 SECONDS] between major topic shifts. Use [PAUSE 3 SECONDS] for listener repetition.
+
+═══════════════════════════════════════════════════════════════
+VOCABULARY TEACHING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- NEVER use tautological definitions like "Brother means brother" or "Sister is sister". These do not help a learner.
+- Instead, teach vocabulary through CONTEXT and EXAMPLES:
+  * "Brother? Your brother is a boy in your family. Like this: I have a brother. His name is Tom."
+  * "Sister? A sister is a girl in your family. My sister is very kind."
+  * "Mother? Your mother is the woman who takes care of you. She is kind and loving."
+  * "Father? Your father is the man in your family. He works hard."
+- After introducing a word, use it in a NEW sentence so the learner hears it in context.
+- Vary the teaching method: sometimes ask "Do you know what ___ means?" and let Liam guess, sometimes explain directly.
+
+═══════════════════════════════════════════════════════════════
+NATURAL DIALOGUE RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- Emma must sound like a warm, patient friend — NEVER robotic, blunt, or commanding.
+- BANNED single-word commands: Never say "Stay.", "Sit.", "Wait.", "Stop.", "Listen." as standalone turns. These sound like orders to a pet.
+- Instead, use encouraging phrases: "Stay with me!", "Let's continue!", "Ready for the next word?", "Great job! Now try this."
+- Liam should make natural small mistakes that Emma gently corrects — this makes the dialogue relatable.
+- Every 4-5 turns, vary the rhythm: add a short exclamation ("Oh! That's nice!"), a question from Liam, or a moment of mild surprise.
+
+═══════════════════════════════════════════════════════════════
+TURN NUMBERING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- Dialogue turn numbers MUST be SEQUENTIAL starting from 1 with NO GAPS.
+- Example correct: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12...
+- Example WRONG: 1, 2, 3, 5, 8, 10 (NEVER skip numbers!)
+- Every turn must have a unique, sequential turn_number.
+
+═══════════════════════════════════════════════════════════════
+CHARACTERS
+═══════════════════════════════════════════════════════════════
+
+- "Emma" (Voice: af_heart): The teacher/friend. Speaks clearly, asks questions, encourages. NOT a textbook — she's warm, patient, and occasionally playful.
+- "Liam" (Voice: am_michael): The learner. Asks "how do I say...?" questions, makes small mistakes that Emma gently corrects, shows curiosity. He's relatable — viewers should see themselves in him.
+
+═══════════════════════════════════════════════════════════════
+DIALOGUE STRUCTURE (18-24 turns, ~10-12 minutes at slow pace)
+═══════════════════════════════════════════════════════════════
+
+Stage 1 — HOOK + GREETING (3-4 turns):
+  - Start with a hook question/statement (NOT "Hello!")
+  - Brief greeting that flows naturally from the hook
+  - Emma introduces today's topic with an open loop ("You'll learn X by the end")
+
+Stage 2 — MAIN CONVERSATION (8-12 turns):
+  - They discuss the topic slowly, using simple sentences
+  - Liam asks "how do I say...?" at least twice
+  - Include at least 2 moments of surprise or mild disagreement
+  - Repeat key words naturally (not forced)
+  - One moment where Emma asks the viewer a question
+
+Stage 3 — PRACTICE TOGETHER (5-7 turns):
+  - They use key words in new simple sentences
+  - The "repeat after me" flow MUST follow this exact sequence:
+    1. Emma introduces the phrase: "Repeat after me: [phrase]"
+    2. Liam repeats the phrase exactly as a model for the viewer (e.g., "Okay! [phrase]")
+    3. [PAUSE 3 SECONDS] — the viewer's turn to repeat
+  - This pattern MUST have 3 turns: Emma's cue, Liam's repetition, then the [PAUSE] turn
+  - This is the INTERACTIVE section — Liam models the behavior, then the viewer copies
+
+Stage 4 — KEY WORDS REWARD (2-3 turns):
+  - Emma lists 3-5 key words with simple definitions
+  - Frame it as a reward: "Great! Here are the words you just learned"
+  - Liam shows he learned something: "Oh, I know these words now!"
+
+Stage 5 — GOODBYE + TEASE (2-3 turns):
+  - Natural goodbye that teases the next topic
+  - One final CTA: "Tell me in the comments — what is YOUR [topic]?"
+  - End with warmth, not a generic "thanks for watching"
+
+═══════════════════════════════════════════════════════════════
+SCENE STRUCTURE (5-6 scenes)
+═══════════════════════════════════════════════════════════════
+
+- Each scene covers 2-5 dialogue turns
+- Scene labels should feel like chapters: "The Hook", "Let's Talk About [Topic]", "Your Turn to Practice", "Words You Learned"
+- Visual prompts: calm, friendly watercolor illustrations. NOT 3D Pixar — think soft pastels, clean lines, warm atmosphere.
+
+═══════════════════════════════════════════════════════════════
+JSON OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+{{
+  "title": "string (HIGH-CTR title under 70 chars — use the title structures from METADATA RULES, NOT generic labels)",
+  "description": "string (Following DESCRIPTION TEMPLATE — first line must match a search query)",
+  "pinned_comment": "string (Engagement question: 'What is YOUR [topic]? Tell me in English!')",
+  "tags": ["string (SEO tags: slow english, english for beginners, a1 english, easy english listening, [topic], learn english with stories)"],
+  "theme": "string (2-5 word topic label)",
+  "visual_keywords": ["string (5-8 calm illustration search words)"],
+  "dialogue": [
+    {{
+      "turn_number": 1,
+      "speaker": "Emma",
+      "text": "string (HOOK LINE — a question or intriguing statement, NOT 'Hello!')"
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "Liam",
+      "text": "string (natural response that creates curiosity to keep watching)"
+    }}
+  ],
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "The Hook",
+      "image_filename": "scene_1.png",
+      "visual_prompt": "string (calm watercolor illustration of ...)",
+      "start_turn": 1,
+      "end_turn": 3
+    }}
+  ]
+}}
+"""
+
+    is_valid = False
+    attempts = 0
+
+    while not is_valid and attempts < 3:
+        attempts += 1
+        print(f"  🔄 Generation Attempt {attempts}...")
+
+        raw_script = call_groq_json(prompt)
+        raw_script = separate_mixed_pause_turns(raw_script)
+        raw_script = renumber_dialogue_turns(raw_script)
+        script, is_valid = validate_slow_english_script(raw_script)
+
+    if not is_valid:
+        print("  ⚠️ Groq failed to generate a valid slow English script after 3 tries. Using last attempt.")
+
+    # Set slow English visual style
+    for scene in script.get("scenes", []):
+        vp = scene.get("visual_prompt", "")
+        if vp and "watercolor" not in vp.lower() and "soft" not in vp.lower():
+            scene["visual_prompt"] = vp.rstrip(".") + ". " + SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
+
+    theme = script.get("theme") or topic
+    script["description"] = finalize_english_description(
+        script.get("description", ""), theme=theme, format="longform"
+    )
+
+    return attach_storyboard_to_script(script, portrait=False)
+
+
+def validate_slow_english_script(raw_input):
+    """Validation engine for slow English A1-A2 scripts.
+
+    Simpler than the full English validator — checks for:
+    - Minimum turn count (16+)
+    - Only Emma and Liam as speakers
+    - Simple sentences (no long turns)
+    - No Narrator (two-character dialogue only)
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"  ❌ Structural Failure: Output is not valid JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    if turn_count < 14:
+        print(f"  ❌ Retention Failure: Script has {turn_count} turns. Must be at least 14.")
+        return script_data, False
+
+    # Check speakers — only Emma and Liam allowed
+    allowed_speakers = {"Emma", "Liam"}
+    for turn in dialogue:
+        speaker = turn.get("speaker", "")
+        if speaker not in allowed_speakers:
+            print(f"  ⚠️ Speaker Warning: '{speaker}' is not Emma or Liam. Mapping to Emma.")
+            turn["speaker"] = "Emma"
+
+    # Check for excessively long sentences (A1-A2 should be short)
+    long_sentences = []
+    for turn in dialogue:
+        text = turn.get("text", "")
+        word_count = len(text.split())
+        if word_count > 20:
+            long_sentences.append((turn.get("turn_number"), word_count))
+    if long_sentences:
+        print(f"  ⚠️ Sentence Warning: {len(long_sentences)} turn(s) exceed 20 words (A1-A2 should be 5-12 words).")
+
+    # Check for pause markers
+    has_pause = any(
+        PAUSE_CUE_RE.match(turn.get("text", "")) is not None
+        for turn in dialogue
+    )
+    if not has_pause:
+        print("  ⚠️ Interactive Warning: No [PAUSE] token found. Adding one may help listener engagement.")
+
+    print(f"  ✅ Slow English Script Verification Passed! Verified {turn_count} turns.")
+    return script_data, True
+
+
+# ─────────────────────────────────────────────
+# SLOW ENGLISH POOL — idiom-focused (legacy)
 # ─────────────────────────────────────────────
 
 SLOW_IDIOM_POOL = [
@@ -2580,7 +3016,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR Short title under 70 chars. Use varied formulas: question, 'Stop Saying X', 'X vs Y', number list, mistake hook, curiosity gap. Rotate from what you used last time.)",
   "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "theme": "string (short topic label for storyboard)",
@@ -2651,7 +3087,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     TIME ALLOCATION RULES:
     - [0-3s] Hook: Emma introduces the idiom question clearly.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
-    - [13-20s] Context Hint: Liam provides an educational example sentence or hint.
+    - [13-18s] Context Hint: Liam provides an educational example sentence or hint.
+    - [18-20s] Thinking Pause: Insert a [PAUSE 2 SECONDS] turn to let viewers commit to their answer before the reveal.
     - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and ends with a phrase that seamlessly loops back to the hook (e.g., "Let's try another one..."). Do NOT repeat the original question.
 
     PACING:
@@ -2662,7 +3099,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: Master This Idiom!')",
-      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #EnglishVibesHub, and hashtags mirroring 'tags')",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, and hashtags mirroring 'tags')",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
@@ -3169,7 +3606,7 @@ You are an elite showrunner for EnglishVibesHub (@EnglishVibesHub-s6w). Write an
 TOPIC: {topic}
 {avoid_instruction}
 
-{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
+{PODCAST_METADATA_RULES.replace('{playlist_url}', '{{playlist_url}}')}
 
 FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 
@@ -3242,7 +3679,7 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
             script["description"],
             include_timeline=False,
             is_quiz=False,
-            format="longform",
+            format="podcast",
             theme=theme,
         )
     return script
