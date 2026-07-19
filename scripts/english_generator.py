@@ -73,6 +73,33 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 #Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub #[TopicTag] #EnglishListeningPractice #EnglishSpeakingPractice
 """
 
+PODCAST_METADATA_RULES = """
+METADATA RULES (PODCAST — under 3 min clips):
+- Titles must be high-CTR, curiosity-driven, and under 70 characters.
+- Podcast clips are SHORT (under 3 min). Titles must signal a quick listen, NOT a long episode.
+- NEVER use "Episode X", "Part X", or series numbering in titles — viewers swipe past these.
+- Use ONE of these title structures — DO NOT repeat the same structure consecutively:
+  A. Emotional hook: "When [X] Happened, Everything Changed"
+  B. Story cliffhanger: "She Said [X] and You Won't Believe What Happened Next"
+  C. Mistake-in-action: "He Used [X] Wrong and It Was Embarrassing"
+  D. Curiosity gap: "The [X] Nobody Talks About (But Everyone Gets Wrong)"
+  E. Relatable pain: "If You've Ever [X], You Know This Feeling"
+  F. Cultural shock: "Why [X] Is Completely Normal (But Sounds Wrong)"
+  G. Direct address: "You're Saying [X] Wrong — Here's Why"
+  H. Story-driven: "I Heard [X] and Couldn't Believe It"
+- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
+- Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
+- Descriptions: Front-load a clear SEO line — e.g. "English podcast: [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
+- Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
+- Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
+- Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
+- Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
+- Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
+- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
+- Pinned comments must ask a specific question that viewers can answer quickly.
+"""
+
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
     "3D Pixar animation style, Disney character design, cinematic lighting, 16:9 aspect ratio."
 )
@@ -3516,7 +3543,7 @@ You are an elite showrunner for EnglishVibesHub (@EnglishVibesHub-s6w). Write an
 TOPIC: {topic}
 {avoid_instruction}
 
-{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
+{PODCAST_METADATA_RULES.replace('{playlist_url}', '{{playlist_url}}')}
 
 FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 
