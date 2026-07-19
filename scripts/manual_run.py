@@ -78,6 +78,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_URLS = {
     "english-shorts": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU-bNRdK4aiWxGrlb3htqBdd",
     "english-quiz": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU9CjNgVhQq2xlJKwi7MrKwD",
     "english-podcast": "https://www.youtube.com/playlist?list=PLQcVuzsH3e2I",
+    "english-slow": "https://www.youtube.com/playlist?list=PL1D9QTXOAjU_8v049bJQcGWJNPta-fZ9i",
 }
 
 ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
@@ -88,6 +89,7 @@ ENGLISH_DESCRIPTION_PLAYLIST_IDS = {
 ENGLISH_LONG_TTS_SPEED = 0.90
 ENGLISH_SHORTS_TTS_SPEED = 0.98
 ENGLISH_QUIZ_TTS_SPEED = 0.98
+ENGLISH_SLOW_TTS_SPEED = 0.80
 
 def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
@@ -925,6 +927,7 @@ def _assemble_english_video_from_script(
     scenes_folder: str = "",
     portrait: bool = False,
     channel: str = "english",
+    slow_english: bool = False,
 ) -> str:
     """Unified English assembly: scene Ken Burns when images exist, else legacy loops."""
     from english_assembler import (
@@ -977,6 +980,7 @@ def _assemble_english_video_from_script(
             video_width=1080 if portrait else 1920,
             video_height=1920 if portrait else 1080,
             per_turn_times=per_turn_times,
+            slow_english=slow_english,
         )
     except Exception as e:
         print(f"  .ass captions skipped: {e}")
@@ -1161,6 +1165,55 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     manifest_path = MANIFEST_DIR / f"english_podcast_{slug(title)}.manifest.json"
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    _print_scene_manifest_next_steps(manifest_path, manifest)
+    print(f"{'=' * 50}\n")
+    return str(manifest_path)
+
+
+def run_manifest_only_english_slow(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+    """Phase 1 for Slow English A1-A2: generate script, write manifest, exit."""
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_slow_english_script
+
+    print("\n" + "=" * 50)
+    print("SLOW ENGLISH A1-A2 — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating slow English script with Groq...\n")
+        script = generate_slow_english_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english-slow",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_slow.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback; traceback.print_exc(); sys.exit(1)
+
+    title = script.get("title", topic or "Slow English A1-A2")
+    entry = _build_manifest_entry(
+        script,
+        label="Slow English A1-A2",
+        script_path=script_path,
+        orientation="landscape",
+        legacy_assets_folder="english_visuals",
+        legacy_visuals=legacy_visuals,
+    )
+    manifest = VisualManifest(
+        pipeline="english-slow",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_slow_{slug(title)}.manifest.json"
     _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
     write_manifest(manifest, manifest_path)
     print(f"\n{'=' * 50}")
@@ -1464,7 +1517,12 @@ def run_resume_from_manifest(manifest_path_str: str):
 
         # Determine TTS speed and orientation
         is_shorts = entry.orientation == "portrait" or "quiz" in entry.label.lower() or "shorts" in pipeline
-        tts_speed = ENGLISH_QUIZ_TTS_SPEED if is_shorts else ENGLISH_LONG_TTS_SPEED
+        if pipeline == "english-slow":
+            tts_speed = ENGLISH_SLOW_TTS_SPEED
+        elif is_shorts:
+            tts_speed = ENGLISH_QUIZ_TTS_SPEED
+        else:
+            tts_speed = ENGLISH_LONG_TTS_SPEED
         bg_music = ASSETS_DIR / "background_music.mp3"
         bg_music_str = str(bg_music) if bg_music.exists() else None
 
@@ -1492,6 +1550,7 @@ def run_resume_from_manifest(manifest_path_str: str):
             scenes_folder=entry.scenes_folder,
             portrait=is_shorts,
             channel=pipeline,
+            slow_english=(pipeline == "english-slow"),
         )
 
         # Persist updated description with scene timeline back to script file
@@ -1511,7 +1570,7 @@ def run_resume_from_manifest(manifest_path_str: str):
                 command_channel=command_channel if command_channel in ENGLISH_DESCRIPTION_PLAYLIST_URLS else "english",
             )
             if (result or {}).get("youtube_id"):
-                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge"}.get(command_channel, "podcast")
+                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge", "english-slow": "slow"}.get(command_channel, "podcast")
                 save_published_topic(script.get("title", entry.topic), topic_type=_topic_type)
 
         print(f"  ✓ Done: {entry.label}")
@@ -1530,6 +1589,7 @@ MANIFEST_ONLY_ROUTER = {
     "english-challenge": run_manifest_only_challenge,
     "english-challenge-shorts": run_manifest_only_challenge_shorts,
     "english-podcast": run_manifest_only_english_podcast,
+    "english-slow": run_manifest_only_english_slow,
 }
 
 
@@ -3043,7 +3103,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast", "english-slow"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -3202,7 +3262,8 @@ def main():
         print("  8. english-challenge-shorts — Generate only Quiz Shorts from an existing package")
         print("  9. english-community — English Community Tab Quizzes & Polls")
         print("  10. english-podcast  — English Vibes Podcast with host switcher and audiogram")
-        choice = prompt_input("Enter 1-10", "10")
+        print("  11. english-slow     — Slow English A1-A2 Listening Practice (beginner dialogue)")
+        choice = prompt_input("Enter 1-11", "10")
         args.channel = {
             "1": "lofi",
             "2": "family",
@@ -3213,7 +3274,8 @@ def main():
             "7": "english-quiz",
             "8": "english-challenge-shorts",
             "9": "english-community",
-            "10": "english-podcast"
+            "10": "english-podcast",
+            "11": "english-slow",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -3235,6 +3297,18 @@ def main():
     elif args.channel == "english-podcast":
         _run_interactive_two_phase(
             "english-podcast",
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
+        )
+    elif args.channel == "english-slow":
+        _run_interactive_two_phase(
+            "english-slow",
             topic=args.topic,
             upload=not args.no_upload,
             schedule_time=effective_schedule_time,

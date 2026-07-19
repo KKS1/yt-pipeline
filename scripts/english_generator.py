@@ -13,6 +13,8 @@ ENGLISH_MAX_TOKENS = int(os.getenv("GROQ_ENGLISH_MAX_TOKENS", "4096"))
 
 PUBLISHED_TOPICS_FILE = Path(__file__).resolve().parent / "english_published_topics.json"
 
+PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
+
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
 - Titles must be high-CTR, curiosity-driven, and under 70 characters (YouTube truncates on mobile at ~60 chars).
@@ -599,7 +601,7 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
     opener = lines[0].lower()
     
     # Check if opener already has proper SEO keywords
-    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english"]
+    required_keywords = ["english listening practice", "english speaking practice", "english quiz", "learn english", "slow english", "easy english"]
     has_proper_opener = any(keyword in opener for keyword in required_keywords)
     
     if has_proper_opener:
@@ -2483,7 +2485,344 @@ JSON OUTPUT FORMAT (Follow this structure exactly):
 
 
 # ─────────────────────────────────────────────
-# SLOW ENGLISH PIPELINE — idiom-focused
+# SLOW ENGLISH PIPELINE — A1-A2 Listening Practice
+# ─────────────────────────────────────────────
+
+SLOW_ENGLISH_METADATA_RULES = """
+METADATA RULES FOR SLOW ENGLISH A1-A2:
+
+── TITLE RULES (HIGH CTR) ──
+Titles must create curiosity, promise a benefit, or trigger emotion — NOT just label the content.
+Under 70 characters. Rotate between these proven structures:
+
+  A. Benefit hook: "English You Can ACTUALLY Understand: [Topic]"
+  B. Immersive first-person: "Your First English Conversation: [Topic]"
+  C. Curiosity gap: "This Is How [Topic] Sounds in Slow English"
+  D. Challenge/identity: "Can You Follow This? Slow English — [Topic]"
+  E. Relatable pain: "Finally Understand English: [Topic] (Slow & Clear)"
+  F. Story-driven: "A Day at [Place]: Slow English Story for Beginners"
+  G. Number hook: "[X] Minutes of Slow English You'll Love: [Topic]"
+  H. Social proof: "1000s of Beginners Learned English With This: [Topic]"
+
+- Use selective ALL CAPS for 1-2 power words that create emphasis (ACTUALLY, FINALLY, THIS, EASY, YOUR).
+- NEVER use the pipe character "|" as the first separator — it looks like a textbook, not a thumbnail.
+- Titles must feel like a promise or a question, not a category label.
+
+── DESCRIPTION RULES (HIGH SEO) ──
+- First line must match the EXACT search query a beginner would type — e.g. "slow english daily routine" or "easy english listening practice for beginners".
+- Second line expands with a benefit: "Follow a slow, clear conversation you can understand — no fast speech, no complicated words."
+- Include 2-3 long-tail keyword variations naturally in the first 3 lines:
+  * "slow english listening practice"
+  * "english for beginners"
+  * "easy english conversation"
+  * "a1 english" / "a2 english"
+  * "learn english with stories"
+- DO NOT repeat the same keyword phrase more than twice across the entire description.
+- Include a scene-based timeline section using the placeholder {scene_timeline}.
+- Include a subscribe CTA, and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Include a pinned comment question that drives engagement (e.g., "What is YOUR daily routine? Tell me in English!").
+- Hashtags: Use exactly 3-5 at the end: #SlowEnglish #EnglishForBeginners #EnglishVibesHub + 1-2 topic-specific.
+- DO NOT use more than 5 hashtags — YouTube throttles over-tagged descriptions.
+
+DESCRIPTION TEMPLATE:
+🎯 [Exact search query match]. [Benefit statement — what the viewer will gain from watching].
+
+📖 What you'll learn:
+• [2-3 key vocabulary themes from the topic]
+• Simple sentences you can repeat and practice
+• Natural English conversation at a slow, clear pace
+
+📺 Watch the full playlist: {playlist_url}
+
+💬 Comment below: [Specific engagement question related to the topic]
+
+🔔 Subscribe for new slow English lessons every week!
+
+📑 Timeline:
+{scene_timeline}
+
+#SlowEnglish #EnglishForBeginners #EnglishVibesHub #[TopicTag]
+"""
+
+SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
+    "Soft watercolor illustration style, warm pastel colors, simple clean lines, calm and friendly atmosphere, 16:9 aspect ratio."
+)
+
+# A1-A2 core vocabulary ceiling — the prompt will be instructed to use ONLY these words
+# plus proper nouns and the topic-specific vocabulary listed per topic.
+SLOW_ENGLISH_TOPICS = [
+    "Daily Routine",
+    "At the Coffee Shop",
+    "My Family",
+    "At the Grocery Store",
+    "My Home",
+    "The Weather Today",
+    "Getting Dressed",
+    "Breakfast Time",
+    "On My Way to Work",
+    "At the Park",
+    "At the Restaurant",
+    "Going Shopping",
+    "At the Doctor",
+    "My Weekend",
+    "At the Airport",
+]
+
+
+def generate_slow_english_script(topic=None):
+    """Generate a slow English A1-A2 listening practice script.
+
+    Two-character dialogue (Emma & Liam) discussing a single everyday topic
+    at a deliberately slow pace with simple vocabulary and short sentences.
+    """
+    if not topic:
+        # Pick from curated slow English topics, avoiding recently published ones
+        topics_data = get_published_topics()
+        published_slow = topics_data.get("slow", [])[-30:]
+        remaining = [
+            t for t in SLOW_ENGLISH_TOPICS
+            if not any(t.lower() in p.lower() for p in published_slow)
+        ]
+        if not remaining:
+            remaining = SLOW_ENGLISH_TOPICS
+        topic = random.choice(remaining)
+    else:
+        if is_already_published(topic, "slow"):
+            print(f"\n  [WARNING] Manual slow English topic '{topic}' was found in 'slow' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("slow", [])[-30:]
+    avoid_instruction = f"\nAvoid repeating vocabulary or phrases from these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+
+    print(f"\nSelected Slow English topic: {topic}")
+    print("Generating A1-A2 slow dialogue script...")
+
+    prompt = f"""
+You are a scriptwriter for the English learning channel EnglishVibesHub (@EnglishVibesHub-s6w). Write a slow English A1-A2 listening practice dialogue that viewers will watch FROM START TO FINISH.
+
+TOPIC: {topic}
+{avoid_instruction}
+
+{SLOW_ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
+
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES FOR HIGH AVD (Average View Duration)
+═══════════════════════════════════════════════════════════════
+
+1. HOOK (First 15 seconds — this decides if they stay):
+   - Do NOT start with "Hello, Liam!" or "Hi, Emma!" — that's a retention killer.
+   - Start with a QUESTION or INTRIGUING STATEMENT that makes the viewer want to hear more:
+     * "Liam, do you know how to say all the things you do every day?"
+     * "Emma, I have a problem. I don't know how to describe my morning."
+     * "Can you describe your day in English? Let's try — slowly."
+   - The first line must create an OPEN LOOP — a question the viewer wants answered.
+
+2. OPEN LOOPS (create reasons to keep watching):
+   - Mention something early that gets resolved later:
+     * "I'll teach you 5 magic words at the end" (Stage 2)
+     * "After this conversation, you'll know how to talk about your whole day" (Stage 2)
+     * "Stay until the end — we'll practice together" (Stage 1)
+   - At least ONE open loop must span across stages.
+
+3. PACING VARIETY (prevent monotony):
+   - Every 4-5 turns, change the rhythm:
+     * One turn with a short exclamation ("Oh! That's interesting!")
+     * One turn where they disagree or are surprised
+     * One turn with a question from Liam (not just answers)
+   - Do NOT have the same sentence length for more than 3 consecutive turns.
+
+4. ENGAGEMENT BEATS (trigger comments and re-watches):
+   - Include 1-2 moments where they ask the VIEWER something:
+     * "What about you? Do you wake up early?"
+     * "Can you say this with us? Repeat after Emma."
+   - Include one [PAUSE 3 SECONDS] for the listener to REPEAT a key phrase.
+
+5. REWARD AT THE END (reason to watch the full video):
+   - Stage 4 (Key Words Recap) must feel like a GIFT, not a boring list:
+     * "Okay! Here are the 5 words you just learned. Now you can talk about your whole day!"
+   - Stage 5 (Goodbye) must tease the next episode:
+     * "Next time, we'll talk about [related topic]. See you then!"
+
+═══════════════════════════════════════════════════════════════
+SLOW ENGLISH VOCABULARY & GRAMMAR RULES
+═══════════════════════════════════════════════════════════════
+
+- Vocabulary: Use ONLY the 1,200 most common English words. NO idioms, NO phrasal verbs, NO slang.
+- Sentence length: Each sentence must be 5-12 words maximum. Simple SVO (Subject-Verb-Object) structure.
+- Contractions: Use only "I'm", "you're", "it's", "that's", "we're", "don't", "can't".
+- Grammar: Present simple tense only. No past tense, no future tense, no conditionals.
+- Repetition: Each key vocabulary word MUST appear 3-5 times across the dialogue.
+- Pacing: Use [PAUSE 1 SECONDS] between major topic shifts. Use [PAUSE 3 SECONDS] for listener repetition.
+
+═══════════════════════════════════════════════════════════════
+CHARACTERS
+═══════════════════════════════════════════════════════════════
+
+- "Emma" (Voice: af_heart): The teacher/friend. Speaks clearly, asks questions, encourages. NOT a textbook — she's warm, patient, and occasionally playful.
+- "Liam" (Voice: am_michael): The learner. Asks "how do I say...?" questions, makes small mistakes that Emma gently corrects, shows curiosity. He's relatable — viewers should see themselves in him.
+
+═══════════════════════════════════════════════════════════════
+DIALOGUE STRUCTURE (18-24 turns, ~10-12 minutes at slow pace)
+═══════════════════════════════════════════════════════════════
+
+Stage 1 — HOOK + GREETING (3-4 turns):
+  - Start with a hook question/statement (NOT "Hello!")
+  - Brief greeting that flows naturally from the hook
+  - Emma introduces today's topic with an open loop ("You'll learn X by the end")
+
+Stage 2 — MAIN CONVERSATION (8-12 turns):
+  - They discuss the topic slowly, using simple sentences
+  - Liam asks "how do I say...?" at least twice
+  - Include at least 2 moments of surprise or mild disagreement
+  - Repeat key words naturally (not forced)
+  - One moment where Emma asks the viewer a question
+
+Stage 3 — PRACTICE TOGETHER (4-6 turns):
+  - They use key words in new simple sentences
+  - Include [PAUSE 3 SECONDS] for listener to REPEAT a key phrase
+  - Emma says something like "Now you try! Repeat after me."
+  - This is the INTERACTIVE section — make the viewer feel included
+
+Stage 4 — KEY WORDS REWARD (2-3 turns):
+  - Emma lists 3-5 key words with simple definitions
+  - Frame it as a reward: "Great! Here are the words you just learned"
+  - Liam shows he learned something: "Oh, I know these words now!"
+
+Stage 5 — GOODBYE + TEASE (2-3 turns):
+  - Natural goodbye that teases the next topic
+  - One final CTA: "Tell me in the comments — what is YOUR [topic]?"
+  - End with warmth, not a generic "thanks for watching"
+
+═══════════════════════════════════════════════════════════════
+SCENE STRUCTURE (5-6 scenes)
+═══════════════════════════════════════════════════════════════
+
+- Each scene covers 2-5 dialogue turns
+- Scene labels should feel like chapters: "The Hook", "Let's Talk About [Topic]", "Your Turn to Practice", "Words You Learned"
+- Visual prompts: calm, friendly watercolor illustrations. NOT 3D Pixar — think soft pastels, clean lines, warm atmosphere.
+
+═══════════════════════════════════════════════════════════════
+JSON OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+{{
+  "title": "string (HIGH-CTR title under 70 chars — use the title structures from METADATA RULES, NOT generic labels)",
+  "description": "string (Following DESCRIPTION TEMPLATE — first line must match a search query)",
+  "pinned_comment": "string (Engagement question: 'What is YOUR [topic]? Tell me in English!')",
+  "tags": ["string (SEO tags: slow english, english for beginners, a1 english, easy english listening, [topic], learn english with stories)"],
+  "theme": "string (2-5 word topic label)",
+  "visual_keywords": ["string (5-8 calm illustration search words)"],
+  "dialogue": [
+    {{
+      "turn_number": 1,
+      "speaker": "Emma",
+      "text": "string (HOOK LINE — a question or intriguing statement, NOT 'Hello!')"
+    }},
+    {{
+      "turn_number": 2,
+      "speaker": "Liam",
+      "text": "string (natural response that creates curiosity to keep watching)"
+    }}
+  ],
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "scene_label": "The Hook",
+      "image_filename": "scene_1.png",
+      "visual_prompt": "string (calm watercolor illustration of ...)",
+      "start_turn": 1,
+      "end_turn": 3
+    }}
+  ]
+}}
+"""
+
+    is_valid = False
+    attempts = 0
+
+    while not is_valid and attempts < 3:
+        attempts += 1
+        print(f"  🔄 Generation Attempt {attempts}...")
+
+        raw_script = call_groq_json(prompt)
+        raw_script = separate_mixed_pause_turns(raw_script)
+        script, is_valid = validate_slow_english_script(raw_script)
+
+    if not is_valid:
+        print("  ⚠️ Groq failed to generate a valid slow English script after 3 tries. Using last attempt.")
+
+    # Set slow English visual style
+    for scene in script.get("scenes", []):
+        vp = scene.get("visual_prompt", "")
+        if vp and "watercolor" not in vp.lower() and "soft" not in vp.lower():
+            scene["visual_prompt"] = vp.rstrip(".") + ". " + SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE
+
+    theme = script.get("theme") or topic
+    script["description"] = finalize_english_description(
+        script.get("description", ""), theme=theme, format="longform"
+    )
+
+    return attach_storyboard_to_script(script, portrait=False)
+
+
+def validate_slow_english_script(raw_input):
+    """Validation engine for slow English A1-A2 scripts.
+
+    Simpler than the full English validator — checks for:
+    - Minimum turn count (16+)
+    - Only Emma and Liam as speakers
+    - Simple sentences (no long turns)
+    - No Narrator (two-character dialogue only)
+    """
+    if isinstance(raw_input, dict):
+        script_data = raw_input
+    else:
+        try:
+            script_data = json.loads(raw_input)
+        except Exception as e:
+            print(f"  ❌ Structural Failure: Output is not valid JSON. Error: {e}")
+            return raw_input, False
+
+    dialogue = script_data.get("dialogue", [])
+    turn_count = len(dialogue)
+
+    if turn_count < 14:
+        print(f"  ❌ Retention Failure: Script has {turn_count} turns. Must be at least 14.")
+        return script_data, False
+
+    # Check speakers — only Emma and Liam allowed
+    allowed_speakers = {"Emma", "Liam"}
+    for turn in dialogue:
+        speaker = turn.get("speaker", "")
+        if speaker not in allowed_speakers:
+            print(f"  ⚠️ Speaker Warning: '{speaker}' is not Emma or Liam. Mapping to Emma.")
+            turn["speaker"] = "Emma"
+
+    # Check for excessively long sentences (A1-A2 should be short)
+    long_sentences = []
+    for turn in dialogue:
+        text = turn.get("text", "")
+        word_count = len(text.split())
+        if word_count > 20:
+            long_sentences.append((turn.get("turn_number"), word_count))
+    if long_sentences:
+        print(f"  ⚠️ Sentence Warning: {len(long_sentences)} turn(s) exceed 20 words (A1-A2 should be 5-12 words).")
+
+    # Check for pause markers
+    has_pause = any(
+        PAUSE_CUE_RE.match(turn.get("text", "")) is not None
+        for turn in dialogue
+    )
+    if not has_pause:
+        print("  ⚠️ Interactive Warning: No [PAUSE] token found. Adding one may help listener engagement.")
+
+    print(f"  ✅ Slow English Script Verification Passed! Verified {turn_count} turns.")
+    return script_data, True
+
+
+# ─────────────────────────────────────────────
+# SLOW ENGLISH POOL — idiom-focused (legacy)
 # ─────────────────────────────────────────────
 
 SLOW_IDIOM_POOL = [

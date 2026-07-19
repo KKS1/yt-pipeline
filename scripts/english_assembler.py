@@ -56,6 +56,14 @@ ENGLISH_TTS_SPEEDS = {
     "StoryActor2_AltFemale": 0.90,   # Alternative female voice
 }
 
+# Slow English A1-A2: Only Emma + Liam, slower speed
+SLOW_ENGLISH_VOICES = {
+    "Emma": "af_heart",
+    "Liam": "am_michael",
+}
+
+SLOW_ENGLISH_TTS_SPEED = 0.80
+
 PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]\s*$", re.IGNORECASE)
 
 FADE_DURATION = 0.5  # crossfade duration in _xfade_video_clip_pair, used to extend pause-ending scene clips
