@@ -2698,8 +2698,9 @@ CRITICAL RULES FOR HIGH AVD (Average View Duration)
 4. ENGAGEMENT BEATS (trigger comments and re-watches):
    - Include 1-2 moments where they ask the VIEWER something:
      * "What about you? Do you wake up early?"
-     * "Can you say this with us? Repeat after Emma."
+     * "Can you say this with us? Liam will say it first, then you try!"
    - Include one [PAUSE 3 SECONDS] for the listener to REPEAT a key phrase.
+   - IMPORTANT: Every [PAUSE 3 SECONDS] must be preceded by Liam repeating the phrase as a model for the viewer.
 
 5. REWARD AT THE END (reason to watch the full video):
    - Stage 4 (Key Words Recap) must feel like a GIFT, not a boring list:
@@ -2770,11 +2771,14 @@ Stage 2 — MAIN CONVERSATION (8-12 turns):
   - Repeat key words naturally (not forced)
   - One moment where Emma asks the viewer a question
 
-Stage 3 — PRACTICE TOGETHER (4-6 turns):
+Stage 3 — PRACTICE TOGETHER (5-7 turns):
   - They use key words in new simple sentences
-  - Include [PAUSE 3 SECONDS] for listener to REPEAT a key phrase
-  - Emma says something like "Now you try! Repeat after me."
-  - This is the INTERACTIVE section — make the viewer feel included
+  - The "repeat after me" flow MUST follow this exact sequence:
+    1. Emma introduces the phrase: "Repeat after me: [phrase]"
+    2. Liam repeats the phrase exactly as a model for the viewer (e.g., "Okay! [phrase]")
+    3. [PAUSE 3 SECONDS] — the viewer's turn to repeat
+  - This pattern MUST have 3 turns: Emma's cue, Liam's repetition, then the [PAUSE] turn
+  - This is the INTERACTIVE section — Liam models the behavior, then the viewer copies
 
 Stage 4 — KEY WORDS REWARD (2-3 turns):
   - Emma lists 3-5 key words with simple definitions
