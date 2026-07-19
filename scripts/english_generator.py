@@ -36,7 +36,8 @@ METADATA RULES:
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
 - For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
 - For quiz videos, include an "About This Lesson" section with AI-generated explanation of the idiom/theme before hashtags.
-- Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
 - IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
 - Pinned comments must ask a specific question that viewers can answer quickly.
@@ -56,7 +57,7 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 📑 Timeline:
 {scene_timeline}
 
-#LearnEnglish #EnglishListeningPractice #EnglishSpeakingPractice #EnglishVibesHub #[TopicTag] #EnglishForBeginners #EnglishPodcast ...
+#LearnEnglish #EnglishListeningPractice #SpeakEnglish #[TopicTag] #EnglishForBeginners
 
 QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
 🎯 English listening practice conversational: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
@@ -70,7 +71,7 @@ What does the [idiom/theme] mean? In everyday English conversation, [explanation
 
 🔔 Subscribe for more quick English quizzes!
 
-#Shorts #EnglishQuiz #LearnEnglish #EnglishVibesHub #[TopicTag] #EnglishListeningPractice #EnglishSpeakingPractice
+#Shorts #EnglishQuiz #LearnEnglish #EnglishForBeginners #[TopicTag]
 """
 
 PODCAST_METADATA_RULES = """
@@ -94,7 +95,8 @@ METADATA RULES (PODCAST — under 3 min clips):
 - Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
 - Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
 - Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
-- Descriptions must include a subscribe CTA, relevant hashtags (always include #EnglishVibesHub), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
+- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
 - IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
 - Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
 - Pinned comments must ask a specific question that viewers can answer quickly.
@@ -242,12 +244,12 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
     """Ensure hashtags appear at the end of the description — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#LearnEnglish #EnglishVibesHub #EnglishListeningPractice"
+        return "#LearnEnglish #EnglishListeningPractice #SpeakEnglish"
     
     cleaned_text = _strip_all_hashtags(text)
     
     # Build hashtag line — cap at 5 total for YouTube best practices
-    core_tags = ["#LearnEnglish", "#EnglishVibesHub"]
+    core_tags = ["#LearnEnglish", "#EnglishListeningPractice"]
     topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
     # Pick the single most relevant practice tag
     practice_tag = "#EnglishListeningPractice" if not is_shorts else "#Shorts"
@@ -2234,7 +2236,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (Searchable keyword-rich title under 60 characters. Front-load with 'English Quiz' or 'English listening practice'. Include topic first, then Day {day_num} in the suffix at the end. Use keyword variations. e.g., 'English Quiz: Hair Salon Vocabulary - Day {day_num}')",
-      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} placeholder for scene chapters, subscribe CTA, playlist placeholder, and hashtags mirroring 'tags')",
       "pinned_comment": "string",
       "tags": ["string (Provide 5-8 SEO-focused English learning tags)"],
       "correct_answer": "string",
@@ -2363,7 +2365,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')",
   "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, #EnglishVibesHub, and hashtags mirroring 'tags')",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "theme": "string (short topic label for storyboard, e.g. 'Phrasal Verbs at Work')",
@@ -3010,7 +3012,7 @@ JSON SCHEMA:
 {{
   "title": "string (High-CTR Short title under 70 chars. Use varied formulas: question, 'Stop Saying X', 'X vs Y', number list, mistake hook, curiosity gap. Rotate from what you used last time.)",
   "title_options": ["string"],
-  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishVibesHub, and hashtags mirroring 'tags')",
+  "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question to pin in the comments section)",
   "tags": ["string (Provide 5-8 SEO-focused English learning and topic-specific tags)"],
   "theme": "string (short topic label for storyboard)",
@@ -3093,7 +3095,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     JSON SCHEMA:
     {{
       "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: Master This Idiom!')",
-      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, #EnglishVibesHub, and hashtags mirroring 'tags')",
+      "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, and hashtags mirroring 'tags')",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",

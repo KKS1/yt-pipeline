@@ -1963,7 +1963,7 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             f"Each day covers a new focus area with practical tasks, idioms, and phrasal verbs "
             f"to help you build confidence in real-world conversations.\n\n"
             f"Join Emma and Liam as they guide you through this journey!\n\n"
-            f"#EnglishLearning #EnglishChallenge #EnglishVibesHub"
+            f"#LearnEnglish #EnglishChallenge #EnglishForBeginners"
         )
 
         quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"

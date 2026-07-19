@@ -116,7 +116,7 @@ def test_ensure_english_description_cta_adds_scene_timeline_placeholder():
 
 def test_ensure_english_vibes_hashtags():
     cleaned = ensure_english_vibes_hashtags("Learn English today.\n\n#LearnEnglish")
-    assert "#EnglishVibesHub" in cleaned
+    assert "#EnglishListeningPractice" in cleaned
 
 
 def test_finalize_english_description_includes_opener_and_hashtag():
