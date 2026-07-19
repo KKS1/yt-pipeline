@@ -2118,6 +2118,32 @@ def separate_mixed_pause_turns(script_data: dict) -> dict:
     return script_data
 
 
+def renumber_dialogue_turns(script_data: dict) -> dict:
+    """Ensure dialogue turn numbers are sequential starting from 1, with no gaps.
+
+    This fixes LLM-generated scripts where turn numbers skip (e.g. 1,2,3,5,8...).
+    Also updates scene start_turn/end_turn references to match the new numbering.
+    """
+    dialogue = script_data.get("dialogue", [])
+    if not dialogue:
+        return script_data
+
+    old_to_new = {}
+    for i, turn in enumerate(dialogue, start=1):
+        old_num = turn.get("turn_number", i)
+        old_to_new[old_num] = i
+        turn["turn_number"] = i
+
+    # Update scene turn references
+    for scene in script_data.get("scenes", []):
+        old_start = scene.get("start_turn", 0)
+        old_end = scene.get("end_turn", 0)
+        scene["start_turn"] = old_to_new.get(old_start, old_start)
+        scene["end_turn"] = old_to_new.get(old_end, old_end)
+
+    return script_data
+
+
 def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
     cleaned = dict(script)
     cleaned["dialogue"] = sanitize_dialogue_part(
@@ -2690,6 +2716,35 @@ SLOW ENGLISH VOCABULARY & GRAMMAR RULES
 - Pacing: Use [PAUSE 1 SECONDS] between major topic shifts. Use [PAUSE 3 SECONDS] for listener repetition.
 
 ═══════════════════════════════════════════════════════════════
+VOCABULARY TEACHING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- NEVER use tautological definitions like "Brother means brother" or "Sister is sister". These do not help a learner.
+- Instead, teach vocabulary through CONTEXT and EXAMPLES:
+  * "Brother? Your brother is a boy in your family. Like this: I have a brother. His name is Tom."
+  * "Sister? A sister is a girl in your family. My sister is very kind."
+  * "Mother? Your mother is the woman who takes care of you. She is kind and loving."
+  * "Father? Your father is the man in your family. He works hard."
+- After introducing a word, use it in a NEW sentence so the learner hears it in context.
+- Vary the teaching method: sometimes ask "Do you know what ___ means?" and let Liam guess, sometimes explain directly.
+
+═══════════════════════════════════════════════════════════════
+NATURAL DIALOGUE RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- Emma must sound like a warm, patient friend — NEVER robotic, blunt, or commanding.
+- BANNED single-word commands: Never say "Stay.", "Sit.", "Wait.", "Stop.", "Listen." as standalone turns. These sound like orders to a pet.
+- Instead, use encouraging phrases: "Stay with me!", "Let's continue!", "Ready for the next word?", "Great job! Now try this."
+- Liam should make natural small mistakes that Emma gently corrects — this makes the dialogue relatable.
+- Every 4-5 turns, vary the rhythm: add a short exclamation ("Oh! That's nice!"), a question from Liam, or a moment of mild surprise.
+
+═══════════════════════════════════════════════════════════════
+TURN NUMBERING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+- Dialogue turn numbers MUST be SEQUENTIAL starting from 1 with NO GAPS.
+- Example correct: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12...
+- Example WRONG: 1, 2, 3, 5, 8, 10 (NEVER skip numbers!)
+- Every turn must have a unique, sequential turn_number.
+
+═══════════════════════════════════════════════════════════════
 CHARACTERS
 ═══════════════════════════════════════════════════════════════
 
@@ -2781,6 +2836,7 @@ JSON OUTPUT FORMAT
 
         raw_script = call_groq_json(prompt)
         raw_script = separate_mixed_pause_turns(raw_script)
+        raw_script = renumber_dialogue_turns(raw_script)
         script, is_valid = validate_slow_english_script(raw_script)
 
     if not is_valid:
