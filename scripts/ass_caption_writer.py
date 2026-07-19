@@ -277,7 +277,6 @@ Style: {STYLE_GUEST},{_eff_fontname()},{font_size_normal},{COLOUR_GUEST_HL},{COL
 Style: {STYLE_IDIOM},{_eff_fontname()},{font_size_idiom},{COLOUR_IDIOM_HL},{COLOUR_IDIOM_HL},{COLOUR_BLACK},{COLOUR_BG_SEMI},1,0,0,0,100,100,0,0,1,4,4,2,{margin_l},{margin_r},{margin_v_bottom},1
 Style: {STYLE_IDIOM_CARD},{_eff_fontname()},{card_font_size},{COLOUR_IDIOM_HL},{COLOUR_WHITE},{COLOUR_BLACK},&HAA000000,1,0,0,0,100,100,0,0,3,2,0,8,80,80,{margin_v_top},1
 Style: {STYLE_COUNTDOWN},{_eff_fontname()},{countdown_font_size},{COLOUR_WHITE},{COLOUR_WHITE},{COLOUR_BLACK},&H88000000,1,0,0,0,100,100,0,0,1,5,1,5,40,40,0,1
-Style: {STYLE_MIC},{_eff_fontname()},120,&H00D7FF&,&H00D7FF&,&H005C99&,,1,0,0,0,100,100,0,0,1,3,1,5,40,40,20,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -404,8 +403,6 @@ def _add_idiom_card_events(
             events.append(f"Dialogue: 1,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},{STYLE_IDIOM_CARD},,0,0,0,,{text}")
 
 
-STYLE_MIC = "MicPrompt"
-
 def _add_pause_guess_events(
     events: list[str],
     dialogue: list[dict],
@@ -413,9 +410,8 @@ def _add_pause_guess_events(
     reveal_windows: list[dict],
     video_width: int = 1920,
     video_height: int = 1080,
-    slow_english: bool = False,
 ):
-    """Freeze the prompt during silence and burn a 3-2-1 countdown (or glowing mic for slow English) in ASS."""
+    """Freeze the prompt during silence and burn a 3-2-1 countdown in ASS."""
     print(f"  [DEBUG] _add_pause_guess_events called with {len(reveal_windows)} windows")
     for window in reveal_windows:
         prompt_idx = window["prompt_index"]
@@ -441,50 +437,20 @@ def _add_pause_guess_events(
         )
 
         duration = pause_end - pause_start
-
-        if slow_english:
-            # Glowing mic vector drawing — pulsing icon centered, encouraging viewer to speak
-            mic_x = video_width // 2
-            mic_y = int(video_height * 0.45)
-            pulse_cs = int(round(duration * 100))
-            half_cs = pulse_cs // 2
-            # \p1 vector drawing: mic head (rounded rect) + stand + base
-            mic_coords = (
-                r"m -18 -45 b -18 -65 18 -65 18 -45"   # top curve right
-                r" b 18 -25 18 -5 -18 -5"               # right side down
-                r" b -18 -5 -18 -25 -18 -45"             # bottom curve left
-                r" m 0 -5 l 0 50"                         # stand
-                r" m -20 50 l 20 50"                      # base
-            )
-            mic_text = (
-                rf"{{\fad(200,300)"
-                rf"\pos({mic_x},{mic_y})"
-                rf"\t(0,{half_cs},\fscx115\fscy115)"
-                rf"\t({half_cs},{pulse_cs},\fscx100\fscy100)"
-                rf"\1c&H00D7FF&\3c&H005C99&\4c&H000000&\shad2\p1}}"
-                f"{mic_coords}"
-                r"{\p0}"
-            )
+        count = min(3, max(1, int(math.ceil(duration))))
+        slot = duration / count
+        labels = [str(n) for n in range(count, 0, -1)]
+        print(f"  [DEBUG] Adding countdown: duration={duration:.2f}s, count={count}, labels={labels}")
+        for idx, label in enumerate(labels):
+            start_t = pause_start + idx * slot
+            end_t = pause_end if idx == count - 1 else min(pause_end, pause_start + (idx + 1) * slot)
+            if end_t <= start_t:
+                continue
+            countdown_text = rf"{{\fad(80,120)\t(0,180,\fscx118\fscy118)}}{label}"
             events.append(
-                f"Dialogue: 2,{_ass_timestamp(pause_start)},{_ass_timestamp(pause_end)},"
-                f"{STYLE_MIC},,0,0,0,,{mic_text}"
+                f"Dialogue: 2,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
+                f"{STYLE_COUNTDOWN},,0,0,0,,{countdown_text}"
             )
-        else:
-            # Standard 3-2-1 countdown
-            count = min(3, max(1, int(math.ceil(duration))))
-            slot = duration / count
-            labels = [str(n) for n in range(count, 0, -1)]
-            print(f"  [DEBUG] Adding countdown: duration={duration:.2f}s, count={count}, labels={labels}")
-            for idx, label in enumerate(labels):
-                start_t = pause_start + idx * slot
-                end_t = pause_end if idx == count - 1 else min(pause_end, pause_start + (idx + 1) * slot)
-                if end_t <= start_t:
-                    continue
-                countdown_text = rf"{{\fad(80,120)\t(0,180,\fscx118\fscy118)}}{label}"
-                events.append(
-                    f"Dialogue: 2,{_ass_timestamp(start_t)},{_ass_timestamp(end_t)},"
-                    f"{STYLE_COUNTDOWN},,0,0,0,,{countdown_text}"
-                )
 
         # Shrinking progress bar — anchored at right edge, shrinks to zero
         bar_x = int(video_width * 0.1)
@@ -726,7 +692,7 @@ def generate_ass_captions(
         margin_v_top,
         reveal_windows,
     )
-    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows, video_width, video_height, slow_english)
+    _add_pause_guess_events(events, dialogue, per_turn_times or [], reveal_windows, video_width, video_height)
 
     def _speaker_at(t: float) -> str:
         for s, e, spk in turn_speaker_map:
