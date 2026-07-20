@@ -43,17 +43,17 @@ ENGLISH_VOICES = {
 
 ENGLISH_TTS_SPEEDS = {
     "Narrator": 0.90,           # Slower for clear narration
-    "Emma": 0.90,               # Normal pace for protagonist
-    "Liam": 0.90,               # Normal pace for protagonist
-    "Guest": 0.90,              # Slightly slower for guest characters
+    "Emma": 0.88,               # Slightly slower — more room for expression
+    "Liam": 0.92,               # Slightly faster — analytical, quick thinker
+    "Guest": 0.90,              # Neutral pace for guest characters
     "Caller": 0.90,             # Normal pace for caller storytelling
     "Caller_Male": 0.90,        # Normal pace for male caller
-    "StoryActor1": 0.90,        # Normal pace for story characters
-    "StoryActor2": 0.90,        # Normal pace for story characters
-    "StoryActor1_Female": 0.90, # Alternative female voice
-    "StoryActor2_Male": 0.90,   # Alternative male voice
-    "StoryActor1_AltMale": 0.90,    # Alternative male voice
-    "StoryActor2_AltFemale": 0.90,   # Alternative female voice
+    "StoryActor1": 0.88,        # Story characters get more breathing room
+    "StoryActor2": 0.88,        # Story characters get more breathing room
+    "StoryActor1_Female": 0.88, # Alternative female voice
+    "StoryActor2_Male": 0.88,   # Alternative male voice
+    "StoryActor1_AltMale": 0.88,    # Alternative male voice
+    "StoryActor2_AltFemale": 0.88,   # Alternative female voice
 }
 
 # Slow English A1-A2: Only Emma + Liam, slower speed
@@ -393,7 +393,7 @@ def generate_podcast_audio(script_data: dict, return_turn_times: bool = False, s
             next_pause_duration = _pause_duration_seconds(next_line.get("text", ""))
             next_speaker = next_line.get("speaker", "Emma")
             if next_pause_duration is None:
-                gap_duration = 0.3 if (speaker == "Narrator" or next_speaker == "Narrator") else 0.2
+                gap_duration = 0.4 if (speaker == "Narrator" or next_speaker == "Narrator") else 0.3
                 padded_path = str(TEMP_DIR / f"english_line_{i:03d}_padded.m4a")
                 _pad_audio_with_silence(out_path, gap_duration, padded_path)
                 audio_files[-1] = padded_path

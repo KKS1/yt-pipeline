@@ -1913,7 +1913,11 @@ def call_groq_json(user_prompt: str) -> dict:
                     "Never use motivational or preachy language like 'remember the key to mastering', "
                     "'practice practice practice', 'keep practicing', 'move on to advanced', 'don't give up', "
                     "'you can do it', 'stay motivated', 'never stop learning', 'consistency is key', "
-                    "'practice makes perfect', 'keep up the good work', 'you're doing great', or similar encouragement phrases."
+                    "'practice makes perfect', 'keep up the good work', 'you're doing great', or similar encouragement phrases. "
+                    "IMPORTANT: Dialogue text will be read aloud by a text-to-speech engine that interprets "
+                    "punctuation as performance cues. Write dialogue that sounds like real speech when read aloud — "
+                    "use exclamation marks for energy, ellipses for hesitation, em-dashes for interruptions, "
+                    "and short fragments for emotional beats. Vary sentence length within turns."
                 ),
             },
             {"role": "user", "content": user_prompt},
@@ -2253,6 +2257,8 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
 
     PACING:
     The pacing must allow English learners time to read, but remain engaging enough to prevent swipe-aways.
+    - Emma's hook should feel like a genuine question, not a script reading — use "Wait, do you know what ___ means?"
+    - Liam's options should sound like natural suggestions, not a list being read aloud.
 
     LEVERAGE COMMENTS: Generate a 'pinned_comment' question to trigger algorithmic signals.
 
@@ -2483,6 +2489,26 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Use colloquial expressions and varied vocabulary beyond basic English
 - Characters should speak like real people in stressful situations, not textbook examples
 - Expressions must fit the emotional context and urgency of the scene
+
+VOCAL DELIVERY FOR TTS (the text will be read aloud — write for the ear, not the eye):
+- Use exclamation marks for urgent/excited lines — the TTS engine raises pitch and energy on "!"
+- Use em-dashes (—) for interrupted speech or sudden realizations — creates natural mid-sentence breaks
+- Use ellipses (...) for trailing off, hesitation, or contemplation — TTS slows and softens
+- Use short declarative fragments for shock or emphasis: "No way." "That's insane." "Wait, what?"
+- Vary sentence length dramatically within the same turn — mix one-word reactions with longer runs
+- Include natural interjections: "Oh," "Wait," "Hmm," "Right," "Ah," "Ugh," "Oh no," "Seriously?"
+- Angry/frustrated lines: shorter, clipped sentences. Excited lines: longer, breathless runs.
+- NEVER start a character's first line in a scene with a full sentence — start with a reaction word or fragment
+- Use **double asterisks** around the single most emotionally important phrase per character turn.
+  These become emphasis markers that slow the delivery slightly for dramatic weight.
+  Use sparingly: max 1 per turn, only on lines with genuine emotional weight.
+  Example: "I can't believe you **actually said that** to her."
+
+CHARACTER SPEECH PATTERNS:
+- Emma: Energetic, reactive. Starts lines with "Oh," "Wait," "So," "Okay,". Uses exclamations freely. When panicked, sentences get shorter. When explaining, uses flowing sentences with em-dashes.
+- Liam: Analytical but warm. Uses "Hmm," "Right," "Actually," as thinking beats. When excited about a discovery, uses rhetorical questions: "But what if...?"
+- Guest: Match speech register to the character's role. Service workers use polite hedging ("I think maybe..."), friends are blunt.
+- Narrator: Third-person but NOT neutral. Sounds invested — uses dramatic pauses (ellipsis), builds tension through sentence rhythm, lands punchlines with short declarative closers.
 
 TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 - The entire story MUST be built around teaching or illustrating the exact TOPIC provided above
@@ -2764,6 +2790,14 @@ NATURAL DIALOGUE RULES (CRITICAL)
 - Every 4-5 turns, vary the rhythm: add a short exclamation ("Oh! That's nice!"), a question from Liam, or a moment of mild surprise.
 
 ═══════════════════════════════════════════════════════════════
+TTS PACING (text will be read aloud slowly at 0.80x speed)
+═══════════════════════════════════════════════════════════════
+- Exclamation marks still work: "Oh! That's nice!" will sound warm, not frantic, at slow speed
+- Ellipses (...) are especially effective at slow speed — they create natural thinking pauses
+- Keep sentences short (5-12 words) — long sentences at slow speed can feel dragging
+- Liam's mistakes should feel genuine: "Wait... is it 'goed' or 'went'?" — the hesitation markers help
+
+═══════════════════════════════════════════════════════════════
 TURN NUMBERING RULES (CRITICAL)
 ═══════════════════════════════════════════════════════════════
 - Dialogue turn numbers MUST be SEQUENTIAL starting from 1 with NO GAPS.
@@ -3034,6 +3068,8 @@ STYLE:
 - Fast-paced, punchy, conversational, and highly engaging.
 - Perfect for vertical YouTube Shorts.
 - No intro, no outro. The video should feel like it starts mid-conversation and loops perfectly.
+- Write for the ear: exclamation marks for energy ("Oh, definitely!"), question marks for hooks ("But wait — is that actually correct?"), em-dashes for interruptions.
+- Each line should feel like a natural reaction, not a scripted line.
 
 JSON SCHEMA:
 {{
@@ -3116,6 +3152,8 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
     PACING:
     The pacing must allow English learners time to read, but remain engaging enough to prevent swipe-aways.
+    - Emma's hook should feel like a genuine question, not a script reading — use "Wait, do you know what ___ means?"
+    - Liam's options should sound like natural suggestions, not a list being read aloud.
 
     LEVERAGE COMMENTS: Generate a 'pinned_comment' question to trigger algorithmic signals.
 
@@ -3657,6 +3695,26 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Characters should speak like real people in stressful situations, not textbook examples
 - Expressions must fit the emotional context and urgency of the scene
 - Emma and Liam should highlight and explain these expressions during Stage 6 (Host Analysis)
+
+VOCAL DELIVERY FOR TTS (the text will be read aloud — write for the ear, not the eye):
+- Use exclamation marks for urgent/excited lines — the TTS engine raises pitch and energy on "!"
+- Use em-dashes (—) for interrupted speech or sudden realizations — creates natural mid-sentence breaks
+- Use ellipses (...) for trailing off, hesitation, or contemplation — TTS slows and softens
+- Use short declarative fragments for shock or emphasis: "No way." "That's insane." "Wait, what?"
+- Vary sentence length dramatically within the same turn — mix one-word reactions with longer runs
+- Include natural interjections: "Oh," "Wait," "Hmm," "Right," "Ah," "Ugh," "Oh no," "Seriously?"
+- Angry/frustrated lines: shorter, clipped sentences. Excited lines: longer, breathless runs.
+- NEVER start a character's first line in a scene with a full sentence — start with a reaction word or fragment
+- Use **double asterisks** around the single most emotionally important phrase per character turn.
+  These become emphasis markers that slow the delivery slightly for dramatic weight.
+  Use sparingly: max 1 per turn, only on lines with genuine emotional weight.
+  Example: "I can't believe you **actually said that** to her."
+
+CHARACTER SPEECH PATTERNS:
+- Emma (Host): Energetic radio host energy. Uses "Oh, absolutely!" "That's a great point!" — warm but authoritative. When analyzing, uses structured sentences.
+- Liam (Host): Curious co-host. Uses "Wait, so you're saying...?" "Hmm, that's interesting." — drives the analysis forward with questions.
+- Caller: Nervous/confused energy. Uses "I was so confused when..." "Like, what did they mean?" — natural hesitation markers.
+- StoryActor1 & StoryActor2: Dialogue from a scene — they should sound like real people in the moment, not narrators. Use interjections, reactions, incomplete sentences.
 
 ANTI-REPETITION RULE: In Stage 4 (Full Story), avoid repeating the same filler word or phrase (like "anyway", "so", "well") more than 2-3 times total. If a character overuses a transition word, it feels robotic and unnatural. Cut repetitive dialogue even if it reduces turn count.
 

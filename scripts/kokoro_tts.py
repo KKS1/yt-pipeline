@@ -87,8 +87,14 @@ def synthesize(
 
     print(f"  Synthesizing ({len(text)} chars, voice={voice}, speed={speed})...")
 
-    # Only apply emphasis processing for Narrator
-    use_emphasis = speaker == "Narrator"
+    # Apply emphasis processing for all dialogue speakers
+    EMPHASIS_ENABLED_SPEAKERS = {
+        "Narrator", "Emma", "Liam", "Guest",
+        "StoryActor1", "StoryActor2", "Caller", "Caller_Male",
+        "StoryActor1_Female", "StoryActor2_Male",
+        "StoryActor1_AltMale", "StoryActor2_AltFemale",
+    }
+    use_emphasis = speaker in EMPHASIS_ENABLED_SPEAKERS
 
     if use_emphasis:
         # Split by emphasis markers and track which parts are emphasized
@@ -110,7 +116,7 @@ def synthesize(
         if not parts:
             parts = [(text, False)]
     else:
-        # For non-narrator speakers, strip emphasis markers and treat as plain text
+        # For speakers without emphasis support (family, trending, etc.), strip markers
         text = re.sub(r'\[/?EMPHASIS\]', '', text).strip()
         parts = [(text, False)]
 
