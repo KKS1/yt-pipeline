@@ -638,7 +638,18 @@ def ensure_english_seo_opener(description: str, theme: str = "", *, format: str 
     if has_proper_opener:
         # If opener exists but lacks theme, update it
         if theme_clean and theme_clean.lower() not in text.lower():
-            return seo_line + "\n\n" + "\n".join(lines[1:] if len(lines) > 1 else lines)
+            candidate_lines = [seo_line] + (lines[1:] if len(lines) > 1 else [])
+            # Deduplicate lines (case-insensitive)
+            seen = set()
+            deduped = []
+            for ln in candidate_lines:
+                key = ln.strip().lower()
+                if not key:
+                    deduped.append(ln)
+                elif key not in seen:
+                    seen.add(key)
+                    deduped.append(ln)
+            return "\n".join(deduped)
         return "\n".join(lines)
     
     # Add SEO opener at the beginning
@@ -1131,6 +1142,9 @@ def finalize_english_description(
         # Place hashtags at end with SEO ordering
         text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
     else:
+        # Add About This Lesson section for shorts (inserts after SEO opener, before CTAs)
+        if is_shorts:
+            text = ensure_english_quiz_about_section(text, theme=theme)
         text = ensure_english_vibes_hashtags(text, theme=theme, is_shorts=is_shorts)
 
     # Enforce canonical section order (playlist before comment before subscribe, etc.)
