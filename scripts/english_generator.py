@@ -130,6 +130,108 @@ _THEME_HASHTAG_MAP = {
     "car": ["#DrivingEnglish", "#TravelEnglish"],
     "bus": ["#BusEnglish", "#TravelEnglish"],
     "train": ["#TrainEnglish", "#TravelEnglish"],
+    "mistake": ["#CommonMistakes", "#EnglishGrammar"],
+    "greeting": ["#EnglishGreeting", "#DailyEnglish"],
+    "slang": ["#EnglishSlang", "#CasualConversation"],
+    "idiom": ["#EnglishIdioms", "#NaturalEnglish"],
+    "idioms": ["#EnglishIdioms", "#NaturalEnglish"],
+    "pronunciation": ["#EnglishPronunciation", "#SpeakEnglish"],
+    "grammar": ["#EnglishGrammar", "#LearnEnglish"],
+    "vocabulary": ["#EnglishVocabulary", "#SpeakEnglish"],
+    "conversation": ["#EnglishConversation", "#SpeakEnglish"],
+    "small talk": ["#SmallTalk", "#CasualConversation"],
+    "polite": ["#PoliteEnglish", "#DailyEnglish"],
+    "expression": ["#EnglishExpressions", "#NaturalEnglish"],
+    "expressions": ["#EnglishExpressions", "#NaturalEnglish"],
+    "phrase": ["#EnglishPhrases", "#SpeakEnglish"],
+    "phrases": ["#EnglishPhrases", "#SpeakEnglish"],
+    "saying": ["#EnglishSayings", "#NaturalEnglish"],
+    "sayings": ["#EnglishSayings", "#NaturalEnglish"],
+    "word": ["#EnglishVocabulary", "#DailyEnglish"],
+    "reply": ["#EnglishReply", "#CasualConversation"],
+    "response": ["#EnglishResponse", "#CasualConversation"],
+    "question": ["#EnglishQuestions", "#SpeakEnglish"],
+    "answer": ["#EnglishAnswers", "#SpeakEnglish"],
+    "request": ["#EnglishRequest", "#PoliteEnglish"],
+    "offer": ["#EnglishOffer", "#CasualConversation"],
+    "refuse": ["#EnglishRefusal", "#PoliteEnglish"],
+    "compliment": ["#EnglishCompliment", "#SocialEnglish"],
+    "confusion": ["#EnglishConfusion", "#CommonMistakes"],
+    "natural": ["#NaturalEnglish", "#SpeakEnglish"],
+    "fluency": ["#EnglishFluency", "#SpeakEnglish"],
+    "fluently": ["#EnglishFluency", "#SpeakEnglish"],
+    "beginner": ["#EnglishForBeginners", "#LearnEnglish"],
+    "advanced": ["#AdvancedEnglish", "#EnglishVocabulary"],
+    "business": ["#BusinessEnglish", "#ProfessionalEnglish"],
+    "email": ["#BusinessEmail", "#BusinessEnglish"],
+    "resume": ["#ResumeEnglish", "#JobInterview"],
+    "customer": ["#CustomerService", "#EnglishForWork"],
+    "service": ["#CustomerService", "#EnglishForWork"],
+    "negotiation": ["#NegotiationEnglish", "#BusinessEnglish"],
+    "presentation": ["#PresentationEnglish", "#BusinessEnglish"],
+    "casual": ["#CasualEnglish", "#CasualConversation"],
+    "formal": ["#FormalEnglish", "#BusinessEnglish"],
+    "informal": ["#InformalEnglish", "#CasualConversation"],
+    "native": ["#NativeEnglish", "#NaturalEnglish"],
+    "fluently": ["#SpeakFluently", "#EnglishFluency"],
+    "accent": ["#EnglishAccent", "#Pronunciation"],
+    "listening": ["#EnglishListening", "#EnglishPractice"],
+    "speaking": ["#EnglishSpeaking", "#SpeakEnglish"],
+    "reading": ["#EnglishReading", "#LearnEnglish"],
+    "writing": ["#EnglishWriting", "#LearnEnglish"],
+    "test": ["#EnglishTest", "#EnglishPractice"],
+    "quiz": ["#EnglishQuiz", "#EnglishPractice"],
+    "challenge": ["#EnglishChallenge", "#EnglishPractice"],
+    "daily": ["#DailyEnglish", "#EverydayEnglish"],
+    "everyday": ["#EverydayEnglish", "#DailyEnglish"],
+    "real": ["#RealEnglish", "#NaturalEnglish"],
+    "real life": ["#RealEnglish", "#EverydayEnglish"],
+    "situation": ["#EnglishSituations", "#EverydayEnglish"],
+    "context": ["#EnglishContext", "#NaturalEnglish"],
+    "common": ["#CommonEnglish", "#EverydayEnglish"],
+    "popular": ["#PopularEnglish", "#SpeakEnglish"],
+    "useful": ["#UsefulEnglish", "#SpeakEnglish"],
+    "important": ["#ImportantEnglish", "#SpeakEnglish"],
+    "simple": ["#SimpleEnglish", "#EnglishForBeginners"],
+    "easy": ["#EasyEnglish", "#EnglishForBeginners"],
+    "hard": ["#DifficultEnglish", "#CommonMistakes"],
+    "difficult": ["#DifficultEnglish", "#CommonMistakes"],
+    "confusing": ["#ConfusingEnglish", "#CommonMistakes"],
+    "wrong": ["#EnglishMistakes", "#CommonMistakes"],
+    "correct": ["#CorrectEnglish", "#EnglishGrammar"],
+    "better": ["#BetterEnglish", "#SpeakEnglish"],
+    "improve": ["#ImproveEnglish", "#EnglishPractice"],
+    "practice": ["#EnglishPractice", "#SpeakEnglish"],
+    "learn": ["#LearnEnglish", "#EnglishPractice"],
+    "teach": ["#TeachEnglish", "#LearnEnglish"],
+    "understand": ["#UnderstandEnglish", "#EnglishListening"],
+    "meaning": ["#EnglishMeaning", "#EnglishVocabulary"],
+    "difference": ["#EnglishDifference", "#CommonMistakes"],
+    "similar": ["#SimilarEnglish", "#CommonMistakes"],
+    "instead": ["#EnglishInstead", "#CommonMistakes"],
+    "say": ["#HowToSay", "#SpeakEnglish"],
+    "speak": ["#SpeakEnglish", "#EnglishFluency"],
+    "talk": ["#EnglishTalk", "#CasualConversation"],
+    "chat": ["#EnglishChat", "#CasualConversation"],
+    "text": ["#EnglishText", "#CasualConversation"],
+    "social media": ["#SocialMediaEnglish", "#CasualConversation"],
+    "internet": ["#InternetEnglish", "#CasualConversation"],
+    "movie": ["#MovieEnglish", "#EnglishListening"],
+    "music": ["#MusicEnglish", "#EnglishListening"],
+    "song": ["#SongEnglish", "#EnglishListening"],
+    "news": ["#NewsEnglish", "#EnglishListening"],
+    "story": ["#EnglishStory", "#EnglishListening"],
+    "book": ["#EnglishBook", "#EnglishReading"],
+    "game": ["#GameEnglish", "#CasualConversation"],
+    "sport": ["#SportEnglish", "#CasualConversation"],
+    "shopping": ["#ShoppingEnglish", "#RetailEnglish"],
+    "clothes": ["#ClothesEnglish", "#ShoppingEnglish"],
+    "color": ["#ColorEnglish", "#DailyEnglish"],
+    "color": ["#ColourEnglish", "#DailyEnglish"],
+    "time": ["#TellingTime", "#DailyEnglish"],
+    "date": ["#EnglishDate", "#DailyEnglish"],
+    "number": ["#EnglishNumbers", "#DailyEnglish"],
+    "count": ["#EnglishCounting", "#DailyEnglish"],
 }
 
 
@@ -156,10 +258,12 @@ def _build_topic_hashtags(theme: str) -> str:
     ]
     if not words:
         return ""
-    # Build 1-2 topic hashtags from meaningful words
-    if len(words) >= 2:
-        return f"#{words[0].capitalize()}{words[1].capitalize()} #{'English' + words[0].capitalize()}"
-    return f"#{words[0].capitalize()} #English{words[0].capitalize()}"
+    # Use the longest word as primary topic hashtag (most likely the noun/topic)
+    words_sorted = sorted(words, key=len, reverse=True)
+    primary = words_sorted[0].capitalize()
+    if len(words_sorted) >= 2 and words_sorted[1] != words_sorted[0]:
+        return f"#English{primary} #English{words_sorted[1].capitalize()}"
+    return f"#English{primary}"
 
 
 def _strip_all_hashtags(text: str) -> str:
@@ -196,7 +300,14 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
     
     # Assemble: core (2) + topic (0-2) + practice (1) = 3-5
     tags = core_tags + topic_tags_list[:2] + [practice_tag]
-    hashtag_line = " ".join(tags[:5])
+    # Deduplicate while preserving order
+    seen = set()
+    unique_tags = []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            unique_tags.append(t)
+    hashtag_line = " ".join(unique_tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
     
     # Append hashtags at the very end with blank line separator
@@ -1073,9 +1184,11 @@ def finalize_english_description(
         # Place hashtags at end with SEO ordering
         text = ensure_english_quiz_shorts_hashtags(text, theme=theme)
     else:
-        # Add About This Lesson section for shorts (inserts after SEO opener, before CTAs)
+        # Add About section: quiz-style for shorts, longform-style for longform
         if is_shorts:
             text = ensure_english_quiz_about_section(text, theme=theme)
+        else:
+            text = ensure_english_longform_about_section(text, theme=theme)
         text = ensure_english_vibes_hashtags(text, theme=theme, is_shorts=is_shorts)
 
     # Enforce canonical section order (playlist before comment before subscribe, etc.)
@@ -1259,6 +1372,75 @@ Return ONLY the explanation text, no other content."""
     
     # Build the About This Lesson section
     about_section = f"📑 About This Lesson:\n{explanation_text}"
+    
+    # Insert immediately after SEO opener (line starting with 🎯), before any CTAs
+    lines = text.splitlines()
+    if lines and lines[0].strip().startswith("🎯"):
+        # Find the first CTA line (playlist, comment, subscribe, timeline)
+        first_cta_idx = None
+        cta_prefixes = ["📺", "💬", "🔔", "📑 Timeline"]
+        for i, line in enumerate(lines[1:], start=1):
+            if any(line.strip().startswith(prefix) for prefix in cta_prefixes):
+                first_cta_idx = i
+                break
+        
+        if first_cta_idx is not None:
+            # Insert About section between SEO opener and first CTA
+            result = "\n".join(lines[:first_cta_idx]) + "\n\n" + about_section + "\n\n" + "\n".join(lines[first_cta_idx:])
+        else:
+            # No CTAs found, insert after SEO opener
+            result = lines[0] + "\n\n" + about_section
+            if len(lines) > 1:
+                result += "\n\n" + "\n".join(lines[1:])
+    else:
+        # If no SEO opener found, append at beginning
+        result = about_section
+        if text:
+            result += "\n\n" + text
+    
+    # Clean up spacing
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
+
+
+def ensure_english_longform_about_section(description: str, theme: str = "") -> str:
+    """Add 'About this video' section for longform English videos with AI-generated explanation."""
+    text = str(description or "").strip()
+    if not text:
+        return text
+    
+    # First, remove any existing About sections to avoid duplicates
+    text = re.sub(
+        r"📑\s*About\s+This\s+(?:Video|Lesson):.*?(?=\n\n|\Z)",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE
+    )
+    
+    # Extract theme for the explanation
+    theme_clean = str(theme or "").strip()
+    if not theme_clean:
+        return text
+    
+    # Generate AI explanation for the topic
+    try:
+        prompt = f"""Generate a brief, engaging explanation (2-3 sentences) for an English learning video about: "{theme_clean}".
+        
+Explain what the viewer will learn about this topic in simple, everyday English. Focus on why this topic matters for English learners and what they'll take away from watching.
+
+Return ONLY the explanation text, no other content."""
+        
+        explanation = call_groq_json(prompt)
+        explanation_text = explanation.get("explanation", explanation.get("text", ""))
+        
+        if not explanation_text:
+            explanation_text = f"In this lesson, we explore the English expression \"{theme_clean}\" — a common phrase used in everyday conversations. Watch along to understand how native speakers use it and improve your natural English!"
+    except Exception as e:
+        print(f"  [warn] AI explanation generation failed: {e}")
+        explanation_text = f"In this lesson, we explore the English expression \"{theme_clean}\" — a common phrase used in everyday conversations. Watch along to understand how native speakers use it and improve your natural English!"
+    
+    # Build the About this video section
+    about_section = f"📑 About this video:\n{explanation_text}"
     
     # Insert immediately after SEO opener (line starting with 🎯), before any CTAs
     lines = text.splitlines()
