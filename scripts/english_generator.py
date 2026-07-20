@@ -17,8 +17,7 @@ PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]
 
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
-- Titles must be high-CTR, curiosity-driven, and under 70 characters (YouTube truncates on mobile at ~60 chars).
-- Use ONE of these title structures — DO NOT repeat the same structure consecutively across uploads:
+- Titles must be high-CTR, curiosity-driven, under 70 chars. Use ONE of these structures (rotate, don't repeat consecutively):
   A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
   B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
   C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
@@ -27,79 +26,20 @@ METADATA RULES:
   F. Problem-solution: "Stop Saying [X] — Say This Instead"
   G. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
   H. Story-driven: "I [X] and Everything Went Wrong"
-- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
-- Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
-- Descriptions: Front-load a clear SEO line using natural language — e.g. "English listening practice for [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
-- Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
-- Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
-- Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
-- Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
-- For long-form videos include a scene-based timeline section using the placeholder {scene_timeline} (scene labels only — timestamps are injected later).
-- For quiz videos, include an "About This Lesson" section with AI-generated explanation of the idiom/theme before hashtags.
-- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
-- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
-- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
-- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms. Include keyword variations (e.g., if topic is "restaurant", include "dining", "eatery", "cafe").
-- Pinned comments must ask a specific question that viewers can answer quickly.
-
-DESCRIPTION TEMPLATE (adapt for shorts by omitting timeline and adding #Shorts hashtags):
-🎯 In this video, learn English via [topic summary]. Improve your English skills with natural expressions, idioms and phrasal verbs used in real-life scenarios. Master natural English for real conversations and learn to speak like a native!
-
-📑 About This Lesson:
-What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
-
-📺 Watch the playlist here: {playlist_url}
-
-💬 Comment below: [specific question]
-
-🔔 Subscribe to EnglishVibesHub for more English listening, speaking, and vocabulary practice.
-
-📑 Timeline:
-{scene_timeline}
-
-#LearnEnglish #EnglishListeningPractice #SpeakEnglish #[TopicTag] #EnglishForBeginners
-
-QUIZ SHORTS TEMPLATE (no timeline, hashtags at end):
-🎯 English listening practice conversational: [Idiom Quiz - Theme]. Master natural English for real conversations and learn hidden meanings to speak like a native!
-
-📑 About This Lesson:
-What does the [idiom/theme] mean? In everyday English conversation, [explanation]. Test your vocabulary skills with our quick quiz!
-
-📺 Watch the playlist here: {playlist_url}
-
-💬 Comment below: [specific question]
-
-🔔 Subscribe for more quick English quizzes!
-
-#Shorts #EnglishQuiz #LearnEnglish #EnglishForBeginners #[TopicTag]
+- Include chosen structure letter (A-H) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
+- Descriptions: Front-load SEO line ("English listening practice for [topic]"), include "Natural English" and "Speak like a native" in first 2-3 lines. Use keyword variations.
+- Include playlist CTA (📺 Watch the playlist here: {playlist_url}), comment CTA, subscribe CTA, and #LearnEnglish hashtags (max 5).
+- NEVER use branded hashtags like #EnglishVibesHub. Use ONLY {playlist_url} placeholder (not actual URLs).
+- Tags: high-intent SEO mixing broad English-learning + topic-specific terms. Pinned comments: specific question viewers can answer quickly.
 """
 
 PODCAST_METADATA_RULES = """
 METADATA RULES (PODCAST — under 3 min clips):
-- Titles must be high-CTR, curiosity-driven, and under 70 characters.
-- Podcast clips are SHORT (under 3 min). Titles must signal a quick listen, NOT a long episode.
-- NEVER use "Episode X", "Part X", or series numbering in titles — viewers swipe past these.
-- Use ONE of these title structures — DO NOT repeat the same structure consecutively:
-  A. Emotional hook: "When [X] Happened, Everything Changed"
-  B. Story cliffhanger: "She Said [X] and You Won't Believe What Happened Next"
-  C. Mistake-in-action: "He Used [X] Wrong and It Was Embarrassing"
-  D. Curiosity gap: "The [X] Nobody Talks About (But Everyone Gets Wrong)"
-  E. Relatable pain: "If You've Ever [X], You Know This Feeling"
-  F. Cultural shock: "Why [X] Is Completely Normal (But Sounds Wrong)"
-  G. Direct address: "You're Saying [X] Wrong — Here's Why"
-  H. Story-driven: "I Heard [X] and Couldn't Believe It"
-- Include the letter (A-H) of the title structure you chose in the JSON response as "title_structure" field.
-- Use selective ALL CAPS for at most 1-2 power words (STOP, DON'T, NEVER, SECRET).
-- Descriptions: Front-load a clear SEO line — e.g. "English podcast: [topic]" or "Learn English with [topic] conversation" — followed by topic-specific vocabulary.
-- Descriptions: Use keyword variation — if the topic is "restaurant", include "dining", "cafe", "food order" in the description to capture varied search intent.
-- Descriptions MUST include "Natural English" and "Speak like a native" (or close variants) in the first 2-3 lines.
-- Place the playlist and comment question CTAs immediately after the SEO opener (BEFORE timeline and other CTAs) to encourage early engagement.
-- Descriptions must use readable spacing with blank lines between sections and tasteful CTA icons (📺, 💬, 🔔, 📑, 🎯, 📚).
-- Descriptions must include a subscribe CTA, relevant hashtags (#LearnEnglish, #EnglishListeningPractice, #SpeakEnglish, topic tag, #EnglishForBeginners — max 5), and exactly one playlist placeholder line: 📺 Watch the playlist here: {playlist_url}
-- NEVER use branded hashtags like #EnglishVibesHub — they have zero discovery value.
-- IMPORTANT: Use ONLY the {playlist_url} placeholder. Do NOT wrap actual URLs in curly braces like {https://...}. The placeholder will be replaced with the actual URL later.
-- Tags must be high-intent SEO tags, mixing broad English-learning terms with topic-specific terms.
-- Pinned comments must ask a specific question that viewers can answer quickly.
+- Titles under 70 chars, high-CTR, curiosity-driven. NEVER use "Episode X" or series numbering.
+- Use ONE of these structures (rotate): A. Emotional hook B. Story cliffhanger C. Mistake-in-action D. Curiosity gap E. Relatable pain F. Cultural shock G. Direct address H. Story-driven
+- Include chosen letter as "title_structure". Selective ALL CAPS for 1-2 power words max.
+- Descriptions: Front-load SEO ("English podcast: [topic]"), include "Natural English" and "Speak like a native".
+- Include {playlist_url} placeholder, comment CTA, subscribe CTA, hashtags (max 5). NEVER use branded hashtags.
 """
 
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
@@ -2477,83 +2417,51 @@ TOPIC: {topic}
 
 {ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-VOICE CAST & CHARACTER ASSIGNMENT ROLES:
-- "Narrator" (Voice Profile: af_sarah): Speaks strictly in the third person. Acts as the connective tissue of the story — bridges scenes, weaves language explanations INTO the narrative flow (never pausing the story for a lesson), and guides transitions between beats.
-- "Emma" (Voice Profile: af_heart) & "Liam" (Voice Profile: am_echo): Main protagonist characters experiencing the event. They must speak 100% in the first-person ("I", "my", "we"). They can talk to each other, argue, collaborate, or panic.
-- "Guest" (Voice Profile: af_sky): A secondary character — bystander, shopkeeper, antagonist, clerk, or stranger. REQUIRED in stories set in public places (shops, airports, offices, streets). ALWAYS female character. Speaks naturally based on the scene setting requirements.
+VOICE CAST:
+- "Narrator": Third-person only. Bridges scenes, weaves explanations INTO narrative flow (never pauses story for lessons).
+- "Emma" & "Liam": Main protagonists. 100% first-person. Argue, collaborate, panic. Emma = reactive ("Oh," "Wait,"), short when panicked. Liam = analytical ("Hmm," "Right,"), rhetorical when excited.
+- "Guest": Secondary character (shopkeeper, stranger, etc.). REQUIRED in public settings. ALWAYS female. Match register to role.
 
 NATURAL EXPRESSION REQUIREMENTS:
-- Emma and Liam MUST use authentic, natural English expressions in their dialogue
-- Include at least 2-3 distinct phrasal verbs used naturally in context
-- Include at least 1-2 idioms appropriate to the situation
-- Use colloquial expressions and varied vocabulary beyond basic English
-- Characters should speak like real people in stressful situations, not textbook examples
-- Expressions must fit the emotional context and urgency of the scene
+- 2-3 phrasal verbs + 1-2 idioms used naturally in context
+- Characters speak like real people in stressful situations, not textbook examples
 
 VOCAL DELIVERY FOR TTS (text will be read aloud — write for the ear):
 - ! = pitch/energy boost. ... = slows/softens. — = mid-sentence break. Mix these per emotional beat.
 - Use short fragments for shock ("No way." "Wait, what?"), interjections ("Oh," "Hmm," "Ah,"), and vary sentence length within each turn.
 - Max 1 **double-asterisk** emphasis per turn on the most emotionally important phrase (e.g., "I can't believe you **actually said that**").
 
-CHARACTER SPEECH PATTERNS:
-- Emma: Reactive. Starts with "Oh," "Wait," "So,". Panicked = short sentences. Explaining = flowing with em-dashes.
-- Liam: Analytical. Uses "Hmm," "Right," as thinking beats. Excited = rhetorical questions.
-- Guest: Match register to role — service workers hedge, friends are blunt.
-- Narrator: Invested, not neutral. Builds tension with sentence rhythm, lands punchlines short.
+TOPIC ALIGNMENT (MANDATORY):
+- Story must directly embody the TOPIC — characters encounter/experience the specific concept.
+- Quiz tests the TOPIC expression, not a random phrasal verb. Narrator's closing references what was learned.
+- If TOPIC describes a mistake, characters must make/encounter that mistake (genuine example, not mislabeled).
+- Quiz: exactly ONE correct answer. Distractors must be clearly wrong, not just "less ideal".
 
-TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
-- The entire story MUST be built around teaching or illustrating the exact TOPIC provided above
-- The dialogue characters MUST encounter, discuss, or experience the specific concept, phrase, or mistake described in the TOPIC — the story is not generic, it must directly embody the TOPIC
-- The quiz question MUST test the listener's understanding of the expression, phrase, or concept from the TOPIC — not a random unrelated phrasal verb
-- The Narrator's closing line MUST reference what was learned about the TOPIC
-- If the TOPIC describes a mistake (e.g. "The [X] Mistake"), the story MUST show characters making or encountering that mistake and learning the correct alternative
-- MISTAKE ACCURACY: When depicting a mistake, the character's line must be a genuine example of the mistake — not a correct/polite form mislabeled as wrong. For example, "No thanks, I'm good" is already a polite decline (it has a softener), so it must NOT be treated as the mistake. A true "no thanks" mistake would be a flat "No thanks." with no follow-up, no softener, and a dismissive tone.
-- QUIZ OPTION QUALITY: The quiz must have exactly ONE unambiguously correct answer. Distractors must be clearly wrong — not just "less ideal" or "slightly less polite." If two options could both be considered correct, rewrite the options so only one is defensible. For example, both "No thanks, but I'll take a coffee" and "I'm fine, thanks" are polite declines, so they must NOT both appear as options — pick one as the correct answer and make the distractors genuinely incorrect (e.g., a flat "No thanks." with no softener).
+CRITICAL RULES:
+1. Output ONLY valid JSON. 2. At least 14 turns, 2-4 sentences each. 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Max 1-2 inline explanations. No meta-language ("let me explain"). 5. Interactive challenge before climax: Narrator cues → Option A/B/C on separate lines (use "Option A:" not bare "A:") → [PAUSE 3 SECONDS] → Narrator reveals answer.
 
-CRITICAL PIPELINE VALIDATION RULES:
-1. OUTPUT CONSTRAINTS: Return ONLY a valid, parseable JSON block matching the structure pattern layout below. Do not wrap in conversational meta-text.
-2. TOTAL SCRIPT VOLUMETRIC BUDGET: The total conversational sequence array must contain at least 14 turns (no hard upper limit — write as many turns as the story needs). To preserve natural conversation flow while maintaining reasonable runtime, individual dialogue turns should be 2-4 sentences per turn (allowing for natural expression development).
-3. PERSPECTIVE GUARD: The Narrator must never speak in the first person. Characters must never speak in the third person. Liam and Emma must stay entirely inside the world of the crisis; they must never step out to teach words or talk about the English lesson.
-4. INTEGRATED LESSON ENGINE: The Narrator weaves language explanations INTO the narrative flow — the story NEVER stops for a lesson. After a character uses an idiom or phrasal verb, the Narrator's next line should feel like a natural continuation of the scene, not a classroom aside. For example: after Emma says "things got out of hand," the Narrator might say "And just like that, the situation Emma feared most was exactly what was happening." The explanation is embedded in the storytelling, not bolted onto it. Limit to 1-2 brief inline explanations maximum. Use natural phrasing — never meta-language like "phrasal verb breakdown", "phrase verb spotlight", "let me explain", or "here's what that means". The Narrator must remain in third-person storytelling mode at all times. If the Narrator feels like they're pausing the scene to teach, rewrite the line so the lesson flows as part of the story.
-5. INTERACTIVE BEAT PLACEMENT: Include exactly one meaningful expression challenge right before the narrative climax beat. The challenge should test understanding of a phrasal verb, idiom, or contextual expression (NOT basic vocabulary). The sequence MUST be: (1) The Narrator verbally cues the challenge, (2) A character speaks the challenge scenario — then on SEPARATE lines, each option on its own line starting with the word "Option" (e.g. "Option A: No thanks." / "Option B: No thanks, but I'll take a coffee." / "Option C: No, I don't want anything.") — this is critical for TTS pronunciation, never use bare "A:" "B:" "C:" labels, (3) A SEPARATE dialogue turn with speaker "Narrator" and text exactly "[PAUSE 3 SECONDS]" (no other text in this turn), (4) IMMEDIATELY AFTER the pause turn, the Narrator MUST explicitly state the correct answer with brief explanation before continuing with story resolution.
+STRUCTURAL STAGES:
+1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy.
+2. Complications: Obstacle worsens, organic reactions, natural expressions.
+3. Organic Teaching: Narrator contextualizes idioms as part of ongoing narrative.
+4. Climax & Challenge: Peak tension + expression challenge.
+5. Resolution: Natural close. Narrator's final 1-line bridge plays OVER Summary Card. No sign-offs.
 
-STRUCTURAL MOVEMENT STAGES:
-- Stage 1: The Crisis Hook (In Media Res start with HIGH MOMENTUM. Opening dialogue turns should be SHORT — 1-2 sentences each — to create rapid back-and-forth cuts between characters. Drop the viewer into the middle of the action with emotional urgency, no slow buildup. The first 2-3 turns should feel like a trailer: punchy, fast, high-stakes.)
-- Stage 2: Narrative Complications (The obstacle worsens, characters react organically with authentic emotions, argue, or pivot strategies using natural expressions).
-- Stage 3: Organic Teaching Blocks (The Narrator's language explanations are woven seamlessly into scene transitions — the story never pauses. After a character uses an idiom, the Narrator's next line contextualizes it naturally as part of the ongoing narrative, keeping momentum and emotional tension alive.)
-- Stage 4: Climax & Challenge (The absolute peak of tension, followed by a meaningful expression challenge that tests real understanding).
-- Stage 5: Resolution & Seamless Engagement (The crisis resolves naturally. The Narrator's final line should be a brief 1-line bridge — e.g. "Here's what we learned in today's story..." or "Let's remember the key phrases from this adventure..." — that plays OVER the Summary Card scene. The summary card shows the idioms covered. After the card, the Narrator redirects the viewer to the pinned comment question. No generic intros/outros, no "thanks for watching", no "like and subscribe".)
-
-JSON OUTPUT FORMAT (Follow this structure exactly):
+JSON FORMAT:
 {{
-  "title": "High-CTR Title that directly references the TOPIC above, matching METADATA RULES (must be under 70 characters — YouTube truncates at ~60 on mobile)",
-  "description": "String matching DESCRIPTION TEMPLATE exactly",
-  "pinned_comment": "Narrative retention engagement question",
-  "tags": [ "Tag1", "Tag2" ],
+  "title": "string (under 70 chars, matches METADATA RULES)",
+  "description": "string",
+  "pinned_comment": "string",
+  "tags": ["string"],
   "dialogue": [
-    {{
-      "turn_number": 1,
-      "speaker": "Narrator",
-      "text": "..."
-    }},
-    {{
-      "turn_number": 2,
-      "speaker": "Emma or Liam",
-      "text": "..."
-    }}
+    {{"turn_number": 1, "speaker": "Narrator", "text": "..."}},
+    {{"turn_number": 2, "speaker": "Emma or Liam", "text": "..."}}
   ],
   "thumbnail_text": "TEXT",
   "thumbnail_concept": "CONCEPT",
-  "theme": "Short 2-5 word label that matches the TOPIC (e.g. for TOPIC 'The No Thanks Mistake' → theme 'No Thanks Mistake')",
+  "theme": "2-5 word label matching TOPIC",
   "scenes": [
-    {{
-      "scene_id": 1,
-      "scene_label": "string (short chapter label for YouTube timeline, e.g. Crisis Hook)",
-      "image_filename": "scene_storm_hits.png",
-      "visual_prompt": "string (ONE highly descriptive 3D Pixar-style Cinematic prompt",
-      "start_turn": 1,
-      "end_turn": 2
-    }}
+    {{"scene_id": 1, "scene_label": "string", "image_filename": "scene.png", "visual_prompt": "3D Pixar-style prompt", "start_turn": 1, "end_turn": 2}}
   ]
 }}
 """
@@ -3671,32 +3579,14 @@ FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
-- "Emma" (af_heart) & "Liam" (am_michael): Radio hosts. First-person. Appear in Stages 1-2 (hook/studio intro), 3 (caller setup reactions), 5-7 (back-to-studio/analysis/wrap-up). NEVER in Stage 4.
-- "Caller" (af_bella) OR "Caller_Male" (am_echo): Randomly alternate between female and male callers across episodes. Give the caller a realistic first name (e.g. Maya, Sarah, Jake, David, Priya, Carlos). The hosts address them by name. The JSON speaker key MUST be "Caller" or "Caller_Male", but the actual dialogue text uses their name. The caller is a third-person narrator — they recount someone else's experience. Appears in Stage 1 (hook — 1 line), Stage 3 (recounting a friend/colleague's confusing English — 2-3 lines), Stage 5 (still confused about what went wrong — 2-3 lines). Does NOT appear in Stage 4 (the story scene).
-- "StoryActor1" (am_adam): A character IN the story. Speaks as themselves in the present moment. NEVER narrate actions or describe what they're doing — just say the direct spoken line. Use "StoryActor1_Female" (af_bella) for female characters.
-- "StoryActor2" (af_sarah): Same rules as StoryActor1. Use "StoryActor2_Male" (am_echo) for male characters.
-- "Guest" (af_sky): Optional. Always female.
+- "Emma" & "Liam": Radio hosts. First-person. NEVER in Stage 4. Emma = energetic ("Oh, absolutely!"). Liam = curious ("Wait, so you're saying...?").
+- "Caller" / "Caller_Male": Randomly alternate. Give realistic first name. 3rd-person narrator ("my friend said..."). Stages 1, 3, 5 only.
+- "StoryActor1" & "StoryActor2": Characters IN the story. Direct spoken lines only — NO narration, NO body language. Use "_Female"/"_Male" variants as needed.
+- "Guest" (optional): Always female.
 
 NATURAL EXPRESSION REQUIREMENTS:
-- StoryActors (StoryActor1, StoryActor2) MUST use authentic, natural English expressions in their dialogue
-- Caller uses 3rd-person framing throughout. "I" refers to the caller's own confusion ("I was confused when my friend said..."), NOT the story character's actions. Use "my friend said...", "my colleague told me...", "someone at work said..."
-- Include at least 2-3 distinct phrasal verbs used naturally in context throughout the story
-- Include at least 1-2 idioms appropriate to the situation
-- Use colloquial expressions and varied vocabulary beyond basic English
-- Characters should speak like real people in stressful situations, not textbook examples
-- Expressions must fit the emotional context and urgency of the scene
-- Emma and Liam should highlight and explain these expressions during Stage 6 (Host Analysis)
-
-VOCAL DELIVERY FOR TTS (text will be read aloud — write for the ear):
-- ! = pitch/energy boost. ... = slows/softens. — = mid-sentence break. Mix these per emotional beat.
-- Use short fragments for shock ("No way." "Wait, what?"), interjections ("Oh," "Hmm," "Ah,"), and vary sentence length within each turn.
-- Max 1 **double-asterisk** emphasis per turn on the most emotionally important phrase.
-
-CHARACTER SPEECH PATTERNS:
-- Emma (Host): Energetic radio host. "Oh, absolutely!" "That's a great point!" — warm but authoritative.
-- Liam (Host): Curious co-host. "Wait, so you're saying...?" "Hmm, that's interesting." — drives analysis with questions.
-- Caller: Nervous/confused. "I was so confused when..." "Like, what did they mean?" — natural hesitation.
-- StoryActors: Real people in the moment — interjections, reactions, incomplete sentences. No narration.
+- 2-3 phrasal verbs + 1-2 idioms used naturally. StoryActors speak like real people, not textbook examples.
+- Caller uses 3rd-person framing ("my friend said..."). Emma/Liam highlight expressions in Stage 6.
 
 ANTI-REPETITION RULE: In Stage 4 (Full Story), avoid repeating the same filler word or phrase (like "anyway", "so", "well") more than 2-3 times total. If a character overuses a transition word, it feels robotic and unnatural. Cut repetitive dialogue even if it reduces turn count.
 
