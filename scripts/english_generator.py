@@ -2490,25 +2490,16 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Characters should speak like real people in stressful situations, not textbook examples
 - Expressions must fit the emotional context and urgency of the scene
 
-VOCAL DELIVERY FOR TTS (the text will be read aloud — write for the ear, not the eye):
-- Use exclamation marks for urgent/excited lines — the TTS engine raises pitch and energy on "!"
-- Use em-dashes (—) for interrupted speech or sudden realizations — creates natural mid-sentence breaks
-- Use ellipses (...) for trailing off, hesitation, or contemplation — TTS slows and softens
-- Use short declarative fragments for shock or emphasis: "No way." "That's insane." "Wait, what?"
-- Vary sentence length dramatically within the same turn — mix one-word reactions with longer runs
-- Include natural interjections: "Oh," "Wait," "Hmm," "Right," "Ah," "Ugh," "Oh no," "Seriously?"
-- Angry/frustrated lines: shorter, clipped sentences. Excited lines: longer, breathless runs.
-- NEVER start a character's first line in a scene with a full sentence — start with a reaction word or fragment
-- Use **double asterisks** around the single most emotionally important phrase per character turn.
-  These become emphasis markers that slow the delivery slightly for dramatic weight.
-  Use sparingly: max 1 per turn, only on lines with genuine emotional weight.
-  Example: "I can't believe you **actually said that** to her."
+VOCAL DELIVERY FOR TTS (text will be read aloud — write for the ear):
+- ! = pitch/energy boost. ... = slows/softens. — = mid-sentence break. Mix these per emotional beat.
+- Use short fragments for shock ("No way." "Wait, what?"), interjections ("Oh," "Hmm," "Ah,"), and vary sentence length within each turn.
+- Max 1 **double-asterisk** emphasis per turn on the most emotionally important phrase (e.g., "I can't believe you **actually said that**").
 
 CHARACTER SPEECH PATTERNS:
-- Emma: Energetic, reactive. Starts lines with "Oh," "Wait," "So," "Okay,". Uses exclamations freely. When panicked, sentences get shorter. When explaining, uses flowing sentences with em-dashes.
-- Liam: Analytical but warm. Uses "Hmm," "Right," "Actually," as thinking beats. When excited about a discovery, uses rhetorical questions: "But what if...?"
-- Guest: Match speech register to the character's role. Service workers use polite hedging ("I think maybe..."), friends are blunt.
-- Narrator: Third-person but NOT neutral. Sounds invested — uses dramatic pauses (ellipsis), builds tension through sentence rhythm, lands punchlines with short declarative closers.
+- Emma: Reactive. Starts with "Oh," "Wait," "So,". Panicked = short sentences. Explaining = flowing with em-dashes.
+- Liam: Analytical. Uses "Hmm," "Right," as thinking beats. Excited = rhetorical questions.
+- Guest: Match register to role — service workers hedge, friends are blunt.
+- Narrator: Invested, not neutral. Builds tension with sentence rhythm, lands punchlines short.
 
 TOPIC ALIGNMENT RULE (MANDATORY — the single most important rule):
 - The entire story MUST be built around teaching or illustrating the exact TOPIC provided above
@@ -3696,25 +3687,16 @@ NATURAL EXPRESSION REQUIREMENTS:
 - Expressions must fit the emotional context and urgency of the scene
 - Emma and Liam should highlight and explain these expressions during Stage 6 (Host Analysis)
 
-VOCAL DELIVERY FOR TTS (the text will be read aloud — write for the ear, not the eye):
-- Use exclamation marks for urgent/excited lines — the TTS engine raises pitch and energy on "!"
-- Use em-dashes (—) for interrupted speech or sudden realizations — creates natural mid-sentence breaks
-- Use ellipses (...) for trailing off, hesitation, or contemplation — TTS slows and softens
-- Use short declarative fragments for shock or emphasis: "No way." "That's insane." "Wait, what?"
-- Vary sentence length dramatically within the same turn — mix one-word reactions with longer runs
-- Include natural interjections: "Oh," "Wait," "Hmm," "Right," "Ah," "Ugh," "Oh no," "Seriously?"
-- Angry/frustrated lines: shorter, clipped sentences. Excited lines: longer, breathless runs.
-- NEVER start a character's first line in a scene with a full sentence — start with a reaction word or fragment
-- Use **double asterisks** around the single most emotionally important phrase per character turn.
-  These become emphasis markers that slow the delivery slightly for dramatic weight.
-  Use sparingly: max 1 per turn, only on lines with genuine emotional weight.
-  Example: "I can't believe you **actually said that** to her."
+VOCAL DELIVERY FOR TTS (text will be read aloud — write for the ear):
+- ! = pitch/energy boost. ... = slows/softens. — = mid-sentence break. Mix these per emotional beat.
+- Use short fragments for shock ("No way." "Wait, what?"), interjections ("Oh," "Hmm," "Ah,"), and vary sentence length within each turn.
+- Max 1 **double-asterisk** emphasis per turn on the most emotionally important phrase.
 
 CHARACTER SPEECH PATTERNS:
-- Emma (Host): Energetic radio host energy. Uses "Oh, absolutely!" "That's a great point!" — warm but authoritative. When analyzing, uses structured sentences.
-- Liam (Host): Curious co-host. Uses "Wait, so you're saying...?" "Hmm, that's interesting." — drives the analysis forward with questions.
-- Caller: Nervous/confused energy. Uses "I was so confused when..." "Like, what did they mean?" — natural hesitation markers.
-- StoryActor1 & StoryActor2: Dialogue from a scene — they should sound like real people in the moment, not narrators. Use interjections, reactions, incomplete sentences.
+- Emma (Host): Energetic radio host. "Oh, absolutely!" "That's a great point!" — warm but authoritative.
+- Liam (Host): Curious co-host. "Wait, so you're saying...?" "Hmm, that's interesting." — drives analysis with questions.
+- Caller: Nervous/confused. "I was so confused when..." "Like, what did they mean?" — natural hesitation.
+- StoryActors: Real people in the moment — interjections, reactions, incomplete sentences. No narration.
 
 ANTI-REPETITION RULE: In Stage 4 (Full Story), avoid repeating the same filler word or phrase (like "anyway", "so", "well") more than 2-3 times total. If a character overuses a transition word, it feels robotic and unnatural. Cut repetitive dialogue even if it reduces turn count.
 
