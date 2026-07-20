@@ -1127,15 +1127,6 @@ def finalize_english_description(
         text = remove_timeline_from_shorts(text)
     text = ensure_english_description_cta(text, include_timeline=include_timeline)
     
-    # Restore existing comment if it was preserved (replace generic comment)
-    if existing_comment:
-        text = re.sub(
-            r'💬\s*Comment\s+below:\s*Which\s+phrase\s+will\s+you\s+practice\s+today\?',
-            existing_comment,
-            text,
-            flags=re.IGNORECASE
-        )
-    
     if is_quiz:
         # Add About This Lesson section for quiz videos (inserts after SEO opener, before CTAs)
         text = ensure_english_quiz_about_section(text, theme=theme)
@@ -1151,6 +1142,24 @@ def finalize_english_description(
     text = ensure_description_section_order(text)
     # Final spacing normalization
     text = normalize_description_spacing(text)
+
+    # Final safety net: re-check that core CTAs are present (downstream processors
+    # can accidentally drop them, e.g. when _cleanup_sentence_fragments collapses
+    # newlines and remove_timeline_from_shorts eats past the comment/subscribe).
+    text = ensure_english_description_cta(text, include_timeline=include_timeline)
+
+    # Restore LLM-specific comment if it was captured earlier
+    if existing_comment:
+        text = re.sub(
+            r'💬\s*Comment\s+below:\s*Which\s+phrase\s+will\s+you\s+practice\s+today\?',
+            existing_comment,
+            text,
+            flags=re.IGNORECASE
+        )
+        # Re-enforce order after replacement
+        text = ensure_description_section_order(text)
+        text = normalize_description_spacing(text)
+
     return text
 
 
