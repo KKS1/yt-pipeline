@@ -2438,7 +2438,7 @@ TOPIC ALIGNMENT (MANDATORY):
 - Quiz: exactly ONE correct answer. Distractors must be clearly wrong, not just "less ideal".
 
 CRITICAL RULES:
-1. Output ONLY valid JSON. 2. At least 14 turns, 2-4 sentences each. 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Max 1-2 inline explanations. No meta-language ("let me explain"). 5. Interactive challenge before climax: Narrator cues → Option A/B/C on separate lines (use "Option A:" not bare "A:") → [PAUSE 3 SECONDS] → Narrator reveals answer.
+1. Output ONLY valid JSON. 2. At least 14 turns, 2-4 sentences each. 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Max 1-2 inline explanations. No meta-language ("let me explain"). 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) "Option A: [text]" on its own turn, (c) "Option B: [text]" on its own turn, (d) "Option C: [text]" on its own turn, (e) turn with text exactly "[PAUSE 3 SECONDS]", (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn.
 
 STRUCTURAL STAGES:
 1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy.
@@ -3575,7 +3575,14 @@ FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
 3. CALLER STORY SETUP (2-3 turns): Caller tells Emma & Liam about a confusing English situation they witnessed involving a friend or colleague. Use 3rd-person framing: "my friend said...", "my colleague told me...", "someone at work said...". Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
 4. FULL STORY (6-8 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told. Keep it tight — 6-8 turns maximum.
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller still doesn't understand what went wrong with their friend's/colleague's English. References the character by role ("my friend", "my coworker"), not as themselves.
-6. HOST ANALYSIS (8-10 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz: Host cues challenge → Option A/B/C turns → "[PAUSE 3 SECONDS]" → Host reveals answer.
+6. HOST ANALYSIS (8-10 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz with this EXACT turn sequence:
+   (a) Host verbally cues the challenge (e.g., "Quick challenge — which one is correct?")
+   (b) Option A on its own turn: "Option A: [text]"
+   (c) Option B on its own turn: "Option B: [text]"
+   (d) Option C on its own turn: "Option C: [text]"
+   (e) A SEPARATE turn with speaker "Host" (Emma or Liam) and text exactly "[PAUSE 3 SECONDS]"
+   (f) Host reveals the correct answer with brief explanation.
+   NEVER put the pause before the options. NEVER combine multiple options into one turn.
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
