@@ -2652,8 +2652,6 @@ You are an elite showrunner and scriptwriter for the multi-character storytellin
 TOPIC: {topic}
 {avoid_instruction}
 
-{ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
-
 VOICE CAST:
 - "Narrator": Third-person only. Bridges scenes, weaves explanations INTO narrative flow (never pauses story for lessons).
 - "Emma" & "Liam": Main protagonists. 100% first-person. Argue, collaborate, panic. Emma = reactive ("Oh," "Wait,"), short when panicked. Liam = analytical ("Hmm," "Right,"), rhetorical when excited.
