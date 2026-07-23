@@ -52,6 +52,7 @@ BG_MUSIC_VOLUME = 0.08   # Keep background music subtle under narration
 NARRATION_VOLUME = 1.0
 BUMPER_CHANNEL_ALIASES = {
     "english-challenge": "english",
+    "english-podcast": "english",
 }
 
 THUMBNAIL_STYLES = {
