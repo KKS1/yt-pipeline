@@ -410,9 +410,9 @@ def validate_organic_english_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Rule: 14+ turns for organic format)
-    if turn_count < 14:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be at least 14.")
+    # 1. VALIDATE TURN BOUNDARIES (Rule: 28+ turns for organic format - doubled for longer videos)
+    if turn_count < 28:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be at least 28.")
         return script_data, False
 
     # Track structural validation targets
@@ -483,9 +483,9 @@ def validate_podcast_script(raw_input):
     dialogue = script_data.get("dialogue", [])
     turn_count = len(dialogue)
 
-    # 1. VALIDATE TURN BOUNDARIES (Podcast format — 20+ turns for full 7-stage structure)
-    if turn_count < 20 or turn_count > 65:
-        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 20 and 65.")
+    # 1. VALIDATE TURN BOUNDARIES (Podcast format — 40+ turns for full 7-stage structure - doubled for longer videos)
+    if turn_count < 40 or turn_count > 130:
+        print(f"❌ Retention Failure: Script has {turn_count} turns. Must be between 40 and 130.")
         return script_data, False
 
     # 2. VALIDATE THEME FIELD (optional — fall back to title if missing)
@@ -1982,6 +1982,7 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
       H. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
       I. Story-driven: "I [X] and Everything Went Wrong"
       J. Challenge: "Can You Pass This [X] English Test?"
+      K. Don't warning: "DON'T Say [X] — Use This Instead"
     - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
     - The title should make a viewer curious enough to click, NOT describe the content like a textbook heading
     - Include one natural keyword variant (e.g., if about "restaurant" include "dining", "cafe", "food order")
@@ -2673,7 +2674,7 @@ TOPIC ALIGNMENT (MANDATORY):
 - Quiz: exactly ONE correct answer. Distractors must be clearly wrong, not just "less ideal".
 
 CRITICAL RULES:
-1. Output ONLY valid JSON. 2. At least 14 turns, 2-4 sentences each. 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Max 1-2 inline explanations. No meta-language ("let me explain"). 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) "Option A: [text]" on its own turn, (c) "Option B: [text]" on its own turn, (d) "Option C: [text]" on its own turn, (e) turn with text exactly "[PAUSE 3 SECONDS]", (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn.
+1. Output ONLY valid JSON. 2. At least 28 turns, 2-4 sentences each (doubled for longer, more comprehensive content). 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Include more detailed examples and cultural context throughout. 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) Emma or Liam says "Option A: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (c) Emma or Liam says "Option B: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (d) Emma or Liam says "Option C: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (e) Emma or Liam has a turn with text exactly "[PAUSE 3 SECONDS]" (speaker field must be "Emma" or "Liam"), (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn. NEVER use "Option A", "Option B", "Option C", or "[PAUSE 3 SECONDS]" as speaker field values - always use character names.
 
 STRUCTURAL STAGES:
 1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy.
@@ -2681,6 +2682,18 @@ STRUCTURAL STAGES:
 3. Organic Teaching: Narrator contextualizes idioms as part of ongoing narrative.
 4. Climax & Challenge: Peak tension + expression challenge.
 5. Resolution: Natural close. Narrator's final 1-line bridge plays OVER Summary Card. No sign-offs.
+
+AVD-FOCUSED PACING (for longer content retention):
+- Add engagement hooks every 30-45 seconds to prevent viewer drop-off
+- Include interactive questions and challenges throughout the story
+- Maintain narrative momentum with cliffhangers between sections
+- Use varied pacing to prevent monotony in the longer format
+- Apply quiz-style engagement triggers (pinned comment questions, viewer participation)
+
+TITLE OPTIMIZATION (apply shorts/quiz success factors):
+- Use proven high-CTR formulas: mistake hooks, curiosity gaps, "Master This", "Complete Guide"
+- Include generic English-learning keywords: "English Practice", "Easy English", "English Listening"
+- Focus on universally appealing topics that resonate with broader audience
 
 JSON FORMAT:
 {{
@@ -2707,6 +2720,7 @@ JSON FORMAT:
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
+        # Multi-part Groq call: Part 1 - Generate dialogue with higher turn count
         raw_script = call_groq_json(prompt_short_story)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
@@ -3584,32 +3598,48 @@ TOPIC: {topic}
 
 {PODCAST_METADATA_RULES.replace('{playlist_url}', '{{playlist_url}}')}
 
-FORMAT: Radio podcast, 25+ dialogue turns, 7 stages in this EXACT order:
+FORMAT: Radio podcast, 50+ dialogue turns (doubled for longer, more comprehensive content), 7 stages in this EXACT order:
 
 1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
 2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
 3. CALLER STORY SETUP (2-3 turns): Caller tells Emma & Liam about a confusing English situation they witnessed involving a friend or colleague. Use 3rd-person framing: "my friend said...", "my colleague told me...", "someone at work said...". Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
-4. FULL STORY (6-8 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told. Keep it tight — 6-8 turns maximum.
+4. FULL STORY (12-16 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told. Extended to 12-16 turns for more detailed storytelling and cultural context.
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller still doesn't understand what went wrong with their friend's/colleague's English. References the character by role ("my friend", "my coworker"), not as themselves.
-6. HOST ANALYSIS (8-10 turns): Emma/Liam react, explain the mistake, teach correct usage with examples. Include one quiz with this EXACT turn sequence:
+6. HOST ANALYSIS (16-20 turns): Emma/Liam react, explain the mistake, teach correct usage with MORE detailed examples and cultural context. Include multiple practice scenarios and deeper explanations. Include one quiz with this EXACT turn sequence:
    (a) Host verbally cues the challenge (e.g., "Quick challenge — which one is correct?")
-   (b) Option A on its own turn: "Option A: [text]"
-   (c) Option B on its own turn: "Option B: [text]"
-   (d) Option C on its own turn: "Option C: [text]"
-   (e) A SEPARATE turn with speaker "Host" (Emma or Liam) and text exactly "[PAUSE 3 SECONDS]"
+   (b) Emma or Liam on their own turn: "Option A: [text]" (speaker field must be "Emma" or "Liam")
+   (c) Emma or Liam on their own turn: "Option B: [text]" (speaker field must be "Emma" or "Liam")
+   (d) Emma or Liam on their own turn: "Option C: [text]" (speaker field must be "Emma" or "Liam")
+   (e) A SEPARATE turn with speaker "Emma" or "Liam" and text exactly "[PAUSE 3 SECONDS]" (speaker field must be "Emma" or "Liam")
    (f) Host reveals the correct answer with brief explanation.
-   NEVER put the pause before the options. NEVER combine multiple options into one turn.
+   NEVER put the pause before the options. NEVER combine multiple options into one turn. NEVER use "Option A", "Option B", "Option C", or "[PAUSE 3 SECONDS]" as speaker field values - always use character names.
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
 - "Emma" & "Liam": Radio hosts. First-person. NEVER in Stage 4. Emma = energetic ("Oh, absolutely!"). Liam = curious ("Wait, so you're saying...?").
 - "Caller" / "Caller_Male": Randomly alternate. Give realistic first name. 3rd-person narrator ("my friend said..."). Stages 1, 3, 5 only.
 - "StoryActor1" & "StoryActor2": Characters IN the story. Direct spoken lines only — NO narration, NO body language. Use "_Female"/"_Male" variants as needed.
+- "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale": Alternative variants for StoryActor roles when needed.
 - "Guest" (optional): Always female.
+
+CRITICAL SPEAKER NAME RULES:
+- ONLY use these EXACT speaker names: "Emma", "Liam", "Caller", "Caller_Male", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale", "Guest"
+- NEVER invent custom speaker names like "Alex_Male", "Boss_Female", "Jenna", "Coworker", etc.
+- If you need a male character in the story, use "StoryActor1" or "StoryActor2_Male"
+- If you need a female character in the story, use "StoryActor2" or "StoryActor1_Female"
+- The story characters are ALWAYS StoryActor1 and StoryActor2 (with gender variants as needed)
 
 NATURAL EXPRESSION REQUIREMENTS:
 - 2-3 phrasal verbs + 1-2 idioms used naturally. StoryActors speak like real people, not textbook examples.
 - Caller uses 3rd-person framing ("my friend said..."). Emma/Liam highlight expressions in Stage 6.
+- Include more detailed examples and cultural context throughout for comprehensive learning.
+
+AVD-FOCUSED PACING (for longer content retention):
+- Add engagement hooks every 30-45 seconds to prevent viewer drop-off
+- Include interactive questions and challenges throughout the analysis section
+- Maintain narrative momentum with cliffhangers between sections
+- Use varied pacing to prevent monotony in the longer format
+- Apply quiz-style engagement triggers (pinned comment questions, viewer participation)
 
 ANTI-REPETITION RULE: In Stage 4 (Full Story), avoid repeating the same filler word or phrase (like "anyway", "so", "well") more than 2-3 times total. If a character overuses a transition word, it feels robotic and unnatural. Cut repetitive dialogue even if it reduces turn count.
 
@@ -3618,7 +3648,7 @@ SHARP HOST BACK-AND-FORTH: In Stage 6 (Host Analysis), Emma and Liam should NOT 
 ACCELERATED TRANSITION: After Stage 4 (Full Story) ends, immediately transition into Stage 6 (Host Analysis) teaching the two definitive rules for the topic. Do not linger in Stage 5 (Back to Studio) with extended reflection - keep it to 2-3 turns maximum where Caller expresses lingering confusion, then move straight to the teaching.
 
 RULES:
-- 25+ total turns. Hook=2, Studio=2-3, Caller Setup=2-3, Story=6-8, Back=2-3, Analysis=8-10, Wrap=2-3.
+- 50+ total turns (doubled for longer, more comprehensive content). Hook=2, Studio=2-3, Caller Setup=2-3, Story=12-16, Back=2-3, Analysis=16-20, Wrap=2-3.
 - StoryActors NEVER narrate. They speak directly as their characters. No "he said", "she whispered", "I nodded and replied" — just the line.
 - Caller does NOT appear in Stage 4 (Full Story). Caller appears in Stages 1, 3, and 5.
 - Caller uses 3rd-person framing: "my friend said..." not "I said...". The caller narrates someone else's story.
@@ -3639,6 +3669,7 @@ Dialogue MUST start with Caller (Hook), NOT Emma/Liam. After the story, Caller M
         attempts += 1
         print(f"🔄 Generation Attempt {attempts}...")
 
+        # Multi-part Groq call: Part 1 - Generate dialogue with higher turn count
         raw_script = call_groq_json(prompt)
         # Preprocess to separate mixed pause markers before validation
         raw_script = separate_mixed_pause_turns(raw_script)
