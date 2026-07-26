@@ -3619,7 +3619,15 @@ VOICES:
 - "Emma" & "Liam": Radio hosts. First-person. NEVER in Stage 4. Emma = energetic ("Oh, absolutely!"). Liam = curious ("Wait, so you're saying...?").
 - "Caller" / "Caller_Male": Randomly alternate. Give realistic first name. 3rd-person narrator ("my friend said..."). Stages 1, 3, 5 only.
 - "StoryActor1" & "StoryActor2": Characters IN the story. Direct spoken lines only — NO narration, NO body language. Use "_Female"/"_Male" variants as needed.
+- "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale": Alternative variants for StoryActor roles when needed.
 - "Guest" (optional): Always female.
+
+CRITICAL SPEAKER NAME RULES:
+- ONLY use these EXACT speaker names: "Emma", "Liam", "Caller", "Caller_Male", "StoryActor1", "StoryActor2", "StoryActor1_Female", "StoryActor2_Male", "StoryActor1_AltMale", "StoryActor2_AltFemale", "Guest"
+- NEVER invent custom speaker names like "Alex_Male", "Boss_Female", "Jenna", "Coworker", etc.
+- If you need a male character in the story, use "StoryActor1" or "StoryActor2_Male"
+- If you need a female character in the story, use "StoryActor2" or "StoryActor1_Female"
+- The story characters are ALWAYS StoryActor1 and StoryActor2 (with gender variants as needed)
 
 NATURAL EXPRESSION REQUIREMENTS:
 - 2-3 phrasal verbs + 1-2 idioms used naturally. StoryActors speak like real people, not textbook examples.
