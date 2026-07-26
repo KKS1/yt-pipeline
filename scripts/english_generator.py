@@ -1982,6 +1982,7 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
       H. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
       I. Story-driven: "I [X] and Everything Went Wrong"
       J. Challenge: "Can You Pass This [X] English Test?"
+      K. Don't warning: "DON'T Say [X] — Use This Instead"
     - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
     - The title should make a viewer curious enough to click, NOT describe the content like a textbook heading
     - Include one natural keyword variant (e.g., if about "restaurant" include "dining", "cafe", "food order")
@@ -2673,7 +2674,7 @@ TOPIC ALIGNMENT (MANDATORY):
 - Quiz: exactly ONE correct answer. Distractors must be clearly wrong, not just "less ideal".
 
 CRITICAL RULES:
-1. Output ONLY valid JSON. 2. At least 28 turns, 2-4 sentences each (doubled for longer, more comprehensive content). 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Include more detailed examples and cultural context throughout. 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) "Option A: [text]" on its own turn, (c) "Option B: [text]" on its own turn, (d) "Option C: [text]" on its own turn, (e) turn with text exactly "[PAUSE 3 SECONDS]", (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn.
+1. Output ONLY valid JSON. 2. At least 28 turns, 2-4 sentences each (doubled for longer, more comprehensive content). 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Include more detailed examples and cultural context throughout. 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) Emma or Liam says "Option A: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (c) Emma or Liam says "Option B: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (d) Emma or Liam says "Option C: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (e) Emma or Liam has a turn with text exactly "[PAUSE 3 SECONDS]" (speaker field must be "Emma" or "Liam"), (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn. NEVER use "Option A", "Option B", "Option C", or "[PAUSE 3 SECONDS]" as speaker field values - always use character names.
 
 STRUCTURAL STAGES:
 1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy.
@@ -3606,12 +3607,12 @@ FORMAT: Radio podcast, 50+ dialogue turns (doubled for longer, more comprehensiv
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller still doesn't understand what went wrong with their friend's/colleague's English. References the character by role ("my friend", "my coworker"), not as themselves.
 6. HOST ANALYSIS (16-20 turns): Emma/Liam react, explain the mistake, teach correct usage with MORE detailed examples and cultural context. Include multiple practice scenarios and deeper explanations. Include one quiz with this EXACT turn sequence:
    (a) Host verbally cues the challenge (e.g., "Quick challenge — which one is correct?")
-   (b) Option A on its own turn: "Option A: [text]"
-   (c) Option B on its own turn: "Option B: [text]"
-   (d) Option C on its own turn: "Option C: [text]"
-   (e) A SEPARATE turn with speaker "Host" (Emma or Liam) and text exactly "[PAUSE 3 SECONDS]"
+   (b) Emma or Liam on their own turn: "Option A: [text]" (speaker field must be "Emma" or "Liam")
+   (c) Emma or Liam on their own turn: "Option B: [text]" (speaker field must be "Emma" or "Liam")
+   (d) Emma or Liam on their own turn: "Option C: [text]" (speaker field must be "Emma" or "Liam")
+   (e) A SEPARATE turn with speaker "Emma" or "Liam" and text exactly "[PAUSE 3 SECONDS]" (speaker field must be "Emma" or "Liam")
    (f) Host reveals the correct answer with brief explanation.
-   NEVER put the pause before the options. NEVER combine multiple options into one turn.
+   NEVER put the pause before the options. NEVER combine multiple options into one turn. NEVER use "Option A", "Option B", "Option C", or "[PAUSE 3 SECONDS]" as speaker field values - always use character names.
 7. WRAP-UP (2-3 turns): Host summarizes key takeaway. End conversationally.
 
 VOICES:
