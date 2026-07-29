@@ -218,11 +218,11 @@ class ManualRunUploadTests(unittest.TestCase):
                                         ]
 
                                         with redirect_stdout(StringIO()):
-                                            manual_run.run_english_challenge(
+                                            manual_run._run_two_phase(
+                                                "english-challenge",
                                                 topic="small talk",
                                                 upload=True,
-                                                start_date="2026-05-28",
-                                                publish_hour=6,
+                                                schedule_time="2026-05-28T06:00:00",
                                             )
             finally:
                 os.chdir(old_cwd)

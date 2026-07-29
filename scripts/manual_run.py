@@ -3319,13 +3319,16 @@ def main():
             use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-challenge":
-        run_english_challenge(
+        _run_two_phase(
+            "english-challenge",
             topic=args.topic,
             upload=not args.no_upload,
-            start_date=args.start_date,
-            publish_hour=args.publish_hour,
+            schedule_time=effective_schedule_time,
             notify_subscribers=notify_override,
             review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
         )
     elif args.channel == "english-shorts":
         _run_two_phase(
