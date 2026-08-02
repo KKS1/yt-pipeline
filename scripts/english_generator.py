@@ -1930,6 +1930,8 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
     if topic_type == "post":
         type_label = "YouTube Community quiz or poll"
+    elif topic_type == "quiz":
+        type_label = "YouTube Shorts quiz"
     elif is_challenge:
         type_label = "7-day weekly challenge"
     else:
@@ -1965,6 +1967,8 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     - Workplace English: Disagree with your boss, professional email phrases, performance review prep.
     - Travel: Surviving an English-only hotel emergency, lost passport at the airport, asking for directions.
     - Exam prep: IELTS Speaking Part 1 model answers, TOEFL vs IELTS, common writing mistakes.
+    - Idioms and expressions: "Break a leg", "Hit the nail on the head", "Bite the bullet", "Under the weather", "Cost an arm and a leg".
+    - Phrasal verbs: "Give up", "Run out of", "Look forward to", "Get along with", "Put up with".
 
     PREVIOUSLY PUBLISHED TOPICS (do not repeat these):
     {avoid_instruction if avoid_instruction else "(none yet)"}
@@ -1983,6 +1987,7 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
       I. Story-driven: "I [X] and Everything Went Wrong"
       J. Challenge: "Can You Pass This [X] English Test?"
       K. Don't warning: "DON'T Say [X] — Use This Instead"
+    - For quiz shorts, prefer quiz-focused formulas like "Can You Pass This [X] Test?" or "Master This [X] Skill"
     - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
     - The title should make a viewer curious enough to click, NOT describe the content like a textbook heading
     - Include one natural keyword variant (e.g., if about "restaurant" include "dining", "cafe", "food order")
@@ -2000,6 +2005,19 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
         return res.get("title") or res.get("topic")
     except Exception as e:
         print(f"  Error generating dynamic topic: {e}. Falling back to seed topic.")
+        if topic_type == "quiz":
+            return random.choice([
+                "Can You Pass This Phrasal Verb Test?",
+                "Master This Essential English Idiom",
+                "Stop Making This Common Grammar Mistake",
+                "Confusing Words: You're Using One Wrong",
+                "English Quiz: Present Perfect vs Past Simple",
+                "Can You Choose the Right Preposition?",
+                "English Listening Quiz: Office Scenarios",
+                "Master These 5 Business English Phrases",
+                "English Quiz: Everyday Expressions",
+                "Can You Spot the English Pronunciation Error?",
+            ])
         return random.choice([
             "Say vs Tell: Which One Are You Using Wrong?",
             "How to Small Talk at a Western Workplace",
@@ -3042,18 +3060,11 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     published_quizzes = topics_data.get("quiz", [])
 
     if not topic:
-        # Filter idioms by checking if they appear in any previously published quiz titles
-        remaining = [
-            i for i in SLOW_IDIOM_POOL 
-            if not any(i.lower() in p.lower() for p in published_quizzes)
-        ]
-        if not remaining:
-            remaining = SLOW_IDIOM_POOL  # cycle back when all done
-        topic = random.choice(remaining)
+        topic = generate_dynamic_topic(is_challenge=False, topic_type="quiz")
     elif is_already_published(topic, "quiz"):
-        print(f"\n  [WARNING] Manual quiz idiom '{topic}' was found in 'quiz' history.")
+        print(f"\n  [WARNING] Manual quiz topic '{topic}' was found in 'quiz' history.")
 
-    print(f"\nSelected Quiz idiom: {topic}")
+    print(f"\nSelected Quiz topic: {topic}")
 
     recent = published_quizzes[-50:] if published_quizzes else []
     avoid_instruction = ""
@@ -3065,7 +3076,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     
     prompt = f"""
     You are an expert short-form scriptwriter. Generate a high-retention, 25-second YouTube Shorts English quiz loop between Emma and Liam for 'EnglishVibesHub' (@EnglishVibesHub-s6w).
-    TOPIC: The idiom or expression '{topic}'
+    TOPIC: {topic}
     {avoid_instruction}
     {ENGLISH_METADATA_RULES}
     
@@ -3073,7 +3084,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     High-CTR, curiosity-based title using benefit-focused hooks like 'Master This Skill', 'Complete Guide To...', 'Essential Phrases', or 'The Secret To...'. e.g., 'Master Better Responses: Beyond I'm Fine') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
 
     TIME ALLOCATION RULES:
-    - [0-3s] Hook: Emma introduces the idiom question clearly.
+    - [0-3s] Hook: Emma introduces the quiz question clearly based on the topic.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
     - [13-18s] Context Hint: Liam provides an educational example sentence or hint.
     - [18-20s] Thinking Pause: Insert a [PAUSE 2 SECONDS] turn to let viewers commit to their answer before the reveal.
@@ -3088,12 +3099,12 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
 
     JSON SCHEMA:
     {{
-      "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: Master This Idiom!')",
+      "title": "string (High-CTR, searchable title under 70 chars, e.g., 'English Quiz: Master This Skill!')",
       "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include subscribe CTA, playlist placeholder, #Shorts, #EnglishQuiz, and hashtags mirroring 'tags')",
       "pinned_comment": "string (Engaging specific question for the comments section)",
       "tags": ["string (Provide 5-8 SEO-focused tags)"],
       "correct_answer": "string",
-      "theme": "string (short topic label for storyboard, e.g. 'Idiom Quiz - Break a Leg')",
+      "theme": "string (short topic label for storyboard, e.g. 'Quiz - Phrasal Verbs')",
       "visual_keywords": ["string (legacy fallback: 5-8 visual search words)"],
       "dialogue": [
         {{ "turn_number": 0, "speaker": "Emma", "text": "..." }},
