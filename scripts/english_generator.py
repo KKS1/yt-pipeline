@@ -17,16 +17,19 @@ PAUSE_CUE_RE = re.compile(r"^\s*\[(?:PAUSE|PAUSE\s+(\d+(?:\.\d+)?)\s*SECONDS?)\]
 
 ENGLISH_METADATA_RULES = """
 METADATA RULES:
-- Titles must be high-CTR, curiosity-driven, under 70 chars. Use ONE of these structures (rotate, don't repeat consecutively):
-  A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
-  B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
-  C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
-  D. Comparison: "[A] vs [B]: What's the Real Difference?"
-  E. Curiosity gap: "The [X] Phrase Native Speakers Use Daily"
-  F. Problem-solution: "Stop Saying [X] — Say This Instead"
-  G. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
-  H. Story-driven: "I [X] and Everything Went Wrong"
-- Include chosen structure letter (A-H) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
+- Titles must be high-CTR, emotionally-driven, under 70 chars. Use ONE of these structures (rotate, don't repeat consecutively):
+  A. Crisis hook: "I Said [X] and They Got OFFENDED"
+  B. Urgency gap: "STOP Using [X] — Here's Why"
+  C. Social proof: "Native Speakers NEVER Say [X]"
+  D. Curiosity bomb: "The [X] Secret Nobody Teaches"
+  E. Story cliffhanger: "Lost in [Situation] Because of [X]"
+  F. Mistake shame: "You Sound RUDE When You Say [X]"
+  G. Comparison shock: "[A] vs [B]: One Makes You Look Dumb"
+  H. Personal failure: "I Embarrassed Myself With [X]"
+  I. Challenge: "Only 10% Pass This [X] Test"
+  J. Cultural warning: "Don't Say [X] in English (Trust Me)"
+- FORBIDDEN WORDS: "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
+- Include chosen structure letter (A-J) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO line ("English listening practice for [topic]"), include "Natural English" and "Speak like a native" in first 2-3 lines. Use keyword variations.
 - Include playlist CTA (📺 Watch the playlist here: {playlist_url}), comment CTA, subscribe CTA, and hashtags (max 5).
 - Hashtags: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
@@ -36,8 +39,9 @@ METADATA RULES:
 
 PODCAST_METADATA_RULES = """
 METADATA RULES (PODCAST — under 3 min clips):
-- Titles under 70 chars, high-CTR, curiosity-driven. NEVER use "Episode X" or series numbering.
-- Use ONE of these structures (rotate): A. Emotional hook B. Story cliffhanger C. Mistake-in-action D. Curiosity gap E. Relatable pain F. Cultural shock G. Direct address H. Story-driven
+- Titles under 70 chars, high-CTR, emotionally-driven. NEVER use "Episode X" or series numbering.
+- Use ONE of these structures (rotate): A. Crisis hook B. Story cliffhanger C. Mistake-in-action D. Curiosity bomb E. Relatable pain F. Cultural shock G. Direct address H. Personal failure
+- FORBIDDEN WORDS: "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
 - Include chosen letter as "title_structure". Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO ("English podcast: [topic]"), include "Natural English" and "Speak like a native".
 - Include {playlist_url} placeholder, comment CTA, subscribe CTA, hashtags (max 5).
@@ -1975,21 +1979,21 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
 
     TITLE RULES (follow these exactly):
     - Maximum 65 characters total. This is critical — YouTube truncates titles on mobile at ~60 chars.
-    - Use ONE of these proven title formulas (vary from what you see in the published list above):
-      A. Question: "Why Do English Speakers Say [X] Instead of [Y]?"
-      B. Mistake hook: "The [X] Mistake Almost Every Learner Makes"
-      C. Number list: "5 [X] That Sound Rude (But You Don't Know It)"
-      D. Direct comparison: "[A] vs [B]: What's the Real Difference?"
-      E. Curiosity gap: "The [X] Phrase Native Speakers Use Daily (You Don't)"
-      F. Personal angle: "What I Wish I Knew Before [X]"
-      G. Problem-solution: "Stop Saying [X] — Say This Instead"
-      H. Cultural hook: "Why [X] Is Offensive in English (Nobody Told You)"
-      I. Story-driven: "I [X] and Everything Went Wrong"
-      J. Challenge: "Can You Pass This [X] English Test?"
-      K. Don't warning: "DON'T Say [X] — Use This Instead"
-    - For quiz shorts, prefer quiz-focused formulas like "Can You Pass This [X] Test?" or "Master This [X] Skill"
+    - Use ONE of these proven high-CTR formulas (vary from what you see in the published list above):
+      A. Crisis hook: "I Said [X] and They Got OFFENDED"
+      B. Urgency gap: "STOP Using [X] — Here's Why"
+      C. Social proof: "Native Speakers NEVER Say [X]"
+      D. Curiosity bomb: "The [X] Secret Nobody Teaches"
+      E. Story cliffhanger: "Lost in [Situation] Because of [X]"
+      F. Mistake shame: "You Sound RUDE When You Say [X]"
+      G. Comparison shock: "[A] vs [B]: One Makes You Look Dumb"
+      H. Personal failure: "I Embarrassed Myself With [X]"
+      I. Challenge: "Only 10% Pass This [X] Test"
+      J. Cultural warning: "Don't Say [X] in English (Trust Me)"
+    - FORBIDDEN WORDS: NEVER use "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
+    - For quiz shorts, prefer quiz-focused formulas like "Only 10% Pass This [X] Test" or "You're Probably Saying [X] Wrong"
     - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
-    - The title should make a viewer curious enough to click, NOT describe the content like a textbook heading
+    - The title must trigger EMOTION or CURIOSITY, not describe content like a textbook heading
     - Include one natural keyword variant (e.g., if about "restaurant" include "dining", "cafe", "food order")
 
     Return ONLY a JSON object with these keys:
@@ -2007,28 +2011,28 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
         print(f"  Error generating dynamic topic: {e}. Falling back to seed topic.")
         if topic_type == "quiz":
             return random.choice([
-                "Can You Pass This Phrasal Verb Test?",
-                "Master This Essential English Idiom",
-                "Stop Making This Common Grammar Mistake",
-                "Confusing Words: You're Using One Wrong",
-                "English Quiz: Present Perfect vs Past Simple",
+                "Only 10% Pass This Phrasal Verb Test",
+                "You're Probably Saying This Idiom Wrong",
+                "STOP Making This Grammar Mistake",
+                "Confusing Words: One Makes You Look Dumb",
+                "Present Perfect vs Past Simple: You're Wrong",
                 "Can You Choose the Right Preposition?",
-                "English Listening Quiz: Office Scenarios",
-                "Master These 5 Business English Phrases",
-                "English Quiz: Everyday Expressions",
-                "Can You Spot the English Pronunciation Error?",
+                "Office English: You Sound Rude",
+                "5 Business Phrases That Make You Look Smart",
+                "Everyday English: You're Using It Wrong",
+                "Your Pronunciation Is Killing Your Accent",
             ])
         return random.choice([
-            "Say vs Tell: Which One Are You Using Wrong?",
-            "How to Small Talk at a Western Workplace",
-            "Why Th Breaks Your English Accent",
-            "Calling in Sick to Work in English",
-            "Have Been vs Have Gone — The Difference Nobody Explains Right",
+            "Say vs Tell: You're Using One Wrong",
+            "Small Talk at Work: You Sound AWKWARD",
+            "Why TH Breaks Your English Accent",
+            "Calling in Sick: You Sound Unprofessional",
+            "Have Been vs Have Gone: You're Wrong",
             "Gen Z Slang That Changes Everything",
             "Lost in a Foreign City With No Phone",
-            "How to Disagree With Your Boss in English",
-            "Surviving an English-Only Hotel Emergency",
-            "IELTS Speaking Part 1 How to Answer Describe Your Hometown",
+            "Disagree With Your Boss: Don't Get Fired",
+            "Hotel Emergency: I Almost Got Arrested",
+            "IELTS Speaking: You're Losing Points",
         ])
 
 
