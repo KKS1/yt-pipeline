@@ -144,6 +144,7 @@ Rules:
 - Use [VISUAL: description] to suggest mobile-friendly vertical B-roll or images
 - No filler phrases like "in today's video" or "don't forget to like"
 - No fluff, no filler, and no vague hype
+- Never use forward slashes ('/') in spoken script text — write 'or' or use commas instead (e.g. 'Option A or Option B' instead of 'Option A / Option B')
 - Respect the viewer's time and intelligence
 - Total word count should be 120–230 words
 - Include #Shorts in the description

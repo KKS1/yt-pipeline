@@ -68,6 +68,13 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\bphrasal\b', 'phrase', text, flags=re.IGNORECASE)
     # Strip emoji so TTS doesn't vocalize them (e.g. 💬 → "Speech bubble")
     text = re.sub(r'[\U0001F300-\U0001FAFF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0000200D\uFE0F]', '', text)
+    # Replace common slash phrases and abbreviations
+    text = re.sub(r'\band/or\b', 'and or', text, flags=re.IGNORECASE)
+    text = re.sub(r'\beither/or\b', 'either or', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bw/o\b', 'without', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bw/(?=\s|[.,!?]|$)', 'with', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*/\s*or\b', ' or', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*/\s*', ' or ', text)
     text = ' '.join(text.split())
     return text.strip()
 

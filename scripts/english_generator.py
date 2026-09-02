@@ -35,6 +35,7 @@ METADATA RULES:
 - Hashtags: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
 - Use ONLY {playlist_url} placeholder (not actual URLs).
 - Tags: high-intent SEO mixing broad English-learning + topic-specific terms. Pinned comments: specific question viewers can answer quickly.
+- SPOKEN DIALOGUE: Never use forward slashes ('/') in spoken dialogue text — write out 'or' or separate options with commas (e.g., 'Option A or Option B', 'he or she', 'either or').
 """
 
 PODCAST_METADATA_RULES = """
