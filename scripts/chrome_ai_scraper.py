@@ -438,8 +438,95 @@ class ChromeAIGenerator:
         except Exception as e:
             raise Exception(f"Failed to wait for image generation: {e}")
     
+    async def _extract_image_from_dom(self, output_path: Path) -> bool:
+        """Fallback: Extract generated image directly from DOM via canvas/fetch/base64/screenshot.
+        
+        This avoids reliance on browser download events or target pages that may close prematurely.
+        """
+        try:
+            # Ensure page is open
+            if not self.page or self.page.is_closed():
+                if self.context and len(self.context.pages) > 0:
+                    self.page = self.context.pages[0]
+                elif self.context:
+                    self.page = await self.context.new_page()
+                else:
+                    return False
+            
+            img_selectors = [
+                'img[alt="AI generated image"][data-processed="true"]',
+                'img[alt="AI generated image"]',
+                'img[data-processed="true"]',
+                'img[src*="googleusercontent"]',
+                'img[src*="data:image"]',
+            ]
+            
+            img_element = None
+            for selector in img_selectors:
+                try:
+                    elements = await self.page.query_selector_all(selector)
+                    if elements:
+                        img_element = elements[-1]  # last = most recent generated image
+                        break
+                except:
+                    continue
+            
+            if not img_element:
+                print("  Fallback: Could not find generated image element in DOM")
+                return False
+            
+            # Method 1: Canvas / Data URL / Blob fetch in browser context
+            import base64
+            data_url = await self.page.evaluate("""
+                async (img) => {
+                    if (!img) return null;
+                    if (img.src && img.src.startsWith('data:image/')) {
+                        return img.src;
+                    }
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width || 1024;
+                        canvas.height = img.naturalHeight || img.height || 1024;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        const url = canvas.toDataURL('image/png');
+                        if (url && url.length > 100) return url;
+                    } catch (e) {}
+                    try {
+                        const response = await fetch(img.src);
+                        const blob = await response.blob();
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                    } catch (e2) {
+                        return null;
+                    }
+                }
+            """, img_element)
+            
+            if data_url and "," in data_url:
+                header, base64_data = data_url.split(",", 1)
+                image_bytes = base64.b64decode(base64_data)
+                if len(image_bytes) > 1000:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_bytes(image_bytes)
+                    print(f"  Extracted image via DOM/canvas to: {output_path.name}")
+                    return True
+            
+            # Method 2: Element screenshot fallback
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            await img_element.screenshot(path=str(output_path))
+            print(f"  Saved image via element screenshot to: {output_path.name}")
+            return True
+            
+        except Exception as e:
+            print(f"  DOM extraction fallback failed: {e}")
+            return False
+
     async def _download_image(self, output_path: Path) -> bool:
-        """Click the download button of the most recently generated image."""
+        """Click the download button of the most recently generated image, with DOM extraction fallback."""
         try:
             download_selectors = [
                 'button[aria-label="Download this AI generated image"][data-processed="true"]',
@@ -460,20 +547,43 @@ class ChromeAIGenerator:
                     continue
             
             if not download_button:
-                raise Exception("Could not find download button")
+                print("  Download button not found, attempting direct DOM image extraction...")
+                success = await self._extract_image_from_dom(output_path)
+                if success:
+                    return True
+                raise Exception("Could not find download button or extract image from DOM")
             
             # Set up download handler before clicking
-            async with self.page.expect_download(timeout=30000) as download_info:
-                await download_button.click()
-            
-            download = await download_info.value
-            
-            # Save to output path
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            await download.save_as(str(output_path))
-            
-            print(f"  Downloaded image to: {output_path.name}")
-            return True
+            try:
+                async with self.page.expect_download(timeout=15000) as download_info:
+                    await download_button.click()
+                
+                download = await download_info.value
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Try save_as or path copy
+                try:
+                    await download.save_as(str(output_path))
+                    print(f"  Downloaded image to: {output_path.name}")
+                    return True
+                except Exception as save_err:
+                    # If save_as fails (e.g., target page closed), try download.path()
+                    try:
+                        temp_path = await download.path()
+                        if temp_path and os.path.exists(temp_path):
+                            import shutil
+                            shutil.copy(temp_path, str(output_path))
+                            print(f"  Copied downloaded file from temp path to: {output_path.name}")
+                            return True
+                    except Exception:
+                        pass
+                    raise save_err
+            except Exception as dl_err:
+                print(f"  Standard download failed ({dl_err}), attempting DOM extraction fallback...")
+                success = await self._extract_image_from_dom(output_path)
+                if success:
+                    return True
+                raise Exception(f"Failed to download image via standard and fallback methods: {dl_err}")
                 
         except Exception as e:
             raise Exception(f"Failed to download image: {e}")
