@@ -1074,7 +1074,7 @@ def _assemble_english_video_from_script(
 
 # ── Manifest-only: generate scripts + write manifest, then exit ──────────────
 
-def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for English podcast: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_script
@@ -1125,7 +1125,7 @@ def run_manifest_only_english(topic=None, upload=None, schedule_time=None, notif
     return str(manifest_path)
 
 
-def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for English Vibes Podcast: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_podcast_script
@@ -1174,7 +1174,7 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     return str(manifest_path)
 
 
-def run_manifest_only_english_traditional(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_english_traditional(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for Traditional English: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_traditional_english_script
@@ -1183,23 +1183,69 @@ def run_manifest_only_english_traditional(topic=None, upload=None, schedule_time
     print("TRADITIONAL ENGLISH — Manifest-Only Phase 1")
     print("=" * 50)
 
+    script_path = "scripts/output/english_traditional.json"
+    existing_script = None
+    reuse_script = False
+    
+    # Check if we should reuse existing script
+    if not topic and not force_new:
+        if Path(script_path).exists():
+            try:
+                existing_script = json.loads(Path(script_path).read_text(encoding="utf-8"))
+                # Check file modification time (more reliable than script content)
+                script_mtime = datetime.fromtimestamp(Path(script_path).stat().st_mtime, tz=timezone.utc)
+                script_age = datetime.now(timezone.utc) - script_mtime
+                # Reuse if script is less than 24 hours old
+                if script_age.total_seconds() < 86400:
+                    print(f"\n  Found existing script (modified {script_age.total_seconds()/3600:.1f} hours ago):")
+                    print(f"    Title: {existing_script.get('title')}")
+                    print(f"    Reusing existing script instead of generating new topic.")
+                    print(f"    Use --force-new flag to generate a new topic.")
+                    
+                    # Look for matching manifest
+                    script_title_slug = slug(existing_script.get('title', 'traditional_english'))
+                    existing_manifest = MANIFEST_DIR / f"english_traditional_{script_title_slug}.manifest.json"
+                    if existing_manifest.exists():
+                        print(f"  Found existing manifest: {existing_manifest.name}")
+                        print(f"  Reusing existing manifest.")
+                        manifest = read_manifest(existing_manifest)
+                        print(f"\n{'=' * 50}")
+                        print("PHASE 1 COMPLETE — reusing existing manifest.")
+                        _print_scene_manifest_next_steps(existing_manifest, manifest)
+                        print(f"{'=' * 50}\n")
+                        return str(existing_manifest)
+                    else:
+                        print(f"  No matching manifest found, will create new one from existing script.")
+                        reuse_script = True
+            except Exception as e:
+                print(f"  Could not read existing script: {e}")
+                existing_script = None
+
     try:
-        cleanup_english_temp()
-        print("\nGenerating traditional educational script with Groq...\n")
-        script = generate_traditional_english_script(topic)
-        script["description"] = _description_with_playlist_url(
-            script.get("description", ""), "english",
-        )
-        Path("scripts/output").mkdir(exist_ok=True)
-        script_path = "scripts/output/english_traditional.json"
-        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
-        print(f"\n  Script saved: {script_path}")
+        if reuse_script and existing_script:
+            # Reusing existing script, just update description if needed
+            script = existing_script
+            script["description"] = _description_with_playlist_url(
+                script.get("description", ""), "english",
+            )
+            print(f"  Using existing script: {script_path}")
+        else:
+            cleanup_english_temp()
+            print("\nGenerating traditional educational script with Groq...\n")
+            script = generate_traditional_english_script(topic)
+            script["description"] = _description_with_playlist_url(
+                script.get("description", ""), "english",
+            )
+            Path("scripts/output").mkdir(exist_ok=True)
+            Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+            print(f"\n  Script saved: {script_path}")
     except Exception as e:
         print(f"\nScript generation failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
 
+    # Only create manifest if we didn't already return from reuse
     entry = _build_manifest_entry(
         script,
         label="Traditional English Lesson",
@@ -1224,7 +1270,7 @@ def run_manifest_only_english_traditional(topic=None, upload=None, schedule_time
     return str(manifest_path)
 
 
-def run_manifest_only_english_slow(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_english_slow(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for Slow English A1-A2: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_slow_english_script
@@ -1273,7 +1319,7 @@ def run_manifest_only_english_slow(topic=None, upload=None, schedule_time=None, 
     return str(manifest_path)
 
 
-def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for English Shorts: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_shorts_script
@@ -1323,7 +1369,7 @@ def run_manifest_only_shorts(topic=None, upload=None, schedule_time=None, notify
     return str(manifest_path)
 
 
-def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for English Quiz Shorts: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
     from english_generator import generate_english_quiz_shorts_script
@@ -1372,7 +1418,7 @@ def run_manifest_only_quiz_shorts(topic=None, upload=None, schedule_time=None, n
     return str(manifest_path)
 
 
-def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Phase 1 for English Weekly Challenge: generate 7 scripts, write multi-entry manifest, exit."""
     from english_generator import generate_weekly_challenge_scripts
 
@@ -1444,7 +1490,7 @@ def run_manifest_only_challenge(topic=None, upload=None, schedule_time=None, not
     print(f"{'=' * 50}\n")
 
 
-def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, **kwargs):
+def run_manifest_only_challenge_shorts(json_path=None, topic=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False, **kwargs):
     """Phase 1 for English Challenge Shorts only (7 quiz entries from existing or new package)."""
     from english_generator import generate_weekly_challenge_scripts, generate_weekly_challenge_quiz_script
 
@@ -1646,7 +1692,7 @@ MANIFEST_ONLY_ROUTER = {
 }
 
 
-def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Run Phase 1 (manifest) + Phase 2 (resume) in one shot for a channel."""
     manifest_fn = MANIFEST_ONLY_ROUTER.get(channel)
     if not manifest_fn:
@@ -1656,6 +1702,7 @@ def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_
         topic=topic, upload=upload, schedule_time=schedule_time,
         notify_subscribers=notify_subscribers, review_visuals=review_visuals,
         skip_gemini=skip_gemini, legacy_visuals=legacy_visuals, use_chrome_ai=use_chrome_ai,
+        force_new=force_new,
     )
     if not manifest_path:
         return
@@ -1678,7 +1725,7 @@ def _run_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_
     run_resume_from_manifest(manifest_path)
 
 
-def _run_interactive_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+def _run_interactive_two_phase(channel, topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False, force_new=False):
     """Interactive pipeline: generate → review dialogue → fetch scenes → assemble.
 
     Used for 'english' and 'english-podcast' where the user wants to review
@@ -1699,6 +1746,7 @@ def _run_interactive_two_phase(channel, topic=None, upload=True, schedule_time=N
         topic=topic, upload=upload, schedule_time=schedule_time,
         notify_subscribers=notify_subscribers, review_visuals=review_visuals,
         skip_gemini=True, legacy_visuals=legacy_visuals, use_chrome_ai=False,
+        force_new=force_new,
     )
     if not manifest_path:
         return
@@ -3298,6 +3346,11 @@ def main():
         help="Use legacy MP4 loop matching instead of scene-based visuals.",
     )
     parser.add_argument(
+        "--force-new",
+        action="store_true",
+        help="Force generation of a new topic/script even if an existing one is available.",
+    )
+    parser.add_argument(
         "--fetch-scenes-only",
         help="Retry Gemini scene image generation for an existing manifest JSON.",
     )
@@ -3431,6 +3484,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-podcast":
         _run_interactive_two_phase(
@@ -3443,6 +3497,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-slow":
         _run_interactive_two_phase(
@@ -3455,6 +3510,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-challenge":
         _run_two_phase(
@@ -3467,6 +3523,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-shorts":
         _run_two_phase(
@@ -3479,6 +3536,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
@@ -3493,6 +3551,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-quiz":
         _run_two_phase(
@@ -3505,6 +3564,7 @@ def main():
             skip_gemini=args.skip_gemini,
             legacy_visuals=args.legacy_visuals,
             use_chrome_ai=args.use_chrome_ai,
+            force_new=args.force_new,
         )
     elif args.channel == "english-challenge-shorts":
         if args.fix_challenge:
