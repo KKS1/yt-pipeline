@@ -2526,7 +2526,7 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
     return res
 
 
-def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
+def generate_weekly_challenge_day_script(plan: dict, day: dict, standalone: bool = False) -> dict:
     day_number = int(day.get("day", 1))
     series_title = plan.get("series_title", "EnglishVibesHub Weekly Challenge")
     previous_days = [
@@ -2536,11 +2536,27 @@ def generate_weekly_challenge_day_script(plan: dict, day: dict) -> dict:
     ]
 
     # History injection
+    topic_type = "traditional" if standalone else "challenge"
     topics_data = get_published_topics()
-    recent = topics_data.get("challenge", [])[-50:]
-    avoid_instruction = f"\nAvoid repeating content or phrasal verbs/idioms from these recent challenge episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+    recent = topics_data.get(topic_type, [])[-50:]
+    avoid_instruction = f"\nAvoid repeating content or phrasal verbs/idioms from these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
 
-    if day_number == 7:
+    if standalone:
+        # Standalone mode: remove playlist/day references
+        structure = f"""
+STRUCTURE & CONTENT:
+1. Welcome listeners to this English lesson on @EnglishVibesHub-s6w.
+2. Teach the focused skill: {day.get('focus')}.
+3. Explain useful phrases, idioms, pronunciation tips, or sentence patterns connected to the skill. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology.
+4. Include short roleplay moments between Emma and Liam.
+5. Give listeners a practical task to try: {day.get('practice_task')}.
+6. End naturally without setting up future content or saying goodbye.
+"""
+        outro_rule = _NOT_FINAL_PART_RULES
+        turn_count = "18-22"
+        title_suffix = ""
+        series_reference = ""
+    elif day_number == 7:
         structure = f"""
 STRUCTURE & CONTENT:
 1. Welcome listeners to Day 7 of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
@@ -2552,6 +2568,8 @@ STRUCTURE & CONTENT:
 """
         outro_rule = "Do NOT use like/subscribe/goodbye language until the final 1-2 turns."
         turn_count = "20-25"
+        title_suffix = f" - Day {day_number}"
+        series_reference = f"SERIES: {series_title}\nDAY: {day_number}\n"
     else:
         structure = f"""
 STRUCTURE & CONTENT:
@@ -2564,13 +2582,22 @@ STRUCTURE & CONTENT:
 """
         outro_rule = _NOT_FINAL_PART_RULES
         turn_count = "18-22"
+        title_suffix = f" - Day {day_number}"
+        series_reference = f"SERIES: {series_title}\nDAY: {day_number}\n"
+
+    if standalone:
+        prompt_intro = "You are writing a standalone English lesson video script for 'EnglishVibesHub' (@EnglishVibesHub-s6w)."
+        title_instruction = "string (Traditional educational title under 60 characters. Use clear, descriptive titles like 'Airport English for Beginners' or 'Doctor Office Vocabulary Guide'. Include topic keywords naturally. e.g., 'Airport English: Essential Phrases for Travel')"
+        script_context = "The script should feel complete as a standalone educational video."
+    else:
+        prompt_intro = "You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub' (@EnglishVibesHub-s6w)."
+        title_instruction = f"string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')"
+        script_context = "The script should feel complete as one daily video, but connected to the weekly playlist."
 
     prompt = f"""
-You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub' (@EnglishVibesHub-s6w).
+{prompt_intro}
 
-SERIES: {series_title}
-DAY: {day_number}
-TITLE: {day.get('title')}
+{series_reference}TITLE: {day.get('title')}
 {avoid_instruction}
 FOCUS: {day.get('focus')}
 PRACTICE TASK: {day.get('practice_task')}
@@ -2580,7 +2607,7 @@ CRITICAL RULES:
 - Output ONLY valid JSON.
 - The `dialogue` array MUST contain around {turn_count} turns.
 - Hosts must be Emma (energetic, helpful) and Liam (curious, friendly).
-- The script should feel complete as one daily video, but connected to the weekly playlist.
+- {script_context}
 - Keep explanations clear for intermediate English learners.
 - Ask listeners to answer out loud when useful.
 {outro_rule}
@@ -2593,14 +2620,12 @@ STYLE:
 
 JSON SCHEMA:
 {{
-  "title": "string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')",
+  "title": "{title_instruction}",
   "title_options": ["string"],
   "description": "string (Follow METADATA RULES template. First 2 lines MUST use 'Natural English' and 'Speak like a native'. Place comment question in lines 3-5. Include {{scene_timeline}} for scene chapters, subscribe CTA, playlist placeholder, and hashtags mirroring 'tags')",
   "pinned_comment": "string (An engaging question or call to action to pin in the comments)",
   "tags": ["string (Provide 5-8 SEO-focused tags)"],
   "theme": "string (short topic label for storyboard, e.g. 'Phrasal Verbs at Work')",
-  "day": {day_number},
-  "series_title": "string",
   "dialogue": [
     {{
       "speaker": "Emma or Liam",
@@ -2612,9 +2637,12 @@ JSON SCHEMA:
     script = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script = separate_mixed_pause_turns(script)
-    script.setdefault("day", day_number)
-    script.setdefault("series_title", series_title)
-    script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"]))
+    
+    if not standalone:
+        script.setdefault("day", day_number)
+        script.setdefault("series_title", series_title)
+    
+    script.setdefault("tags", plan.get("tags", ["English", "English Challenge", "EnglishVibesHub"] if not standalone else ["English", "English Learning", "EnglishVibesHub"]))
     theme = script.get("theme") or script.get("title", "")
     script["description"] = finalize_english_description(
         script.get("description", ""), include_timeline=True, format="longform", theme=theme
@@ -2625,8 +2653,49 @@ JSON SCHEMA:
         if title_options:
             script["title"] = title_options[0]
 
-    script = _clean_challenge_dialogue(script, day_number)
+    if not standalone:
+        script = _clean_challenge_dialogue(script, day_number)
+    
     return attach_storyboard_to_script(script, portrait=False)
+
+
+def generate_traditional_english_script(topic=None) -> dict:
+    """Generate a standalone traditional English learning script using Emma/Liam format."""
+    if not topic:
+        topic = generate_dynamic_topic(is_challenge=False, topic_type="traditional")
+    else:
+        # Check if manual topic is already published
+        if is_already_published(topic, "traditional"):
+            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'traditional' history.")
+
+    # History injection
+    topics_data = get_published_topics()
+    recent = topics_data.get("traditional", [])[-50:]
+    avoid_instruction = f"\nAvoid repeating examples, phrases, or situations used in these recent episodes:\n{json.dumps(recent, indent=2)}" if recent else ""
+
+    print(f"\nSelected topic: {topic}")
+    print("Generating traditional educational script...")
+
+    # Create a minimal plan structure for standalone use
+    day = {
+        "day": 1,
+        "title": topic,
+        "focus": topic,
+        "practice_task": f"Practice using phrases related to {topic} in your daily conversations"
+    }
+    
+    plan = {
+        "series_title": "EnglishVibesHub Traditional Lessons",
+        "tags": ["English", "English Learning", "EnglishVibesHub"]
+    }
+
+    script = generate_weekly_challenge_day_script(plan, day, standalone=True)
+    
+    # Clean up any remaining day/series references
+    script.pop("day", None)
+    script.pop("series_title", None)
+    
+    return script
 
 
 def generate_weekly_challenge_scripts(topic=None) -> dict:

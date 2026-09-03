@@ -1174,6 +1174,56 @@ def run_manifest_only_english_podcast(topic=None, upload=None, schedule_time=Non
     return str(manifest_path)
 
 
+def run_manifest_only_english_traditional(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
+    """Phase 1 for Traditional English: generate script, write manifest, exit."""
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_traditional_english_script
+
+    print("\n" + "=" * 50)
+    print("TRADITIONAL ENGLISH — Manifest-Only Phase 1")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+        print("\nGenerating traditional educational script with Groq...\n")
+        script = generate_traditional_english_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""), "english",
+        )
+        Path("scripts/output").mkdir(exist_ok=True)
+        script_path = "scripts/output/english_traditional.json"
+        Path(script_path).write_text(json.dumps(script, indent=2), encoding="utf-8")
+        print(f"\n  Script saved: {script_path}")
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+    entry = _build_manifest_entry(
+        script,
+        label="Traditional English Lesson",
+        script_path=script_path,
+        orientation="landscape",
+        legacy_assets_folder="english_visuals",
+        legacy_visuals=legacy_visuals,
+    )
+    manifest = VisualManifest(
+        pipeline="english-traditional",
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        entries=[entry],
+    )
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifest_path = MANIFEST_DIR / f"english_traditional_{slug(script.get('title', 'traditional_english'))}.manifest.json"
+    _fetch_scene_images_for_manifest(manifest, skip_gemini=skip_gemini, use_chrome_ai=use_chrome_ai)
+    write_manifest(manifest, manifest_path)
+    print(f"\n{'=' * 50}")
+    print("PHASE 1 COMPLETE — manifest written.")
+    _print_scene_manifest_next_steps(manifest_path, manifest)
+    print(f"{'=' * 50}\n")
+    return str(manifest_path)
+
+
 def run_manifest_only_english_slow(topic=None, upload=None, schedule_time=None, notify_subscribers=None, review_visuals=None, skip_gemini=False, legacy_visuals=False, use_chrome_ai=False):
     """Phase 1 for Slow English A1-A2: generate script, write manifest, exit."""
     from english_assembler import cleanup_english_temp
@@ -1535,6 +1585,8 @@ def run_resume_from_manifest(manifest_path_str: str):
             command_channel = "english-quiz" if "quiz" in entry.label.lower() else "english"
         elif pipeline == "english-challenge-shorts":
             command_channel = "english-quiz"
+        elif pipeline == "english-traditional":
+            command_channel = "english"  # Use main english channel for uploads
 
         script["description"] = _description_with_playlist_url(
             script.get("description", ""),
@@ -1570,7 +1622,7 @@ def run_resume_from_manifest(manifest_path_str: str):
                 command_channel=command_channel if command_channel in ENGLISH_DESCRIPTION_PLAYLIST_URLS else "english",
             )
             if (result or {}).get("youtube_id"):
-                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge", "english-slow": "slow"}.get(command_channel, "podcast")
+                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge", "english-slow": "slow", "english-traditional": "traditional"}.get(command_channel, "podcast")
                 save_published_topic(script.get("title", entry.topic), topic_type=_topic_type)
 
         print(f"  ✓ Done: {entry.label}")
@@ -1590,6 +1642,7 @@ MANIFEST_ONLY_ROUTER = {
     "english-challenge-shorts": run_manifest_only_challenge_shorts,
     "english-podcast": run_manifest_only_english_podcast,
     "english-slow": run_manifest_only_english_slow,
+    "english-traditional": run_manifest_only_english_traditional,
 }
 
 
@@ -1814,6 +1867,90 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
                 print(f"  Could not add quiz to master playlist: {e}")
 
         save_published_topic(title, topic_type="podcast")
+        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
+    else:
+        print(f"\nVideo assembled without upload: {out_path}")
+
+    print("\nDone!\n")
+
+
+def run_english_traditional(topic=None, upload=True, schedule_time=None, notify_subscribers=True, review_visuals=False):
+    from english_assembler import cleanup_english_temp
+    from english_generator import generate_traditional_english_script, save_published_topic
+
+    print("\n" + "=" * 50)
+    print("ENGLISH VIBES HUB — Traditional Learning Generator")
+    print("=" * 50)
+
+    try:
+        cleanup_english_temp()
+
+        print("\nGenerating traditional educational script with Groq...\n")
+        script = generate_traditional_english_script(topic)
+        script["description"] = _description_with_playlist_url(
+            script.get("description", ""),
+            "english",  # Use main english playlist for now
+        )
+
+        Path("scripts/output").mkdir(exist_ok=True)
+        json_file = "scripts/output/english_traditional.json"
+        Path(json_file).write_text(json.dumps(script, indent=2), encoding="utf-8")
+
+        print(f"\nGenerated:\n  Title: {script.get('title')}")
+
+    except Exception as e:
+        print(f"\nScript generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+    title = script["title"]
+    out_slug = slug(title)
+
+    _, bg_music_str, selected_visuals = _review_visuals_if_requested(
+        review_visuals=review_visuals,
+        label="English traditional",
+        script=script,
+        subfolder="english_visuals",
+        fallback_topic=topic or title,
+    )
+    out_path = _assemble_english_script(
+        script,
+        out_slug,
+        selected_visuals,
+        bg_music_str,
+        tts_speed=ENGLISH_LONG_TTS_SPEED,
+    )
+
+    if not schedule_time:
+        from schedule_ledger import ScheduleLedger
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        ledger = ScheduleLedger()
+        now_dt = datetime.now(ledger.tz)
+        slot_dt, slot_name = ledger.get_next_slot("english", now_dt)
+        utc_dt = slot_dt.astimezone(ZoneInfo("UTC"))
+        schedule_time = utc_dt.isoformat().replace("+00:00", "Z")
+        print(f"  Selected default English slot: {slot_name} ({slot_dt.strftime('%Y-%m-%d %H:%M:%S')} CST)")
+    else:
+        slot_name = None
+
+    if notify_subscribers is None:
+        notify_subscribers = True
+
+    if upload:
+        print("\nUploading video...\n")
+        _upload_video(
+            out_path,
+            title,
+            script.get("description"),
+            script.get("tags"),
+            channel="english",
+            schedule_time=schedule_time,
+            notify_subscribers=notify_subscribers,
+            slot=slot_name
+        )
+        save_published_topic(title, topic_type="traditional")
         print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
@@ -3103,7 +3240,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 
 def main():
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
-    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast", "english-slow"],
+    parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast", "english-slow", "english-traditional"],
                         help="Which channel to produce for")
     parser.add_argument("--topic", help="Override trend discovery with a specific trending topic")
     parser.add_argument("--region", default="CA", help="Google Trends region for trending videos (default: CA)")
@@ -3276,6 +3413,7 @@ def main():
             "9": "english-community",
             "10": "english-podcast",
             "11": "english-slow",
+            "12": "english-traditional",
         }.get(choice, "lofi")
 
     if args.channel == "lofi":
@@ -3344,6 +3482,18 @@ def main():
         )
     elif args.channel == "english-community":
         run_english_community(topic=args.topic, content_type=args.type)
+    elif args.channel == "english-traditional":
+        _run_interactive_two_phase(
+            "english-traditional",
+            topic=args.topic,
+            upload=not args.no_upload,
+            schedule_time=effective_schedule_time,
+            notify_subscribers=notify_override,
+            review_visuals=args.review_visuals,
+            skip_gemini=args.skip_gemini,
+            legacy_visuals=args.legacy_visuals,
+            use_chrome_ai=args.use_chrome_ai,
+        )
     elif args.channel == "english-quiz":
         _run_two_phase(
             "english-quiz",

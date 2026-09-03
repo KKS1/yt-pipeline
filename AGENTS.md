@@ -4,6 +4,7 @@
 
 - `python scripts/manual_run.py --channel trending|family|lofi` — single-video run
 - `python scripts/manual_run.py --channel english` — two-phase: `--manifest-only` then `--resume-from-manifest manifests/<slug>.manifest.json`
+- `python scripts/manual_run.py --channel english-traditional` — two-phase: `--manifest-only` then `--resume-from-manifest manifests/<slug>.manifest.json` (traditional educational format)
 - `python scripts/manual_run.py --channel english-challenge --topic "..." --start-date YYYY-MM-DD`
 - `python scripts/manual_run.py --channel english-shorts|english-quiz|english-challenge-shorts`
 - `python scripts/server.py` — Flask API bridge for n8n (port 5001)
@@ -49,7 +50,17 @@ YouTube credentials: `assets/yt_credentials_<channel>.json` (e.g. `yt_credential
 ## Pipeline notes
 
 - English podcasts use Kokoro TTS with multi-voice dialogue (Emma/Liam/Narrator/Guest).
+- English traditional format uses Emma/Liam hosts with direct teaching approach (warm, conversational, practical).
 - Scene durations driven by actual TTS audio, not estimates.
 - Family channel uses photo-first card format with Pexels images.
 - Captions use `.ass` format (Advanced Sub Station Alpha) with karaoke highlighting.
 - `--no-upload` flag skips YouTube publish; `--skip-gemini` skips scene image generation.
+
+## English Pipeline Comparison
+
+- **english** (main): High-CTR dramatic storytelling with Narrator/Emma/Liam, crisis hooks, emotional triggers
+- **english-traditional**: Educational format with Emma/Liam direct teaching, warm conversational style, traditional titles
+- **english-challenge**: 7-day structured learning series with Emma/Liam, daily practice tasks
+- **english-podcast**: Similar to main but shorter clips, multi-voice caller format
+- **english-shorts**: Short-form with high-CTR mistake/crisis hooks
+- **english-quiz**: Quiz format shorts with interactive questions

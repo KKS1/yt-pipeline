@@ -30,7 +30,7 @@ def guess_slot(channel: str, local_dt: datetime) -> str:
     elif channel == "english-shorts":
         if h == 19 and m == 0:
             return "tip_7pm"
-    elif channel in ("english"):
+    elif channel in ("english", "english-traditional"):
         if h == 17 and m == 0:
             return "masterclass_5pm"
         # if local_dt.weekday() == 5 and h == 19 and m == 0:
@@ -149,6 +149,8 @@ class ScheduleLedger:
         elif channel == "english-shorts":
             return self.get_next_shorts_slot(now_dt)
         elif channel == "english":
+            return self.get_next_english_slot(now_dt)
+        elif channel == "english-traditional":
             return self.get_next_english_slot(now_dt)
         elif channel == "english-challenge":
             slot_dt = self.get_next_challenge_start_date(now_dt)
