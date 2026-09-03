@@ -481,6 +481,13 @@ class ChromeAIGenerator:
             self.context = self.browser
             self.page = await self.context.new_page()
 
+    def _is_page_alive(self) -> bool:
+        """Check if the page is still connected and not closed."""
+        try:
+            return self.page is not None and not self.page.is_closed()
+        except Exception:
+            return False
+
     def _make_response_handler(self):
         """Return an async response handler that captures raw image bytes from CDN responses.
         
@@ -532,124 +539,157 @@ class ChromeAIGenerator:
                 return True
 
             # ── Path 2: JS fetch with upgraded CDN URL ────────────────────────
-            import base64
+            # Retry once if page/context dies mid-operation
+            for _attempt in range(2):
+                if not self._is_page_alive():
+                    print("  Page closed before DOM extraction, re-initializing...")
+                    await self._ensure_browser_open()
 
-            img_selectors = [
-                'img[alt="AI generated image"][data-processed="true"]',
-                'img[alt="AI generated image"]',
-                'img[data-processed="true"]',
-                'img[src*="googleusercontent"]',
-                'img[src*="data:image"]',
-            ]
-            img_element = None
-            for selector in img_selectors:
                 try:
-                    elements = await self.page.query_selector_all(selector)
-                    if elements:
-                        img_element = elements[-1]
-                        break
-                except:
-                    continue
+                    return await self._extract_image_via_dom(output_path)
+                except Exception as e:
+                    err_str = str(e)
+                    if "Target page" in err_str or "context or browser has been closed" in err_str:
+                        print(f"  Page closed during DOM extraction, retrying... ({err_str})")
+                        await self._ensure_browser_open()
+                        continue
+                    raise
 
-            btn_selectors = [
-                'button[aria-label="Download this AI generated image"][data-processed="true"]',
-                'button[aria-label="Download this AI generated image"]',
-                'button[title="Download image"]',
-                'a[title="Download image"]',
-            ]
-            btn_element = None
-            for selector in btn_selectors:
-                try:
-                    elements = await self.page.query_selector_all(selector)
-                    if elements:
-                        btn_element = elements[-1]
-                        break
-                except:
-                    continue
-
-            if img_element or btn_element:
-                result = await self.page.evaluate("""
-                    async ([img, btn]) => {
-                        let candidateUrls = [];
-                        if (btn) {
-                            for (const attr of ['href', 'data-url', 'data-download-url', 'data-src', 'src']) {
-                                const val = btn.getAttribute ? btn.getAttribute(attr) : null;
-                                if (val) candidateUrls.push(val);
-                            }
-                        }
-                        if (img) {
-                            for (const attr of ['currentSrc', 'src', 'srcset', 'data-src', 'data-url']) {
-                                const val = img[attr] || (img.getAttribute ? img.getAttribute(attr) : null);
-                                if (val) candidateUrls.push(val);
-                            }
-                        }
-
-                        let upgradedUrls = [];
-                        for (let u of candidateUrls) {
-                            if (!u) continue;
-                            if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url'};
-                            if (u.includes('googleusercontent.com') || u.includes('/gg/')) {
-                                upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s0'));
-                                upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s2048'));
-                            }
-                            upgradedUrls.push(u);
-                        }
-
-                        let lastError = null;
-                        for (const targetUrl of upgradedUrls) {
-                            try {
-                                const response = await fetch(targetUrl, {credentials: 'include'});
-                                if (response.ok) {
-                                    const blob = await response.blob();
-                                    if (blob && blob.size > 20000) {
-                                        const dataUrl = await new Promise((resolve) => {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => resolve(reader.result);
-                                            reader.readAsDataURL(blob);
-                                        });
-                                        return {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
-                                    } else {
-                                        lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' url=' + targetUrl.slice(0,60);
-                                    }
-                                } else {
-                                    lastError = 'http ' + response.status + ' url=' + targetUrl.slice(0,60);
-                                }
-                            } catch (e) {
-                                lastError = 'fetch error: ' + e.message + ' url=' + targetUrl.slice(0,60);
-                            }
-                        }
-                        return {ok: false, debug: lastError, urls: upgradedUrls.slice(0, 3)};
-                    }
-                """, [img_element, btn_element])
-
-                if result and result.get("ok") and result.get("data"):
-                    data_url = result["data"]
-                    if "," in data_url:
-                        _, b64 = data_url.split(",", 1)
-                        image_bytes = base64.b64decode(b64)
-                        if len(image_bytes) > 1000:
-                            output_path.parent.mkdir(parents=True, exist_ok=True)
-                            output_path.write_bytes(image_bytes)
-                            size_mb = len(image_bytes) / (1024 * 1024)
-                            print(f"  Saved JS-fetched image ({size_mb:.2f} MB) via: {result.get('debug', '?')}")
-                            return True
-                else:
-                    print(f"  JS fetch failed: {result.get('debug', 'unknown')} | tried urls: {result.get('urls', [])}")
-
-            # ── Path 3: Element screenshot (lowest quality) ───────────────────
-            if img_element:
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                await img_element.screenshot(path=str(output_path))
-                size_kb = output_path.stat().st_size / 1024
-                print(f"  Saved element screenshot ({size_kb:.0f} KB) to: {output_path.name}")
-                return True
-
-            print("  Could not find generated image element in DOM")
+            print("  DOM extraction failed after retry")
             return False
 
         except Exception as e:
             print(f"  DOM extraction failed: {e}")
             return False
+
+    async def _extract_image_via_dom(self, output_path: Path) -> bool:
+        """Inner DOM extraction: find image element, JS-fetch, or screenshot.
+        
+        Raises on page-closure so the caller can retry with a fresh page.
+        """
+        import base64
+
+        img_selectors = [
+            'img[alt="AI generated image"][data-processed="true"]',
+            'img[alt="AI generated image"]',
+            'img[data-processed="true"]',
+            'img[src*="googleusercontent"]',
+            'img[src*="data:image"]',
+        ]
+        img_element = None
+        for selector in img_selectors:
+            try:
+                elements = await self.page.query_selector_all(selector)
+                if elements:
+                    img_element = elements[-1]
+                    break
+            except Exception as e:
+                if "Target page" in str(e) or "context or browser has been closed" in str(e):
+                    raise
+                continue
+
+        btn_selectors = [
+            'button[aria-label="Download this AI generated image"][data-processed="true"]',
+            'button[aria-label="Download this AI generated image"]',
+            'button[title="Download image"]',
+            'a[title="Download image"]',
+        ]
+        btn_element = None
+        for selector in btn_selectors:
+            try:
+                elements = await self.page.query_selector_all(selector)
+                if elements:
+                    btn_element = elements[-1]
+                    break
+            except Exception as e:
+                if "Target page" in str(e) or "context or browser has been closed" in str(e):
+                    raise
+                continue
+
+        if not self._is_page_alive():
+            raise Exception("Page closed during element search")
+
+        if img_element or btn_element:
+            result = await self.page.evaluate("""
+                async ([img, btn]) => {
+                    let candidateUrls = [];
+                    if (btn) {
+                        for (const attr of ['href', 'data-url', 'data-download-url', 'data-src', 'src']) {
+                            const val = btn.getAttribute ? btn.getAttribute(attr) : null;
+                            if (val) candidateUrls.push(val);
+                        }
+                    }
+                    if (img) {
+                        for (const attr of ['currentSrc', 'src', 'srcset', 'data-src', 'data-url']) {
+                            const val = img[attr] || (img.getAttribute ? img.getAttribute(attr) : null);
+                            if (val) candidateUrls.push(val);
+                        }
+                    }
+
+                    let upgradedUrls = [];
+                    for (let u of candidateUrls) {
+                        if (!u) continue;
+                        if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url'};
+                        if (u.includes('googleusercontent.com') || u.includes('/gg/')) {
+                            upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s0'));
+                            upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s2048'));
+                        }
+                        upgradedUrls.push(u);
+                    }
+
+                    let lastError = null;
+                    for (const targetUrl of upgradedUrls) {
+                        try {
+                            const response = await fetch(targetUrl, {credentials: 'include'});
+                            if (response.ok) {
+                                const blob = await response.blob();
+                                if (blob && blob.size > 20000) {
+                                    const dataUrl = await new Promise((resolve) => {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => resolve(reader.result);
+                                        reader.readAsDataURL(blob);
+                                    });
+                                    return {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
+                                } else {
+                                    lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' url=' + targetUrl.slice(0,60);
+                                }
+                            } else {
+                                lastError = 'http ' + response.status + ' url=' + targetUrl.slice(0,60);
+                            }
+                        } catch (e) {
+                            lastError = 'fetch error: ' + e.message + ' url=' + targetUrl.slice(0,60);
+                        }
+                    }
+                    return {ok: false, debug: lastError, urls: upgradedUrls.slice(0, 3)};
+                }
+            """, [img_element, btn_element])
+
+            if result and result.get("ok") and result.get("data"):
+                data_url = result["data"]
+                if "," in data_url:
+                    _, b64 = data_url.split(",", 1)
+                    image_bytes = base64.b64decode(b64)
+                    if len(image_bytes) > 1000:
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_bytes(image_bytes)
+                        size_mb = len(image_bytes) / (1024 * 1024)
+                        print(f"  Saved JS-fetched image ({size_mb:.2f} MB) via: {result.get('debug', '?')}")
+                        return True
+            else:
+                print(f"  JS fetch failed: {result.get('debug', 'unknown')} | tried urls: {result.get('urls', [])}")
+
+        # ── Path 3: Element screenshot (lowest quality) ───────────────────
+        if img_element:
+            if not self._is_page_alive():
+                raise Exception("Page closed before screenshot")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            await img_element.screenshot(path=str(output_path))
+            size_kb = output_path.stat().st_size / 1024
+            print(f"  Saved element screenshot ({size_kb:.0f} KB) to: {output_path.name}")
+            return True
+
+        print("  Could not find generated image element in DOM")
+        return False
 
     async def _download_image(self, output_path: Path) -> bool:
         """Save generated image to output_path.
@@ -674,6 +714,24 @@ class ChromeAIGenerator:
         success = await self._extract_image_from_dom(output_path)
         if success:
             return True
+
+        # ── Step 3: Last-resort retry — re-initialize browser and try once ──
+        if not self._is_page_alive():
+            print("  Page dead after DOM extraction, re-initializing and retrying...")
+            await self._ensure_browser_open()
+            # Re-attach response handler on fresh page
+            try:
+                _handler = self._make_response_handler()
+                self.page.on("response", _handler)
+                success = await self._extract_image_from_dom(output_path)
+                try:
+                    self.page.remove_listener("response", _handler)
+                except Exception:
+                    pass
+                if success:
+                    return True
+            except Exception:
+                pass
 
         raise Exception("Failed to download image: interceptor captured nothing and DOM extraction failed")
 
