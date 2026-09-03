@@ -2695,6 +2695,11 @@ def generate_traditional_english_script(topic=None) -> dict:
     script.pop("day", None)
     script.pop("series_title", None)
     
+    # Remove summary scene since traditional format doesn't use idioms
+    if "scenes" in script:
+        script["scenes"] = [s for s in script["scenes"] if "summary" not in str(s.get("scene_label", "")).lower()]
+        print(f"  Removed summary scene (traditional format doesn't use idioms)")
+    
     return script
 
 
