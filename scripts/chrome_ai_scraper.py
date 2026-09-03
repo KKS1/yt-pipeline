@@ -43,7 +43,8 @@ class ChromeAIGenerator:
         self.browser = None
         self.context = None
         self.page = None
-        
+        self._last_captured_image_bytes = None  # filled by network response interceptor
+
         # Account rotation tracking
         self.available_accounts = []
         self.current_account_index = 0
@@ -275,6 +276,9 @@ class ChromeAIGenerator:
     async def _navigate_to_ai_mode(self):
         """Navigate to Chrome AI mode for image generation."""
         try:
+            # Ensure browser and page are active
+            await self._ensure_browser_open()
+            
             # Navigate to Google homepage
             await self.page.goto("https://www.google.com", timeout=30000)
             await self.page.wait_for_load_state("networkidle")
@@ -438,21 +442,98 @@ class ChromeAIGenerator:
         except Exception as e:
             raise Exception(f"Failed to wait for image generation: {e}")
     
-    async def _extract_image_from_dom(self, output_path: Path) -> bool:
-        """Fallback: Extract generated image directly from DOM via canvas/fetch/base64/screenshot.
+    async def _ensure_browser_open(self):
+        """Ensure browser context and page are active; re-launch if closed/crashed."""
+        is_closed = True
+        try:
+            if self.context and self.page and not self.page.is_closed():
+                is_closed = False
+        except Exception:
+            is_closed = True
+            
+        if is_closed:
+            print("  Browser context closed or crashed. Re-initializing Chrome persistent context...")
+            try:
+                if self.page:
+                    await self.page.close()
+            except Exception:
+                pass
+            try:
+                if self.context:
+                    await self.context.close()
+            except Exception:
+                pass
+                
+            if not self.playwright:
+                from playwright.async_api import async_playwright
+                self.playwright = await async_playwright().start()
+                
+            self.browser = await self.playwright.chromium.launch_persistent_context(
+                user_data_dir=self.profile_path,
+                headless=self.headless,
+                channel="chrome",
+                args=[
+                    "--no-sandbox",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+                viewport={"width": 1920, "height": 1080},
+            )
+            self.context = self.browser
+            self.page = await self.context.new_page()
+
+    def _make_response_handler(self):
+        """Return an async response handler that captures raw image bytes from CDN responses.
         
-        This avoids reliance on browser download events or target pages that may close prematurely.
+        Playwright intercepts responses at the network level — auth cookies are sent
+        automatically, so this bypasses all CORS/JS-fetch restrictions.
+        """
+        async def _on_response(response):
+            url = response.url
+            # Match Google AI image CDN hosts
+            is_image_cdn = (
+                "googleusercontent.com" in url
+                or "aisandbox-pa.googleapis.com" in url
+                or "generativelanguage.googleapis.com" in url
+            )
+            if not is_image_cdn:
+                return
+            try:
+                content_type = response.headers.get("content-type", "")
+                if "image" not in content_type and "octet" not in content_type:
+                    return
+                body = await response.body()
+                if body and len(body) > 50_000:  # only keep substantial images (>50 KB)
+                    if self._last_captured_image_bytes is None or len(body) > len(self._last_captured_image_bytes):
+                        self._last_captured_image_bytes = body
+                        print(f"    [intercept] Captured image from CDN: {len(body) // 1024} KB  ({url[:80]}...)")
+            except Exception:
+                pass
+        return _on_response
+
+    async def _extract_image_from_dom(self, output_path: Path) -> bool:
+        """Save the generated image to output_path.
+
+        Priority order:
+          1. Network-intercepted bytes (highest quality, full CDN resolution)
+          2. JS fetch with upgraded CDN URL (=s0 / =s2048)
+          3. Element screenshot fallback
         """
         try:
-            # Ensure page is open
-            if not self.page or self.page.is_closed():
-                if self.context and len(self.context.pages) > 0:
-                    self.page = self.context.pages[0]
-                elif self.context:
-                    self.page = await self.context.new_page()
-                else:
-                    return False
-            
+            await self._ensure_browser_open()
+
+            # ── Path 1: Network intercept ─────────────────────────────────────
+            if self._last_captured_image_bytes and len(self._last_captured_image_bytes) > 50_000:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(self._last_captured_image_bytes)
+                size_kb = len(self._last_captured_image_bytes) / 1024
+                size_mb = size_kb / 1024
+                print(f"  Saved intercepted image ({size_mb:.2f} MB) to: {output_path.name}")
+                self._last_captured_image_bytes = None  # consume
+                return True
+
+            # ── Path 2: JS fetch with upgraded CDN URL ────────────────────────
+            import base64
+
             img_selectors = [
                 'img[alt="AI generated image"][data-processed="true"]',
                 'img[alt="AI generated image"]',
@@ -460,133 +541,145 @@ class ChromeAIGenerator:
                 'img[src*="googleusercontent"]',
                 'img[src*="data:image"]',
             ]
-            
             img_element = None
             for selector in img_selectors:
                 try:
                     elements = await self.page.query_selector_all(selector)
                     if elements:
-                        img_element = elements[-1]  # last = most recent generated image
+                        img_element = elements[-1]
                         break
                 except:
                     continue
-            
-            if not img_element:
-                print("  Fallback: Could not find generated image element in DOM")
-                return False
-            
-            # Method 1: Canvas / Data URL / Blob fetch in browser context
-            import base64
-            data_url = await self.page.evaluate("""
-                async (img) => {
-                    if (!img) return null;
-                    if (img.src && img.src.startsWith('data:image/')) {
-                        return img.src;
-                    }
-                    try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.naturalWidth || img.width || 1024;
-                        canvas.height = img.naturalHeight || img.height || 1024;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        const url = canvas.toDataURL('image/png');
-                        if (url && url.length > 100) return url;
-                    } catch (e) {}
-                    try {
-                        const response = await fetch(img.src);
-                        const blob = await response.blob();
-                        return new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result);
-                            reader.readAsDataURL(blob);
-                        });
-                    } catch (e2) {
-                        return null;
-                    }
-                }
-            """, img_element)
-            
-            if data_url and "," in data_url:
-                header, base64_data = data_url.split(",", 1)
-                image_bytes = base64.b64decode(base64_data)
-                if len(image_bytes) > 1000:
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(image_bytes)
-                    print(f"  Extracted image via DOM/canvas to: {output_path.name}")
-                    return True
-            
-            # Method 2: Element screenshot fallback
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            await img_element.screenshot(path=str(output_path))
-            print(f"  Saved image via element screenshot to: {output_path.name}")
-            return True
-            
-        except Exception as e:
-            print(f"  DOM extraction fallback failed: {e}")
-            return False
 
-    async def _download_image(self, output_path: Path) -> bool:
-        """Click the download button of the most recently generated image, with DOM extraction fallback."""
-        try:
-            download_selectors = [
+            btn_selectors = [
                 'button[aria-label="Download this AI generated image"][data-processed="true"]',
                 'button[aria-label="Download this AI generated image"]',
-                'button[title="Download image"][data-processed="true"]',
                 'button[title="Download image"]',
+                'a[title="Download image"]',
             ]
-            
-            download_button = None
-            for selector in download_selectors:
+            btn_element = None
+            for selector in btn_selectors:
                 try:
                     elements = await self.page.query_selector_all(selector)
                     if elements:
-                        download_button = elements[-1]  # last = most recent
-                        print(f"  Found download button ({len(elements)} total, using last)")
+                        btn_element = elements[-1]
                         break
                 except:
                     continue
-            
-            if not download_button:
-                print("  Download button not found, attempting direct DOM image extraction...")
-                success = await self._extract_image_from_dom(output_path)
-                if success:
-                    return True
-                raise Exception("Could not find download button or extract image from DOM")
-            
-            # Set up download handler before clicking
-            try:
-                async with self.page.expect_download(timeout=15000) as download_info:
-                    await download_button.click()
-                
-                download = await download_info.value
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Try save_as or path copy
-                try:
-                    await download.save_as(str(output_path))
-                    print(f"  Downloaded image to: {output_path.name}")
-                    return True
-                except Exception as save_err:
-                    # If save_as fails (e.g., target page closed), try download.path()
-                    try:
-                        temp_path = await download.path()
-                        if temp_path and os.path.exists(temp_path):
-                            import shutil
-                            shutil.copy(temp_path, str(output_path))
-                            print(f"  Copied downloaded file from temp path to: {output_path.name}")
+
+            if img_element or btn_element:
+                result = await self.page.evaluate("""
+                    async ([img, btn]) => {
+                        let candidateUrls = [];
+                        if (btn) {
+                            for (const attr of ['href', 'data-url', 'data-download-url', 'data-src', 'src']) {
+                                const val = btn.getAttribute ? btn.getAttribute(attr) : null;
+                                if (val) candidateUrls.push(val);
+                            }
+                        }
+                        if (img) {
+                            for (const attr of ['currentSrc', 'src', 'srcset', 'data-src', 'data-url']) {
+                                const val = img[attr] || (img.getAttribute ? img.getAttribute(attr) : null);
+                                if (val) candidateUrls.push(val);
+                            }
+                        }
+
+                        let upgradedUrls = [];
+                        for (let u of candidateUrls) {
+                            if (!u) continue;
+                            if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url'};
+                            if (u.includes('googleusercontent.com') || u.includes('/gg/')) {
+                                upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s0'));
+                                upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s2048'));
+                            }
+                            upgradedUrls.push(u);
+                        }
+
+                        let lastError = null;
+                        for (const targetUrl of upgradedUrls) {
+                            try {
+                                const response = await fetch(targetUrl, {credentials: 'include'});
+                                if (response.ok) {
+                                    const blob = await response.blob();
+                                    if (blob && blob.size > 20000) {
+                                        const dataUrl = await new Promise((resolve) => {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => resolve(reader.result);
+                                            reader.readAsDataURL(blob);
+                                        });
+                                        return {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
+                                    } else {
+                                        lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' url=' + targetUrl.slice(0,60);
+                                    }
+                                } else {
+                                    lastError = 'http ' + response.status + ' url=' + targetUrl.slice(0,60);
+                                }
+                            } catch (e) {
+                                lastError = 'fetch error: ' + e.message + ' url=' + targetUrl.slice(0,60);
+                            }
+                        }
+                        return {ok: false, debug: lastError, urls: upgradedUrls.slice(0, 3)};
+                    }
+                """, [img_element, btn_element])
+
+                if result and result.get("ok") and result.get("data"):
+                    data_url = result["data"]
+                    if "," in data_url:
+                        _, b64 = data_url.split(",", 1)
+                        image_bytes = base64.b64decode(b64)
+                        if len(image_bytes) > 1000:
+                            output_path.parent.mkdir(parents=True, exist_ok=True)
+                            output_path.write_bytes(image_bytes)
+                            size_mb = len(image_bytes) / (1024 * 1024)
+                            print(f"  Saved JS-fetched image ({size_mb:.2f} MB) via: {result.get('debug', '?')}")
                             return True
-                    except Exception:
-                        pass
-                    raise save_err
-            except Exception as dl_err:
-                print(f"  Standard download failed ({dl_err}), attempting DOM extraction fallback...")
-                success = await self._extract_image_from_dom(output_path)
-                if success:
-                    return True
-                raise Exception(f"Failed to download image via standard and fallback methods: {dl_err}")
-                
+                else:
+                    print(f"  JS fetch failed: {result.get('debug', 'unknown')} | tried urls: {result.get('urls', [])}")
+
+            # ── Path 3: Element screenshot (lowest quality) ───────────────────
+            if img_element:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                await img_element.screenshot(path=str(output_path))
+                size_kb = output_path.stat().st_size / 1024
+                print(f"  Saved element screenshot ({size_kb:.0f} KB) to: {output_path.name}")
+                return True
+
+            print("  Could not find generated image element in DOM")
+            return False
+
         except Exception as e:
-            raise Exception(f"Failed to download image: {e}")
+            print(f"  DOM extraction failed: {e}")
+            return False
+
+    async def _download_image(self, output_path: Path) -> bool:
+        """Save generated image to output_path.
+
+        Priority:
+          1. Network-intercepted bytes — captured by the response handler when Google AI
+             loads the generated image into the page. No button click required; the CDN
+             request fires automatically during generation.
+          2. DOM extraction — JS fetch with CDN URL upgrade (=s0), then element screenshot.
+        """
+        # ── Step 1: Use bytes already captured by the network interceptor ────
+        if self._last_captured_image_bytes and len(self._last_captured_image_bytes) > 50_000:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(self._last_captured_image_bytes)
+            size_mb = len(self._last_captured_image_bytes) / (1024 * 1024)
+            print(f"  Saved intercepted image ({size_mb:.2f} MB) to: {output_path.name}")
+            self._last_captured_image_bytes = None
+            return True
+
+        # ── Step 2: DOM extraction fallback ──────────────────────────────────
+        print("  No intercepted bytes yet, attempting DOM extraction...")
+        success = await self._extract_image_from_dom(output_path)
+        if success:
+            return True
+
+        raise Exception("Failed to download image: interceptor captured nothing and DOM extraction failed")
+
+
+
+
     
     async def generate_scene_images(
         self,
@@ -600,14 +693,19 @@ class ChromeAIGenerator:
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         generated = 0
         skipped = 0
         failed = 0
         missing = []
-        
+
+        # Reset intercept buffer and attach CDN response handler
+        self._last_captured_image_bytes = None
+        _response_handler = self._make_response_handler()
+        self.page.on("response", _response_handler)
+
         print(f"\nGenerating {len(scenes)} scene images via Chrome AI...")
-        
+
         # Navigate to AI mode once before starting
         await self._navigate_to_ai_mode()
         
@@ -634,6 +732,7 @@ class ChromeAIGenerator:
             needs_navigate = False  # track if we need to re-navigate
             for attempt in range(CHROME_AI_MAX_RETRIES * len(self.available_accounts)):
                 try:
+                    await self._ensure_browser_open()
                     print(f"  [{i}/{len(scenes)}] Generating {output_path.name} (attempt {attempt + 1}, account {self.available_accounts[self.current_account_index]})")
                     
                     # Only re-navigate if needed (first scene, after error, or after account switch)
@@ -664,7 +763,8 @@ class ChromeAIGenerator:
                         }
                     """)
                     
-                    # Submit prompt
+                    # Clear any stale intercept from the previous scene, then submit prompt
+                    self._last_captured_image_bytes = None
                     await self._submit_prompt(visual_prompt)
                     
                     # Check again after prompt submission (limit may show up then)
@@ -709,6 +809,13 @@ class ChromeAIGenerator:
                 failed += 1
                 missing.append(image_filename)
         
+        # Detach response listener and clear intercept buffer
+        try:
+            self.page.remove_listener("response", _response_handler)
+        except Exception:
+            pass
+        self._last_captured_image_bytes = None
+
         # Check for missing images
         for scene in scenes:
             image_filename = scene.get("image_filename", "")
@@ -716,7 +823,7 @@ class ChromeAIGenerator:
                 output_path = output_dir / image_filename
                 if not output_path.exists() and image_filename not in missing:
                     missing.append(image_filename)
-        
+
         return {
             "generated": generated,
             "skipped": skipped,

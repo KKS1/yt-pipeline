@@ -1,3 +1,4 @@
+import os
 import tempfile
 import types
 import unittest
@@ -162,18 +163,26 @@ class BumperSupportTests(unittest.TestCase):
             visuals = assets / "english_shorts_visuals"
             visuals.mkdir(parents=True)
             output.mkdir()
+            # run_english_shorts writes scripts/output/english_shorts.json relative to cwd;
+            # chdir into tmp so it never touches the real project scripts/output/
+            (tmp_path / "scripts" / "output").mkdir(parents=True)
             visual = visuals / "clip.mp4"
             visual.write_bytes(b"visual")
 
-            with patch.object(manual_run, "ASSETS_DIR", assets):
-                with patch.object(manual_run, "OUTPUT_DIR", output):
-                    with patch("english_generator.generate_english_shorts_script", return_value=script):
-                        with patch("english_assembler.cleanup_english_temp"):
-                            with patch("english_assembler.generate_podcast_audio", return_value=str(tmp_path / "voice.m4a")):
-                                with patch("ffmpeg_assembler.generate_captions", return_value=str(output / "captions.srt")):
-                                    with patch("ffmpeg_assembler.assemble_shorts_video") as assemble:
-                                        with patch("random.choice", return_value=visual):
-                                            manual_run.run_english_shorts(upload=False)
+            old_cwd = os.getcwd()
+            os.chdir(tmp)
+            try:
+                with patch.object(manual_run, "ASSETS_DIR", assets):
+                    with patch.object(manual_run, "OUTPUT_DIR", output):
+                        with patch("english_generator.generate_english_shorts_script", return_value=script):
+                            with patch("english_assembler.cleanup_english_temp"):
+                                with patch("english_assembler.generate_podcast_audio", return_value=str(tmp_path / "voice.m4a")):
+                                    with patch("ffmpeg_assembler.generate_captions", return_value=str(output / "captions.srt")):
+                                        with patch("ffmpeg_assembler.assemble_shorts_video") as assemble:
+                                            with patch("random.choice", return_value=visual):
+                                                manual_run.run_english_shorts(upload=False)
+            finally:
+                os.chdir(old_cwd)
 
         self.assertIsNone(assemble.call_args.kwargs.get("channel"))
 
