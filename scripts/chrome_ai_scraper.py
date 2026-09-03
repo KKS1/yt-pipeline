@@ -764,7 +764,7 @@ class ChromeAIGenerator:
 
                     // CRITICAL: The full-res Google-hosted image lives in a hidden
                     // 'lens.usercontent.google.com/banana' element (classes fRm5F),
-                    // which is separate from the thumbnail data URL. Find it.
+                    // which is separate from the thumbnail data URL. Find it FIRST.
                     let bananaUrls = [];
                     const bananaImg = document.querySelector('img[src*="lens.usercontent.google.com/banana"]');
                     if (bananaImg) {
@@ -781,12 +781,17 @@ class ChromeAIGenerator:
                         }
                     }
 
+                    // Build upgrade variants ONLY from non-data URLs first (banana + any CDN)
                     let upgradedUrls = [];
-                    // Add banana URLs first (they're the full-res hosted source)
+                    let dataUrlFallback = null;
                     for (let item of bananaUrls.concat(candidateUrls)) {
                         let u = item.url;
                         if (!u) continue;
-                        if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url', src: item.src, srcLen: item.len, decodedLen: Math.round(item.len * 0.75)};
+                        // Defer data URLs: try real CDN (banana) fetch first for full resolution
+                        if (u.startsWith('data:image/')) {
+                            if (!dataUrlFallback) dataUrlFallback = {ok: true, data: u, src: item.src, srcLen: item.len, decodedLen: Math.round(item.len * 0.75)};
+                            continue;
+                        }
                         // Strip existing size param and try full-res first
                         let base = u.replace(/=[sw]\\d+.*$/, '');
                         if (base !== u) {
@@ -826,13 +831,15 @@ class ChromeAIGenerator:
                         }
                     }
                     if (bestResult) return bestResult;
+                    // Fall back to the deferred data URL (thumbnail) if no CDN fetch worked
+                    if (dataUrlFallback) return dataUrlFallback;
                     return {ok: false, debug: lastError, candidateCount: candidateUrls.length + bananaUrls.length, candidates: bananaUrls.concat(candidateUrls).map(c => ({src: c.src, len: c.len, preview: c.url.slice(0, 100)}))};
                 }
             """, [img_element, btn_element])
 
             if result and result.get("ok") and result.get("data"):
                 data_url = result["data"]
-                print(f"  [img-extract] got data from: {result.get('debug', '?')} | src attr: {result.get('src', '?')} | src attr len: {result.get('srcLen', '?')} | estimated decoded: {result.get('decodedLen', '?')} bytes")
+                print(f"  [img-extract] got data from: {result.get('debug', 'data-url-fallback')} | src attr: {result.get('src', '?')} | src attr len: {result.get('srcLen', '?')} | estimated decoded: {result.get('decodedLen', '?')} bytes")
                 if "," in data_url:
                     _, b64 = data_url.split(",", 1)
                     print(f"  [img-extract] base64 string length: {len(b64)} chars")
@@ -939,12 +946,61 @@ class ChromeAIGenerator:
             return True
 
         # ── Step 2: DOM extraction fallback ──────────────────────────────────
-        print("  No intercepted bytes yet, attempting DOM extraction...")
+        # Highest-value fallback: the hidden `fRm5F` element's
+        # `lens.usercontent.google.com/banana` URL serves the FULL-RES image.
+        print("  Trying DOM extraction (banana CDN fetch for full res)...")
         success = await self._extract_image_from_dom(output_path)
         if success:
             return True
 
-        # ── Step 3: Last-resort retry — re-initialize browser and try once ──
+        # ── Step 3: Trigger the download button and capture the file ─────────
+        # Google loads the thumbnail as a data URL but may save the FULL-RES file
+        # via the download button (class oZWMff, title="Download image"). The
+        # button is sometimes `disabled` — remove that and click it, then capture
+        # the resulting browser download. Short timeout since it often does not
+        # produce a real browser download event.
+        try:
+            await self._ensure_browser_open()
+            dl_clicked = await self.page.evaluate("""
+                () => {
+                    const btn = document.querySelector('button[aria-label="Download this AI generated image"], button[title="Download image"], button.oZWMff');
+                    if (!btn) return {clicked: false, reason: 'no button'};
+                    // Remove disabled so the click is allowed
+                    if (btn.disabled) { btn.disabled = false; }
+                    btn.removeAttribute('disabled');
+                    // Trigger the click
+                    btn.click();
+                    return {clicked: true, disabledWas: null};
+                }
+            """)
+            if dl_clicked and dl_clicked.get("clicked"):
+                print("  [download] dispatch click on download button, capturing download...")
+                async with self.page.expect_download(timeout=3000) as dl_info:
+                    # Re-dispatch in case the first JS .click() didn't trigger a download
+                    await self.page.evaluate("""
+                        () => {
+                            const btn = document.querySelector('button[aria-label="Download this AI generated image"], button[title="Download image"], button.oZWMff');
+                            if (btn) btn.click();
+                        }
+                    """)
+                try:
+                    download = await dl_info.value
+                    path = await download.path()
+                    if path:
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        import shutil
+                        shutil.copy(path, output_path)
+                        size_mb = output_path.stat().st_size / (1024 * 1024)
+                        print(f"  Saved download-button image ({size_mb:.2f} MB) to: {output_path.name}")
+                        return True
+                except Exception as e:
+                    print(f"  [download] expect_download failed: {e}")
+        except Exception as e:
+            print(f"  [download] path failed: {e}")
+
+        print("  DOM extraction produced no usable image.")
+
+        # ── Step 4: Last-resort retry — re-initialize browser and try once ──
         if not self._is_page_alive():
             print("  Page dead after DOM extraction, re-initializing and retrying...")
             await self._ensure_browser_open()
@@ -964,10 +1020,6 @@ class ChromeAIGenerator:
 
         raise Exception("Failed to download image: interceptor captured nothing and DOM extraction failed")
 
-
-
-
-    
     async def generate_scene_images(
         self,
         scenes: List[dict],
