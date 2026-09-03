@@ -762,19 +762,39 @@ class ChromeAIGenerator:
                         }
                     }
 
+                    // CRITICAL: The full-res Google-hosted image lives in a hidden
+                    // 'lens.usercontent.google.com/banana' element (classes fRm5F),
+                    // which is separate from the thumbnail data URL. Find it.
+                    let bananaUrls = [];
+                    const bananaImg = document.querySelector('img[src*="lens.usercontent.google.com/banana"]');
+                    if (bananaImg) {
+                        const bSrc = bananaImg.getAttribute('src') || '';
+                        console.log('[img-extract] found banana URL element, src length:', bSrc.length);
+                        bananaUrls.push({src: 'banana', url: bSrc, len: bSrc.length});
+                        const bSrcset = bananaImg.getAttribute('srcset') || '';
+                        if (bSrcset) {
+                            console.log('[img-extract] banana srcset:', bSrcset.slice(0, 200));
+                            for (const part of bSrcset.split(',')) {
+                                const u = part.trim().split(/\\s+/)[0];
+                                if (u) bananaUrls.push({src: 'banana-srcset', url: u, len: u.length});
+                            }
+                        }
+                    }
+
                     let upgradedUrls = [];
-                    for (let item of candidateUrls) {
+                    // Add banana URLs first (they're the full-res hosted source)
+                    for (let item of bananaUrls.concat(candidateUrls)) {
                         let u = item.url;
                         if (!u) continue;
                         if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url', src: item.src, srcLen: item.len, decodedLen: Math.round(item.len * 0.75)};
                         // Strip existing size param and try full-res first
                         let base = u.replace(/=[sw]\\d+.*$/, '');
                         if (base !== u) {
-                            upgradedUrls.push({url: base + '=s0', label: 's0'});
+                            upgradedUrls.push({url: base + '=s0', label: item.src + ':s0'});
                         }
-                        upgradedUrls.push({url: base + '=s2048', label: 's2048'});
-                        upgradedUrls.push({url: base + '=w2048', label: 'w2048'});
-                        upgradedUrls.push({url: u, label: 'raw'});
+                        upgradedUrls.push({url: base + '=s2048', label: item.src + ':s2048'});
+                        upgradedUrls.push({url: base + '=w2048', label: item.src + ':w2048'});
+                        upgradedUrls.push({url: u, label: item.src + ':raw'});
                     }
 
                     let lastError = null;
@@ -806,7 +826,7 @@ class ChromeAIGenerator:
                         }
                     }
                     if (bestResult) return bestResult;
-                    return {ok: false, debug: lastError, candidateCount: candidateUrls.length, candidates: candidateUrls.map(c => ({src: c.src, len: c.len, preview: c.url.slice(0, 100)}))};
+                    return {ok: false, debug: lastError, candidateCount: candidateUrls.length + bananaUrls.length, candidates: bananaUrls.concat(candidateUrls).map(c => ({src: c.src, len: c.len, preview: c.url.slice(0, 100)}))};
                 }
             """, [img_element, btn_element])
 
