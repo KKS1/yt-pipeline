@@ -2637,6 +2637,8 @@ JSON SCHEMA:
     script = call_groq_json(prompt)
     # Preprocess to separate mixed pause markers
     script = separate_mixed_pause_turns(script)
+    # Renumber dialogue turns to ensure sequential numbering
+    script = renumber_dialogue_turns(script)
     
     if not standalone:
         script.setdefault("day", day_number)
