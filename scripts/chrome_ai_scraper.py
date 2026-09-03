@@ -506,9 +506,13 @@ class ChromeAIGenerator:
                 return
             try:
                 content_type = response.headers.get("content-type", "")
+                status = response.status
+                # Log ALL responses from CDN domains (not just images) for debugging
+                print(f"    [net] CDN response: status={status} content-type={content_type} url={url[:100]}...")
                 if "image" not in content_type and "octet" not in content_type:
                     return
                 body = await response.body()
+                print(f"    [net] CDN body size: {len(body) // 1024} KB")
                 if body and len(body) > 50_000:  # only keep substantial images (>50 KB)
                     if self._last_captured_image_bytes is None or len(body) > len(self._last_captured_image_bytes):
                         self._last_captured_image_bytes = body
@@ -630,85 +634,200 @@ class ChromeAIGenerator:
         if not self._is_page_alive():
             raise Exception("Page closed during element search")
 
+        # ── Debug: comprehensive DOM scan for full-res image source ────────
+        if img_element:
+            try:
+                dom_debug = await self.page.evaluate("""
+                    (img) => {
+                        const results = {};
+                        // 1. All attributes on the AI generated image element
+                        results.img_attrs = {};
+                        for (const attr of img.attributes) {
+                            const val = attr.value;
+                            results.img_attrs[attr.name] = val.length > 200 ? val.slice(0, 200) + '...' : val;
+                        }
+                        // 2. naturalWidth/naturalHeight — tells us the intrinsic size
+                        results.natural_width = img.naturalWidth;
+                        results.natural_height = img.naturalHeight;
+                        results.display_width = img.clientWidth;
+                        results.display_height = img.clientHeight;
+                        // 3. ALL img elements on page with their src
+                        const allImgs = document.querySelectorAll('img');
+                        results.all_imgs = [];
+                        for (const i of allImgs) {
+                            const src = i.currentSrc || i.src || '';
+                            results.all_imgs.push({
+                                srcLen: src.length,
+                                srcPreview: src.slice(0, 120),
+                                natural: i.naturalWidth + 'x' + i.naturalHeight,
+                                display: i.clientWidth + 'x' + i.clientHeight,
+                            });
+                            results.all_imgs.push({
+                                src: src.slice(0, 200),
+                                alt: (i.alt || '').slice(0, 50),
+                                w: i.naturalWidth, h: i.naturalHeight,
+                                classes: (i.className || '').slice(0, 50),
+                            });
+                        }
+                        // 4. Canvas elements (might render full-res)
+                        const canvases = document.querySelectorAll('canvas');
+                        results.canvases = [];
+                        for (const c of canvases) {
+                            if (c.width > 100 && c.height > 100) {
+                                results.canvases.push({w: c.width, h: c.height, id: c.id, classes: (c.className || '').slice(0, 50)});
+                            }
+                        }
+                        // 5. Picture/source elements
+                        const sources = document.querySelectorAll('picture source, video source');
+                        results.sources = [];
+                        for (const s of sources) {
+                            const srcset = s.srcset || '';
+                            if (srcset && !srcset.startsWith('data:')) {
+                                results.sources.push({srcset: srcset.slice(0, 200), type: s.type || ''});
+                            }
+                        }
+                        // 6. Blob/object URLs anywhere in the DOM
+                        const allEls = document.querySelectorAll('*');
+                        results.blob_urls = [];
+                        for (const el of allEls) {
+                            for (const attr of el.attributes) {
+                                if (attr.value && attr.value.startsWith('blob:')) {
+                                    results.blob_urls.push({tag: el.tagName, attr: attr.name, url: attr.value.slice(0, 200)});
+                                }
+                            }
+                        }
+                        // 7. Download button and its full outerHTML
+                        const dlBtn = document.querySelector('button[aria-label*="Download"], button[title*="ownload"], a[title*="ownload"]');
+                        if (dlBtn) {
+                            results.download_btn = {
+                                tag: dlBtn.tagName,
+                                outerHTML: dlBtn.outerHTML.slice(0, 500),
+                                onclick: dlBtn.onclick ? dlBtn.onclick.toString().slice(0, 200) : null,
+                            };
+                        }
+                        return results;
+                    }
+                """, img_element)
+                print(f"  [dom-debug] img natural size: {dom_debug.get('natural_width')}x{dom_debug.get('natural_height')}  display: {dom_debug.get('display_width')}x{dom_debug.get('display_height')}")
+                print(f"  [dom-debug] img attrs: {dom_debug.get('img_attrs', {})}")
+                all_imgs = dom_debug.get('all_imgs', [])
+                if all_imgs:
+                    print(f"  [dom-debug] non-data img elements ({len(all_imgs)}):")
+                    for ai in all_imgs:
+                        print(f"    {ai}")
+                canvases = dom_debug.get('canvases', [])
+                if canvases:
+                    print(f"  [dom-debug] canvases: {canvases}")
+                sources = dom_debug.get('sources', [])
+                if sources:
+                    print(f"  [dom-debug] picture/source: {sources}")
+                blobs = dom_debug.get('blob_urls', [])
+                if blobs:
+                    print(f"  [dom-debug] blob URLs: {blobs}")
+                dl_btn = dom_debug.get('download_btn')
+                if dl_btn:
+                    print(f"  [dom-debug] download button: {dl_btn}")
+            except Exception as e:
+                print(f"  [dom-debug] scan failed: {e}")
+
         # ── Path 2a: JS fetch with CDN URL upgrade ────────────────────────
         if img_element or btn_element:
             result = await self.page.evaluate("""
                 async ([img, btn]) => {
+                    // Fallback: if img handle is stale, re-query by selector
+                    if (!img || !img.src) {
+                        img = document.querySelector('img[src^="data:image/"]') ||
+                              document.querySelector('. catalogue-generated-image img, [class*="generated"] img, [data-generative] img') ||
+                              document.querySelector('img');
+                        console.log('[img-extract] fallback querySelector found:', !!img, img ? (img.src || '').slice(0, 100) : 'none');
+                    }
                     let candidateUrls = [];
                     if (btn) {
                         for (const attr of ['href', 'data-url', 'data-download-url', 'data-src', 'src']) {
                             const val = btn.getAttribute ? btn.getAttribute(attr) : null;
-                            if (val) candidateUrls.push(val);
+                            if (val) candidateUrls.push({src: attr, url: val, len: val.length});
                         }
                     }
                     if (img) {
-                        for (const attr of ['currentSrc', 'src', 'srcset', 'data-src', 'data-url']) {
-                            const val = img[attr] || (img.getAttribute ? img.getAttribute(attr) : null);
-                            if (val) candidateUrls.push(val);
+                        // Log each attribute separately to diagnose truncation
+                        const imgSrc = img.src || '';
+                        const imgCurrentSrc = img.currentSrc || '';
+                        const imgSrcAttr = (img.getAttribute ? img.getAttribute('src') : '') || '';
+                        console.log('[img-extract] img.src length:', imgSrc.length, 'starts:', imgSrc.slice(0, 120));
+                        console.log('[img-extract] img.currentSrc length:', imgCurrentSrc.length, 'starts:', imgCurrentSrc.slice(0, 120));
+                        console.log('[img-extract] img.getAttribute(src) length:', imgSrcAttr.length, 'starts:', imgSrcAttr.slice(0, 120));
+
+                        for (const [label, val] of [['currentSrc', imgCurrentSrc], ['src', imgSrc], ['getAttribute-src', imgSrcAttr], ['srcset', img.srcset || ''], ['data-src', img.getAttribute ? (img.getAttribute('data-src') || '') : ''], ['data-url', img.getAttribute ? (img.getAttribute('data-url') || '') : '']]) {
+                            if (val && val.length > 10) candidateUrls.push({src: label, url: val, len: val.length});
                         }
                     }
 
                     let upgradedUrls = [];
-                    for (let u of candidateUrls) {
+                    for (let item of candidateUrls) {
+                        let u = item.url;
                         if (!u) continue;
-                        if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url'};
+                        if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url', src: item.src, srcLen: item.len, decodedLen: Math.round(item.len * 0.75)};
                         // Strip existing size param and try full-res first
                         let base = u.replace(/=[sw]\\d+.*$/, '');
                         if (base !== u) {
-                            upgradedUrls.push(base + '=s0');      // original resolution
+                            upgradedUrls.push({url: base + '=s0', label: 's0'});
                         }
-                        upgradedUrls.push(base + '=s2048');       // large fallback
-                        upgradedUrls.push(base + '=w2048');       // width-based fallback
-                        upgradedUrls.push(u);                     // raw URL as-is
+                        upgradedUrls.push({url: base + '=s2048', label: 's2048'});
+                        upgradedUrls.push({url: base + '=w2048', label: 'w2048'});
+                        upgradedUrls.push({url: u, label: 'raw'});
                     }
 
                     let lastError = null;
                     let bestResult = null;
-                    for (const targetUrl of upgradedUrls) {
+                    for (const target of upgradedUrls) {
                         try {
-                            const response = await fetch(targetUrl, {credentials: 'include'});
+                            const response = await fetch(target.url, {credentials: 'include'});
                             if (response.ok) {
                                 const blob = await response.blob();
+                                console.log('[img-extract] fetch', target.label, 'size:', blob.size, 'type:', blob.type);
                                 if (blob && blob.size > 20000) {
-                                    // Keep the largest successful fetch
                                     if (!bestResult || blob.size > bestResult.size) {
                                         const dataUrl = await new Promise((resolve) => {
                                             const reader = new FileReader();
                                             reader.onloadend = () => resolve(reader.result);
                                             reader.readAsDataURL(blob);
                                         });
-                                        bestResult = {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
+                                        bestResult = {ok: true, data: dataUrl, debug: target.label + ':' + target.url.slice(0, 80), size: blob.size};
                                     }
-                                    // If we got something > 200KB, it's likely full-res — stop early
                                     if (blob.size > 200_000) break;
                                 } else {
-                                    lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' url=' + targetUrl.slice(0,60);
+                                    lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' label=' + target.label;
                                 }
                             } else {
-                                lastError = 'http ' + response.status + ' url=' + targetUrl.slice(0,60);
+                                lastError = 'http ' + response.status + ' label=' + target.label + ' url=' + target.url.slice(0,60);
                             }
                         } catch (e) {
-                            lastError = 'fetch error: ' + e.message + ' url=' + targetUrl.slice(0,60);
+                            lastError = 'fetch error: ' + e.message + ' label=' + target.label;
                         }
                     }
                     if (bestResult) return bestResult;
-                    return {ok: false, debug: lastError, urls: upgradedUrls.slice(0, 3)};
+                    return {ok: false, debug: lastError, candidateCount: candidateUrls.length, candidates: candidateUrls.map(c => ({src: c.src, len: c.len, preview: c.url.slice(0, 100)}))};
                 }
             """, [img_element, btn_element])
 
             if result and result.get("ok") and result.get("data"):
                 data_url = result["data"]
+                print(f"  [img-extract] got data from: {result.get('debug', '?')} | src attr: {result.get('src', '?')} | src attr len: {result.get('srcLen', '?')} | estimated decoded: {result.get('decodedLen', '?')} bytes")
                 if "," in data_url:
                     _, b64 = data_url.split(",", 1)
+                    print(f"  [img-extract] base64 string length: {len(b64)} chars")
                     image_bytes = base64.b64decode(b64)
+                    print(f"  [img-extract] decoded image bytes: {len(image_bytes)} ({len(image_bytes) / (1024*1024):.2f} MB)")
                     if len(image_bytes) > 1000:
                         output_path.parent.mkdir(parents=True, exist_ok=True)
                         output_path.write_bytes(image_bytes)
-                        size_mb = len(image_bytes) / (1024 * 1024)
-                        print(f"  Saved JS-fetched image ({size_mb:.2f} MB) via: {result.get('debug', '?')}")
+                        print(f"  Saved image ({len(image_bytes) / (1024 * 1024):.2f} MB) via: {result.get('debug', '?')}")
                         return True
             else:
-                print(f"  JS fetch failed: {result.get('debug', 'unknown')} | tried urls: {result.get('urls', [])}")
+                print(f"  JS fetch failed: {result.get('debug', 'unknown')}")
+                if result and result.get("candidates"):
+                    for c in result["candidates"]:
+                        print(f"    candidate: src={c.get('src')} len={c.get('len')} preview={c.get('preview', '')[:100]}")
 
         # ── Path 2b: Python requests with browser cookies (bypasses in-page JS) ──
         if img_element:
