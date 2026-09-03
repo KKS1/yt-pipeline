@@ -78,9 +78,9 @@ class ChromeAIScraperTests(unittest.IsolatedAsyncioTestCase):
         output_file = Path("/tmp/test_chrome_ai_dom_first.png")
         
         with patch.object(generator, "_extract_image_from_dom", return_value=True) as mock_extract:
-            success = await generator._download_image(output_file)
+            success = await generator._download_image(output_file, new_image_index=2)
             self.assertTrue(success)
-            mock_extract.assert_called_once_with(output_file)
+            mock_extract.assert_called_once_with(output_file, 2)
 
     async def test_ensure_browser_open_reinitializes_on_closed_context(self):
         """Test _ensure_browser_open re-initializes Playwright persistent context if page/context was closed."""

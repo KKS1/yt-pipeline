@@ -521,8 +521,12 @@ class ChromeAIGenerator:
                 pass
         return _on_response
 
-    async def _extract_image_from_dom(self, output_path: Path) -> bool:
+    async def _extract_image_from_dom(self, output_path: Path, new_image_index: int = -1) -> bool:
         """Save the generated image to output_path.
+
+        Args:
+            output_path: Path to save the extracted image
+            new_image_index: Index of the newly generated image to select
 
         Priority order:
           1. Network-intercepted bytes (highest quality, full CDN resolution)
@@ -550,7 +554,7 @@ class ChromeAIGenerator:
                     await self._ensure_browser_open()
 
                 try:
-                    return await self._extract_image_via_dom(output_path)
+                    return await self._extract_image_via_dom(output_path, new_image_index)
                 except Exception as e:
                     err_str = str(e)
                     if "Target page" in err_str or "context or browser has been closed" in err_str:
@@ -587,8 +591,14 @@ class ChromeAIGenerator:
         variants.append(url)
         return variants
 
-    async def _extract_image_via_dom(self, output_path: Path) -> bool:
+    async def _extract_image_via_dom(self, output_path: Path, new_image_index: int = -1) -> bool:
         """Inner DOM extraction: find image element, JS-fetch, or screenshot.
+        
+        Args:
+            output_path: Path to save the extracted image
+            new_image_index: Index of the newly generated image in the list of images.
+                           If -1 (default), selects the last image (old behavior).
+                           If provided, selects the specific image at that index.
         
         Raises on page-closure so the caller can retry with a fresh page.
         """
@@ -606,7 +616,13 @@ class ChromeAIGenerator:
             try:
                 elements = await self.page.query_selector_all(selector)
                 if elements:
-                    img_element = elements[-1]
+                    # Select the specific image if index is provided, otherwise last one
+                    if new_image_index >= 0 and new_image_index < len(elements):
+                        img_element = elements[new_image_index]
+                        print(f"  Selecting image at index {new_image_index} of {len(elements)} total images")
+                    else:
+                        img_element = elements[-1]
+                        print(f"  Selecting last image (index {len(elements)-1}) of {len(elements)} total images")
                     break
             except Exception as e:
                 if "Target page" in str(e) or "context or browser has been closed" in str(e):
@@ -733,7 +749,7 @@ class ChromeAIGenerator:
         # ── Path 2a: JS fetch with CDN URL upgrade ────────────────────────
         if img_element or btn_element:
             result = await self.page.evaluate("""
-                async ([img, btn]) => {
+                async ([img, btn, imgIndex]) => {
                     // Fallback: if img handle is stale, re-query by selector
                     if (!img || !img.src) {
                         img = document.querySelector('img[src^="data:image/"]') ||
@@ -762,14 +778,25 @@ class ChromeAIGenerator:
                         }
                     }
 
-                    // CRITICAL: The full-res Google-hosted image lives in a hidden
-                    // 'lens.usercontent.google.com/banana' element (classes fRm5F),
-                    // which is separate from the thumbnail data URL. Find it FIRST.
+                    // CRITICAL: The full-res Google-hosted image lives in hidden
+                    // 'lens.usercontent.google.com/banana' elements (classes fRm5F),
+                    // separate from the thumbnail data URLs. There is one banana
+                    // element per generated image, in DOM order matching the
+                    // thumbnail index. Use imgIndex to select THIS scene's image
+                    // (not the first one!), falling back to the latest.
                     let bananaUrls = [];
-                    const bananaImg = document.querySelector('img[src*="lens.usercontent.google.com/banana"]');
-                    if (bananaImg) {
+                    const bananaImgs = Array.from(document.querySelectorAll('img[src*="lens.usercontent.google.com/banana"], img.fRm5F'));
+                    if (bananaImgs.length > 0) {
+                        let bananaImg = null;
+                        if (imgIndex !== undefined && imgIndex !== null && imgIndex >= 0 && imgIndex < bananaImgs.length) {
+                            bananaImg = bananaImgs[imgIndex];
+                            console.log('[img-extract] selected banana element at index', imgIndex, 'of', bananaImgs.length);
+                        } else {
+                            bananaImg = bananaImgs[bananaImgs.length - 1];
+                            console.log('[img-extract] selected last banana element (index', bananaImgs.length - 1, ') of', bananaImgs.length);
+                        }
                         const bSrc = bananaImg.getAttribute('src') || '';
-                        console.log('[img-extract] found banana URL element, src length:', bSrc.length);
+                        console.log('[img-extract] found banana URL element, src length:', bSrc.length, 'preview:', bSrc.slice(0, 80));
                         bananaUrls.push({src: 'banana', url: bSrc, len: bSrc.length});
                         const bSrcset = bananaImg.getAttribute('srcset') || '';
                         if (bSrcset) {
@@ -835,7 +862,7 @@ class ChromeAIGenerator:
                     if (dataUrlFallback) return dataUrlFallback;
                     return {ok: false, debug: lastError, candidateCount: candidateUrls.length + bananaUrls.length, candidates: bananaUrls.concat(candidateUrls).map(c => ({src: c.src, len: c.len, preview: c.url.slice(0, 100)}))};
                 }
-            """, [img_element, btn_element])
+            """, [img_element, btn_element, new_image_index])
 
             if result and result.get("ok") and result.get("data"):
                 data_url = result["data"]
@@ -927,8 +954,12 @@ class ChromeAIGenerator:
 
         return False
 
-    async def _download_image(self, output_path: Path) -> bool:
+    async def _download_image(self, output_path: Path, new_image_index: int = -1) -> bool:
         """Save generated image to output_path.
+
+        Args:
+            output_path: Path to save the extracted image
+            new_image_index: Index of the newly generated image to select
 
         Priority:
           1. Network-intercepted bytes — captured by the response handler when Google AI
@@ -949,7 +980,7 @@ class ChromeAIGenerator:
         # Highest-value fallback: the hidden `fRm5F` element's
         # `lens.usercontent.google.com/banana` URL serves the FULL-RES image.
         print("  Trying DOM extraction (banana CDN fetch for full res)...")
-        success = await self._extract_image_from_dom(output_path)
+        success = await self._extract_image_from_dom(output_path, new_image_index)
         if success:
             return True
 
@@ -1119,8 +1150,27 @@ class ChromeAIGenerator:
                     # Wait for generation — expects count to exceed previous
                     await self._wait_for_image_generation(previous_count=previous_image_count)
                     
+                    # Get current image count to identify which one is new
+                    current_image_count = await self.page.evaluate("""
+                        () => {
+                            for (const sel of [
+                                'img[alt="AI generated image"][data-processed="true"]',
+                                'img[alt="AI generated image"]',
+                                'img[data-processed="true"]',
+                            ]) {
+                                const els = document.querySelectorAll(sel);
+                                if (els.length > 0) return els.length;
+                            }
+                            return 0;
+                        }
+                    """)
+                    
+                    # The new image should be at the index of the previous count
+                    new_image_index = previous_image_count if current_image_count > previous_image_count else -1
+                    print(f"  Image count before: {previous_image_count}, after: {current_image_count}, new image index: {new_image_index}")
+                    
                     # Extract generated image (intercept → JS fetch → Python requests → screenshot)
-                    await self._download_image(output_path)
+                    await self._download_image(output_path, new_image_index)
                     
                     # Update account usage
                     current_account = self.available_accounts[self.current_account_index]

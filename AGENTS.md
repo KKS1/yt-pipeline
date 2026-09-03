@@ -29,6 +29,8 @@ Mix of plain pytest functions and `unittest.TestCase`. Some tests (English audio
 - **Playlist URL**: Use `{playlist_url}` placeholder in descriptions (replaced at upload time).
 - **Timezone**: `America/Regina` (no DST). Set `LOCAL_TIMEZONE` in `.env`.
 - **`.env` keys**: Live credentials are committed to `.env` — do not hardcode or regenerate unless intended.
+- **Chrome AI full-res images**: Chrome AI accumulates generated images in one conversation. Each image has a thumbnail (data URL, ~0.1MB) plus a hidden full-res `img.fRm5F` element (`lens.usercontent.google.com/banana` URL) — the banana URL fetched raw yields the full-res (~2MB) image. MUST select the banana element at the scene's `new_image_index` (not the first via `querySelector`), or every scene silently saves the same first image.
+- **Chrome AI download button**: `button[aria-label="Download this AI generated image"]` is `disabled` and never emits a real browser `download` event; don't rely on it. DOM banana fetch is the winning path.
 
 ## Structure
 
