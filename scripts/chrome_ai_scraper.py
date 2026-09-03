@@ -512,7 +512,7 @@ class ChromeAIGenerator:
                 if body and len(body) > 50_000:  # only keep substantial images (>50 KB)
                     if self._last_captured_image_bytes is None or len(body) > len(self._last_captured_image_bytes):
                         self._last_captured_image_bytes = body
-                        print(f"    [intercept] Captured image from CDN: {len(body) // 1024} KB  ({url[:80]}...)")
+                        print(f"    [intercept] Captured CDN image: {len(body) // 1024} KB  ({url[:80]}...)")
             except Exception:
                 pass
         return _on_response
@@ -562,6 +562,27 @@ class ChromeAIGenerator:
             print(f"  DOM extraction failed: {e}")
             return False
 
+    @staticmethod
+    def _upgrade_cdn_url(url: str) -> list:
+        """Build a list of CDN URL variants to try, from highest to lowest resolution.
+        
+        Google image CDN uses trailing params like =s0 (original), =s2048, =w1024, etc.
+        We try the full-res variant first, then progressively smaller ones.
+        """
+        import re
+        variants = []
+        # Strip any existing size param and try =s0 (original/full resolution)
+        no_size = re.sub(r'=[sw]\d+.*$', '', url)
+        if no_size != url:
+            variants.append(no_size + '=s0')
+        # Try =s2048 (large but not necessarily original)
+        variants.append(no_size + '=s2048')
+        # Try =w2048 (width-based, some CDN endpoints use this)
+        variants.append(no_size + '=w2048')
+        # Raw URL as-is (might already be full-res)
+        variants.append(url)
+        return variants
+
     async def _extract_image_via_dom(self, output_path: Path) -> bool:
         """Inner DOM extraction: find image element, JS-fetch, or screenshot.
         
@@ -609,6 +630,7 @@ class ChromeAIGenerator:
         if not self._is_page_alive():
             raise Exception("Page closed during element search")
 
+        # ── Path 2a: JS fetch with CDN URL upgrade ────────────────────────
         if img_element or btn_element:
             result = await self.page.evaluate("""
                 async ([img, btn]) => {
@@ -630,26 +652,35 @@ class ChromeAIGenerator:
                     for (let u of candidateUrls) {
                         if (!u) continue;
                         if (u.startsWith('data:image/')) return {ok: true, data: u, debug: 'data-url'};
-                        if (u.includes('googleusercontent.com') || u.includes('/gg/')) {
-                            upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s0'));
-                            upgradedUrls.push(u.replace(/=[sw][0-9]+.*$/, '=s2048'));
+                        // Strip existing size param and try full-res first
+                        let base = u.replace(/=[sw]\\d+.*$/, '');
+                        if (base !== u) {
+                            upgradedUrls.push(base + '=s0');      // original resolution
                         }
-                        upgradedUrls.push(u);
+                        upgradedUrls.push(base + '=s2048');       // large fallback
+                        upgradedUrls.push(base + '=w2048');       // width-based fallback
+                        upgradedUrls.push(u);                     // raw URL as-is
                     }
 
                     let lastError = null;
+                    let bestResult = null;
                     for (const targetUrl of upgradedUrls) {
                         try {
                             const response = await fetch(targetUrl, {credentials: 'include'});
                             if (response.ok) {
                                 const blob = await response.blob();
                                 if (blob && blob.size > 20000) {
-                                    const dataUrl = await new Promise((resolve) => {
-                                        const reader = new FileReader();
-                                        reader.onloadend = () => resolve(reader.result);
-                                        reader.readAsDataURL(blob);
-                                    });
-                                    return {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
+                                    // Keep the largest successful fetch
+                                    if (!bestResult || blob.size > bestResult.size) {
+                                        const dataUrl = await new Promise((resolve) => {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => resolve(reader.result);
+                                            reader.readAsDataURL(blob);
+                                        });
+                                        bestResult = {ok: true, data: dataUrl, debug: targetUrl.slice(0, 80), size: blob.size};
+                                    }
+                                    // If we got something > 200KB, it's likely full-res — stop early
+                                    if (blob.size > 200_000) break;
                                 } else {
                                     lastError = 'blob too small: ' + (blob ? blob.size : 0) + ' url=' + targetUrl.slice(0,60);
                                 }
@@ -660,6 +691,7 @@ class ChromeAIGenerator:
                             lastError = 'fetch error: ' + e.message + ' url=' + targetUrl.slice(0,60);
                         }
                     }
+                    if (bestResult) return bestResult;
                     return {ok: false, debug: lastError, urls: upgradedUrls.slice(0, 3)};
                 }
             """, [img_element, btn_element])
@@ -678,17 +710,75 @@ class ChromeAIGenerator:
             else:
                 print(f"  JS fetch failed: {result.get('debug', 'unknown')} | tried urls: {result.get('urls', [])}")
 
-        # ── Path 3: Element screenshot (lowest quality) ───────────────────
+        # ── Path 2b: Python requests with browser cookies (bypasses in-page JS) ──
+        if img_element:
+            cdn_url = await self._get_element_cdn_url(img_element)
+            if cdn_url:
+                success = await self._fetch_image_via_python(cdn_url, output_path)
+                if success:
+                    return True
+
+        # ── Path 3: Element screenshot (lowest quality, last resort) ──────
         if img_element:
             if not self._is_page_alive():
                 raise Exception("Page closed before screenshot")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             await img_element.screenshot(path=str(output_path))
             size_kb = output_path.stat().st_size / 1024
-            print(f"  Saved element screenshot ({size_kb:.0f} KB) to: {output_path.name}")
+            print(f"  Saved element screenshot ({size_kb:.0f} KB, low-res) to: {output_path.name}")
             return True
 
         print("  Could not find generated image element in DOM")
+        return False
+
+    async def _get_element_cdn_url(self, img_element) -> str:
+        """Extract the CDN image URL from an img element's attributes."""
+        try:
+            url = await img_element.get_attribute("currentSrc")
+            if url and "data:" not in url:
+                return url
+            url = await img_element.get_attribute("src")
+            if url and "data:" not in url:
+                return url
+        except Exception:
+            pass
+        return None
+
+    async def _fetch_image_via_python(self, cdn_url: str, output_path: Path) -> bool:
+        """Fetch image via Python requests using browser cookies for auth.
+        
+        This bypasses in-page JS entirely — useful when page is unstable
+        or JS fetch hits CORS restrictions.
+        """
+        import requests as py_requests
+
+        try:
+            # Get cookies from Playwright browser context
+            cookies = {}
+            try:
+                for c in await self.context.cookies():
+                    if "google" in c.get("domain", ""):
+                        cookies[c["name"]] = c["value"]
+            except Exception:
+                pass
+
+            for url_variant in self._upgrade_cdn_url(cdn_url):
+                try:
+                    resp = py_requests.get(url_variant, cookies=cookies, timeout=30)
+                    if resp.status_code == 200 and len(resp.content) > 50_000:
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_bytes(resp.content)
+                        size_mb = len(resp.content) / (1024 * 1024)
+                        print(f"  Saved Python-fetched image ({size_mb:.2f} MB) via: {url_variant[:80]}")
+                        return True
+                except Exception:
+                    continue
+
+        except ImportError:
+            print("  requests library not available for Python fallback")
+        except Exception as e:
+            print(f"  Python fetch failed: {e}")
+
         return False
 
     async def _download_image(self, output_path: Path) -> bool:
@@ -838,7 +928,7 @@ class ChromeAIGenerator:
                     # Wait for generation — expects count to exceed previous
                     await self._wait_for_image_generation(previous_count=previous_image_count)
                     
-                    # Download image via click
+                    # Extract generated image (intercept → JS fetch → Python requests → screenshot)
                     await self._download_image(output_path)
                     
                     # Update account usage
