@@ -2549,11 +2549,16 @@ STRUCTURE & CONTENT:
 2. Teach the focused skill: {day.get('focus')}.
 3. Explain useful phrases, idioms, pronunciation tips, or sentence patterns connected to the skill. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology.
 4. Include short roleplay moments between Emma and Liam.
-5. Give listeners a practical task to try: {day.get('practice_task')}.
-6. End naturally without setting up future content or saying goodbye.
+5. Quick check 1 (mid-lesson): after some teaching and roleplay, Emma asks ONE simple comprehension question about the skill just taught. Then add a SEPARATE turn with text exactly "[PAUSE 2 SECONDS]", then Liam answers simply by restating the correct phrase in context.
+6. Continue teaching / roleplay, then Quick check 2 (near the end): Liam asks ONE more simple comprehension question. Then add a SEPARATE turn with text exactly "[PAUSE 2 SECONDS]", then Emma answers simply.
+7. Give listeners a practical task to try: {day.get('practice_task')}.
+8. End naturally without setting up future content or saying goodbye.
 """
         outro_rule = _NOT_FINAL_PART_RULES
-        turn_count = "18-22"
+        quiz_rule = """
+- QUIZ FORMAT (low-friction, 2 quick checks total): Each quick check is exactly three turns — (1) the question turn, (2) a SEPARATE turn with text EXACTLY "[PAUSE 2 SECONDS]" (speaker "Emma" or "Liam"), (3) the answer reveal turn. NEVER use "Option A/B/C" labels or any multiple-choice format. Keep questions concise. The answer reveal should briefly restate the correct phrase in context so it reinforces the teaching without adding a lecture.
+"""
+        turn_count = "22-26"
         title_suffix = ""
         series_reference = ""
     elif day_number == 7:
@@ -2567,6 +2572,7 @@ STRUCTURE & CONTENT:
 5. The final 1-2 dialogue turns may thank listeners and invite them to keep learning with EnglishVibesHub.
 """
         outro_rule = "Do NOT use like/subscribe/goodbye language until the final 1-2 turns."
+        quiz_rule = ""
         turn_count = "20-25"
         title_suffix = f" - Day {day_number}"
         series_reference = f"SERIES: {series_title}\nDAY: {day_number}\n"
@@ -2581,6 +2587,7 @@ STRUCTURE & CONTENT:
 6. End by setting up tomorrow's challenge without saying goodbye.
 """
         outro_rule = _NOT_FINAL_PART_RULES
+        quiz_rule = ""
         turn_count = "18-22"
         title_suffix = f" - Day {day_number}"
         series_reference = f"SERIES: {series_title}\nDAY: {day_number}\n"
@@ -2610,7 +2617,7 @@ CRITICAL RULES:
 - {script_context}
 - Keep explanations clear for intermediate English learners.
 - Ask listeners to answer out loud when useful.
-{outro_rule}
+{quiz_rule}{outro_rule}
 
 {structure}
 
