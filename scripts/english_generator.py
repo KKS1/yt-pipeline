@@ -28,7 +28,7 @@ METADATA RULES:
   H. Personal failure: "I Embarrassed Myself With [X]"
   I. Challenge: "Only 10% Pass This [X] Test"
   J. Cultural warning: "Don't Say [X] in English (Trust Me)"
-- FORBIDDEN WORDS: "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
+- FORBIDDEN WORDS: "learn", "tutorial", "study" — these kill CTR
 - Include chosen structure letter (A-J) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO line ("English listening practice for [topic]"), include "Natural English" and "Speak like a native" in first 2-3 lines. Use keyword variations.
 - Include playlist CTA (📺 Watch the playlist here: {playlist_url}), comment CTA, subscribe CTA, and hashtags (max 5).
@@ -42,7 +42,7 @@ PODCAST_METADATA_RULES = """
 METADATA RULES (PODCAST — under 3 min clips):
 - Titles under 70 chars, high-CTR, emotionally-driven. NEVER use "Episode X" or series numbering.
 - Use ONE of these structures (rotate): A. Crisis hook B. Story cliffhanger C. Mistake-in-action D. Curiosity bomb E. Relatable pain F. Cultural shock G. Direct address H. Personal failure
-- FORBIDDEN WORDS: "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
+- FORBIDDEN WORDS: "learn", "tutorial", "study" — these kill CTR
 - Include chosen letter as "title_structure". Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO ("English podcast: [topic]"), include "Natural English" and "Speak like a native".
 - Include {playlist_url} placeholder, comment CTA, subscribe CTA, hashtags (max 5).
@@ -1991,7 +1991,7 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
       H. Personal failure: "I Embarrassed Myself With [X]"
       I. Challenge: "Only 10% Pass This [X] Test"
       J. Cultural warning: "Don't Say [X] in English (Trust Me)"
-    - FORBIDDEN WORDS: NEVER use "practice", "learn", "master", "English lesson", "tutorial", "study" — these kill CTR
+    - FORBIDDEN WORDS: NEVER use "learn", "tutorial", "study" — these kill CTR
     - For quiz shorts, prefer quiz-focused formulas like "Only 10% Pass This [X] Test" or "You're Probably Saying [X] Wrong"
     - Do NOT force "English listening practice" or "Learn English" as the first words — keep keywords organic
     - The title must trigger EMOTION or CURIOSITY, not describe content like a textbook heading
@@ -2594,12 +2594,19 @@ STRUCTURE & CONTENT:
 
     if standalone:
         prompt_intro = "You are writing a standalone English lesson video script for 'EnglishVibesHub' (@EnglishVibesHub-s6w)."
-        title_instruction = "string (Traditional educational title under 60 characters. Use clear, descriptive titles like 'Airport English for Beginners' or 'Doctor Office Vocabulary Guide'. Include topic keywords naturally. e.g., 'Airport English: Essential Phrases for Travel')"
+        title_instruction = "string (Traditional educational title under 60 characters. Use clear, descriptive titles like 'Airport English for Beginners' or 'Doctor Office Vocabulary Guide'. NOTE: the provided TITLE above is the requested topic — KEEP its keywords and full meaning, only lightly reword it for clarity/CTR (e.g. shorten, reorder, adjust punctuation). Example: given 'Master Conversational Idioms to Speak Natural English Fast', output 'Conversational Idioms to Speak Natural English Fast' or 'Master Conversational Idioms: Speak Natural English Fast'. e.g., 'Airport English: Essential Phrases for Travel')"
         script_context = "The script should feel complete as a standalone educational video."
+        title_guard = """
+STANDALONE TITLE RULES (these OVERRIDE the title-related sections of METADATA RULES above, for the "title" field ONLY):
+- The final title MUST preserve the keywords and meaning of the provided TITLE above. You may lightly reword for clarity/CTR, but NEVER drop the topic keywords or swap in a different angle/subject.
+- FORBIDDEN WORDS do NOT apply to words that already appear in the provided TITLE (e.g. 'Master', 'Learn', 'Practice'). Keep them if they are part of the topic.
+- Do NOT apply crisis/urgency formula structures A-J to rewrite the title into a different topic. A descriptive, keyword-led title is expected and preferred.
+"""
     else:
         prompt_intro = "You are writing a standalone video script for a 7-day English learning challenge playlist on 'EnglishVibesHub' (@EnglishVibesHub-s6w)."
         title_instruction = f"string (High-CTR title under 60 characters. Front-load with 'English listening practice', 'English speaking practice', or 'Learn English'. Include Day {day_number} in the suffix at the end. Use benefit-focused hooks like 'Master This', 'Complete Guide', 'Essential Phrases'. Include keyword variations like 'hairdresser/stylist' for hair salon topics. e.g., 'English Listening Practice: Master Restaurant Vocabulary - Day {day_number}')"
         script_context = "The script should feel complete as one daily video, but connected to the weekly playlist."
+        title_guard = ""
 
     prompt = f"""
 {prompt_intro}
@@ -2609,6 +2616,7 @@ STRUCTURE & CONTENT:
 FOCUS: {day.get('focus')}
 PRACTICE TASK: {day.get('practice_task')}
 {ENGLISH_METADATA_RULES}
+{title_guard}
 
 CRITICAL RULES:
 - Output ONLY valid JSON.
@@ -2708,6 +2716,15 @@ def generate_traditional_english_script(topic=None) -> dict:
     if "scenes" in script:
         script["scenes"] = [s for s in script["scenes"] if "summary" not in str(s.get("scene_label", "")).lower()]
         print(f"  Removed summary scene (traditional format doesn't use idioms)")
+        # The summary card usually covered the final dialogue turns; extend the last
+        # remaining scene so the closing turns don't end up without a visual.
+        dialogue = script.get("dialogue", [])
+        if dialogue and script["scenes"]:
+            last_turn = len(dialogue) - 1
+            last_scene = script["scenes"][-1]
+            if last_scene.get("end_turn", 0) < last_turn:
+                print(f"  Extended last scene '{last_scene.get('scene_label', '?')}' end_turn {last_scene.get('end_turn')} -> {last_turn}")
+                last_scene["end_turn"] = last_turn
     
     return script
 
