@@ -149,7 +149,7 @@ def _description_with_playlist_url(description: str, command_channel: str | None
     # Pattern: {https://...} or {http://...}
     text = re.sub(r'\{https?://[^\}]+\}', playlist_url, text)
     
-    playlist_line = f"📺 Watch the playlist here: {playlist_url}"
+    playlist_line = f"📺 Watch the Everyday English Practice playlist here: {playlist_url}"
 
     if "{playlist_url}" in text:
         text = text.replace("{playlist_url}", playlist_url)
@@ -160,7 +160,7 @@ def _description_with_playlist_url(description: str, command_channel: str | None
     # Ensure the playlist line is positioned correctly (above comment, above hashtags)
     # Remove any existing playlist lines and re-insert at the canonical position
     lines = text.splitlines()
-    cleaned = [l for l in lines if not re.match(r"^\s*📺\s*Watch\s+the\s+playlist\s+here:", l, re.IGNORECASE)]
+    cleaned = [l for l in lines if not re.match(r"^\s*📺\s*Watch\s+the\s+(?:Everyday\s+English\s+Practice\s+)?playlist\s+here:", l, re.IGNORECASE)]
 
     # Find the insertion point: after 🎯 opener (+ optional About section), before 💬 comment
     insert_idx = len(cleaned)  # default: end

@@ -99,7 +99,7 @@ def test_ensure_english_description_cta_adds_spaced_icon_block():
         "English listening practice for daily conversation.\nLearn useful phrases today."
     )
 
-    assert "📺 Watch the playlist here: {playlist_url}" in cleaned
+    assert "📺 Watch the Everyday English Practice playlist here: {playlist_url}" in cleaned
     assert "💬 Comment below:" in cleaned
     assert "🔔 Subscribe" in cleaned
 

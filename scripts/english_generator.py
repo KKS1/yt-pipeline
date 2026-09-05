@@ -31,7 +31,7 @@ METADATA RULES:
 - FORBIDDEN WORDS: "learn", "tutorial", "study" — these kill CTR
 - Include chosen structure letter (A-J) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO line ("English listening practice for [topic]"), include "Natural English" and "Speak like a native" in first 2-3 lines. Use keyword variations.
-- Include playlist CTA (📺 Watch the playlist here: {playlist_url}), comment CTA, subscribe CTA, and hashtags (max 5).
+- Include playlist CTA (📺 Watch the Everyday English Practice playlist here: {playlist_url}), comment CTA, subscribe CTA, and hashtags (max 5).
 - Hashtags: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
 - Use ONLY {playlist_url} placeholder (not actual URLs).
 - Tags: high-intent SEO mixing broad English-learning + topic-specific terms. Pinned comments: specific question viewers can answer quickly.
@@ -1043,7 +1043,7 @@ def remove_duplicate_phrases(description: str) -> str:
 _SECTION_ORDER = [
     ("seo", re.compile(r"^🎯")),
     ("about", re.compile(r"^📑\s*About")),
-    ("playlist", re.compile(r"^📺\s*Watch\s+the\s+playlist", re.IGNORECASE)),
+    ("playlist", re.compile(r"^📺\s*Watch\s+the\s+(?:Everyday\s+English\s+Practice\s+)?playlist", re.IGNORECASE)),
     ("comment", re.compile(r"^💬\s*Comment", re.IGNORECASE)),
     ("subscribe", re.compile(r"^🔔\s*Subscribe", re.IGNORECASE)),
     ("timeline", re.compile(r"^📑\s*Timeline", re.IGNORECASE)),
@@ -1288,7 +1288,7 @@ def ensure_english_description_cta(description: str, *, include_timeline: bool =
     # Order: playlist → comment → subscribe → timeline (timeline only for long-form)
     # Add playlist if missing (will be positioned after opener)
     if "{playlist_url}" not in text and not re.search(r"playlist", text, re.IGNORECASE):
-        additions.append("📺 Watch the playlist here: {playlist_url}")
+        additions.append("📺 Watch the Everyday English Practice playlist here: {playlist_url}")
     
     # Only add generic comment if no comment section exists at all
     if not re.search(r"💬\s*comment", text, re.IGNORECASE):
