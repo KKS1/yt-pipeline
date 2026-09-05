@@ -2451,7 +2451,7 @@ def generate_weekly_challenge_quiz_script(day_script: dict) -> dict:
     {ENGLISH_METADATA_RULES}
 
     TIME ALLOCATION RULES:
-    - [0-3s] Hook: Emma introduces the Day {day_num} Challenge question clearly.
+    - [0-3s] Hook: Emma introduces the Day {day_num} Challenge question clearly. Front-load: open directly with the question/tension — no greeting, no channel name, no scene-setting. The viewer must know what they're testing in the first 2 seconds.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
     - [13-20s] Context Hint: Liam provides an educational example sentence or hint related to "{focus}".
     - [20-25s] Answer Reveal & Perfect Loop CTA: Emma reveals the answer and cuts instantly into a seamless word loop back to the hook.
@@ -2545,7 +2545,7 @@ def generate_weekly_challenge_day_script(plan: dict, day: dict, standalone: bool
         # Standalone mode: remove playlist/day references
         structure = f"""
 STRUCTURE & CONTENT:
-1. Welcome listeners to this English lesson on @EnglishVibesHub-s6w.
+1. Open with the learning payoff, not a welcome: SKIP "Welcome back / I'm Emma" housekeeping. In the first ~2 turns, give the viewer an immediate "aha" — a relatable mistake or question tied to the topic plus the promise of what they'll learn (e.g. "Ever been asked 'How do you say...?' and frozen? By the end of this lesson, today's phrases will roll off your tongue."). Confirm in the first 10 seconds the viewer is in the right place.
 2. Teach the focused skill: {day.get('focus')}.
 3. Explain useful phrases, idioms, pronunciation tips, or sentence patterns connected to the skill. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology.
 4. Include short roleplay moments between Emma and Liam.
@@ -2564,7 +2564,7 @@ STRUCTURE & CONTENT:
     elif day_number == 7:
         structure = f"""
 STRUCTURE & CONTENT:
-1. Welcome listeners to Day 7 of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
+1. Open with a Day 7 payoff hook, not a welcome: SKIP "Welcome to Day 7 / welcome back" housekeeping. In the first ~2 turns, recap the biggest win from the week OR ask a quick "can you still do X?" question that hooks learners (e.g. "Seven days ago, small talk froze you. Today, let's prove how far you've come."). Confirm in the first 10 seconds the viewer is in the right place.
 2. Recap Days 1-6 using these exact learning points:
 {chr(10).join('- ' + item for item in previous_days)}
 3. Ask at least 8 practical challenge questions. Include a short pause cue after each question, then have the hosts explain a strong sample answer.
@@ -2579,7 +2579,7 @@ STRUCTURE & CONTENT:
     else:
         structure = f"""
 STRUCTURE & CONTENT:
-1. Welcome listeners to Day {day_number} of the weekly challenge on @EnglishVibesHub-s6w and name the playlist: {series_title}.
+1. Open with the learning payoff, not a welcome: SKIP "Welcome to Day N / welcome back" housekeeping. In the first ~2 turns, give the viewer an immediate "aha" — a relatable mistake or question tied to today's skill plus the promise of what they'll learn today (e.g. "Chatting with a barista shouldn't be scary. In the next few minutes, you'll nail today's phrases."). Confirm in the first 10 seconds the viewer is in the right place. Channel/playlist naming goes in the description, not the opening.
 2. Teach the focused skill: {day.get('focus')}.
 3. Explain useful phrases, idioms, pronunciation tips, or sentence patterns connected to the skill. Use simple, direct phrasing like "Here 'X' means 'Y'" or "In this context, 'X' means 'Y'". Do NOT use meta-language like "phrasal verb breakdown", "phrase verb spotlight", "break down", or similar educational terminology.
 4. Include short roleplay moments between Emma and Liam.
@@ -2799,8 +2799,14 @@ TOPIC ALIGNMENT (MANDATORY):
 CRITICAL RULES:
 1. Output ONLY valid JSON. 2. At least 28 turns, 2-4 sentences each (doubled for longer, more comprehensive content). 3. Narrator = third-person only. Characters = first-person only. Characters never teach. 4. Narrator weaves explanations INTO narrative — never pauses story for a lesson. Include more detailed examples and cultural context throughout. 5. Interactive challenge — EXACT sequence: (a) Narrator cues challenge, (b) Emma or Liam says "Option A: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (c) Emma or Liam says "Option B: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (d) Emma or Liam says "Option C: [text]" on their own turn (speaker field must be "Emma" or "Liam"), (e) Emma or Liam has a turn with text exactly "[PAUSE 3 SECONDS]" (speaker field must be "Emma" or "Liam"), (f) Narrator reveals answer. NEVER put pause before options. NEVER combine options into one turn. NEVER use "Option A", "Option B", "Option C", or "[PAUSE 3 SECONDS]" as speaker field values - always use character names.
 
+FIRST 10 SECONDS (MANDATORY — the hook must win retention):
+- NEVER start by setting the scene, describing a location, or easing in. No "Emma and Liam weave through..." narration. Skip channel branding/welcome.
+- Start DIRECTLY on the conflict or the "aha": lead with the mistake itself or the payoff promise (e.g. "Most people answer 'What do you do?' with their job title. That mistake kills the conversation. Here's why — and what to say instead.").
+- Within the first ~2-3 turns, explicitly deliver the hook's core tension AND the promise of what the viewer will learn. The viewer must know in the first 10 seconds they're in the right place and the immediate reward.
+- Defer any setting/scene description until AFTER the hook lands; weave the context in as the story unfolds.
+
 STRUCTURAL STAGES:
-1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy.
+1. Crisis Hook: SHORT 1-2 sentence turns, rapid back-and-forth, high-stakes energy. Front-load the conflict/aha per FIRST 10 SECONDS above — no location scene-setting at the top.
 2. Complications: Obstacle worsens, organic reactions, natural expressions.
 3. Organic Teaching: Narrator contextualizes idioms as part of ongoing narrative.
 4. Climax & Challenge: Peak tension + expression challenge.
@@ -2933,10 +2939,10 @@ def generate_slow_english_script(topic=None):
 {avoid_instruction}
 {SLOW_ENGLISH_METADATA_RULES.replace('{scene_timeline}', '{{scene_timeline}}').replace('{playlist_url}', '{{playlist_url}}')}
 
-HOOK: No "Hello!" openers. Start with a question creating an open loop. PACING: Vary rhythm every 4-5 turns. ENGAGEMENT: 1-2 viewer questions. [PAUSE 3 SECONDS] for repetition (preceded by Liam modeling).
+HOOK: No "Hello!" openers. Start with a question or a tiny relatable mistake that creates an open loop, then immediately promise the payoff ("By the end, you'll be able to...") so the viewer knows they're in the right place in the first 10 seconds. Defer any greeting until after the hook. PACING: Vary rhythm every 4-5 turns. ENGAGEMENT: 1-2 viewer questions. [PAUSE 3 SECONDS] for repetition (preceded by Liam modeling).
 VOCABULARY: 1,200 common words only. 5-12 word sentences, SVO. Present simple only. Contractions: I'm, you're, it's, that's, we're, don't, can't. Key words repeat 3-5x. Teach through context ("Brother? Your brother is a boy in your family."), never tautologies.
 CHARACTERS: Emma (af_heart) = warm teacher. Liam (am_michael) = curious learner who makes mistakes. No single-word commands.
-DIALOGUE (18-24 turns): Stage1 HOOK(3-4): question→greeting→topic intro. Stage2 MAIN(8-12): discussion, "how do I say?" 2x, surprises, viewer question. Stage3 PRACTICE(5-7): Emma:"Repeat after me: X"→Liam repeats→[PAUSE 3 SECONDS]. Stage4 KEYWORDS(2-3): list 3-5 words. Stage5 GOODBYE(2-3): tease next, comment CTA.
+DIALOGUE (18-24 turns): Stage1 HOOK(3-4): question or mini-mistake→payoff promise→topic intro (greeting deferred past the hook). Stage2 MAIN(8-12): discussion, "how do I say?" 2x, surprises, viewer question. Stage3 PRACTICE(5-7): Emma:"Repeat after me: X"→Liam repeats→[PAUSE 3 SECONDS]. Stage4 KEYWORDS(2-3): list 3-5 words. Stage5 GOODBYE(2-3): tease next, comment CTA.
 SCENES: 5-6 scenes, 2-5 turns each. Labels: "The Hook", "Let's Talk About [Topic]", "Your Turn to Practice", "Words You Learned". Calm watercolor prompts.
 Turn numbers: sequential from 1, no gaps.
 
@@ -3113,7 +3119,7 @@ CRITICAL RULES:
 - Teach 1 or 2 specific phrasal verbs, idioms, or useful expressions related to the topic.
 - Use searchable keywords in the title: e.g., "English in 60 Seconds" or "Speak English Like a Native".
 - Do NOT use mid-episode sign-offs or long pauses or one saying it was really helpful etc.
-- The script must start with a strong hook and end with a phrase that seamlessly loops back to the beginning.
+- The script must start with a strong, front-loaded hook: open DIRECTLY on the mistake/tension or a punchy promise (no scene-setting, no "welcome", no naming the channel), so in the first 2-3 turns the viewer knows they're in the right place and what they'll get. End with a phrase that seamlessly loops back to the beginning.
 - The final turn should include a quick call to action that encourages re-watching (e.g., "Did you catch that? Let's try another one...").
 
 STYLE:
@@ -3189,7 +3195,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     High-CTR, curiosity-based title using benefit-focused hooks like 'Master This Skill', 'Complete Guide To...', 'Essential Phrases', or 'The Secret To...'. e.g., 'Master Better Responses: Beyond I'm Fine') along with searchable keywords: "English Practice for Beginners", "Easy English Listening", "English Quiz" etc.
 
     TIME ALLOCATION RULES:
-    - [0-3s] Hook: Emma introduces the quiz question clearly based on the topic.
+    - [0-3s] Hook: Emma introduces the quiz question clearly based on the topic. Front-load: open directly with the question/tension — no greeting, no channel name, no scene-setting. The viewer must know what they're testing in the first 2 seconds.
     - [3-13s] Sequential Options: Liam presents Options A, B, and C sequentially. Allocate exactly 3.3 seconds per option (Liam should have 3 separate dialogue turns for these).
     - [13-18s] Context Hint: Liam provides an educational example sentence or hint.
     - [18-20s] Thinking Pause: Insert a [PAUSE 2 SECONDS] turn to let viewers commit to their answer before the reveal.
@@ -3628,7 +3634,7 @@ Analyze the input script. Group the dialogue turns into sequence of scenes.{topi
 
 The podcast follows this 7-stage structure:
 1. Story Hook (turns 0-1) - 2-line teaser, high tension
-2. Radio Studio Intro - Emma & Liam welcome listeners and introduce caller
+2. Radio Studio Intro - Emma & Liam expand the hook tension (mistake + payoff), introduce topic and caller (no housekeeping/welcome)
 3. Caller Story Setup - Caller talks to hosts, briefly explains what happened
 4. Caller Story - Full story flashback acted out through dialogue
 5. Back to Studio - Caller reflects with lingering confusion
@@ -3716,8 +3722,8 @@ TOPIC: {topic}
 
 FORMAT: Radio podcast, 50+ dialogue turns (doubled for longer, more comprehensive content), 7 stages in this EXACT order:
 
-1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Then STOP — cut to studio.
-2. STUDIO INTRO (2-3 turns): Emma welcomes listeners, Liam introduces topic, Emma introduces caller.
+1. HOOK (2 turns): Caller in media res — ONE punchy 1-2 sentence line of high tension. StoryActor gives ONE short direct reaction (not narrated). Front-load the conflict/aha — the hook must state or imply the mistake/tension AND the promise of what the viewer will learn, so the viewer is hooked in the first 10 seconds. NO scene-setting, NO channel branding, NO greeting up front. Then STOP — cut to studio.
+2. STUDIO INTRO (2-3 turns): SKIP the housekeeping ("welcome back", "I'm Emma", channel name). Instead, immediately expand the HOOK's tension into a clear 1-2 sentence statement of the mistake and the payoff ("If you don't catch this, the conversation dies — here's what to say instead"), then Liam introduces the topic and Emma introduces the caller. Treat this as Part 2 of the hook, not a welcome segment.
 3. CALLER STORY SETUP (2-3 turns): Caller tells Emma & Liam about a confusing English situation they witnessed involving a friend or colleague. Use 3rd-person framing: "my friend said...", "my colleague told me...", "someone at work said...". Hosts react naturally. This sets up the story BEFORE the flashback. Then Liam or Emma hands off.
 4. FULL STORY (12-16 turns): A flashback scene. StoryActor1 and StoryActor2 ARE the characters — they speak DIRECTLY to each other as themselves. NO narration, NO "he said/she said", NO body language descriptions like "I raised an eyebrow and said". Just the spoken line. Example WRONG: "He leaned back and said, 'We can discuss this later.'" Example RIGHT: "We can discuss this later." The Caller does NOT appear in this stage. The story is told entirely through the characters' own dialogue. Build: setup → tension → complication → climax. This is the ONLY place the full story is told. Extended to 12-16 turns for more detailed storytelling and cultural context.
 5. BACK TO STUDIO (2-3 turns): Host asks a follow-up. Caller still doesn't understand what went wrong with their friend's/colleague's English. References the character by role ("my friend", "my coworker"), not as themselves.
