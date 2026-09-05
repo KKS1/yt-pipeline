@@ -265,12 +265,49 @@ def _strip_all_hashtags(text: str) -> str:
     return "\n".join(cleaned_lines)
 
 
+def _compose_hashtag_line(
+    core_tags: list,
+    theme: str,
+    *,
+    cap: int = 5,
+    topic_first: bool = True,
+    drop_on_topic: tuple = ("#EnglishForBeginners",),
+) -> str:
+    """Join core hashtags with an optional curated topic tag, deduped and capped.
+
+    When the theme matches a curated topic, the topic tag gets prime placement
+    (first) and any replacement tags in drop_on_topic are removed so topical
+    tags boost SEO without blowing the 5-tag cap. Useful for topical videos
+    (idioms, airport, etc.) where a generic beginner tag is a poor fit.
+    """
+    tags = list(core_tags)
+    topic = _build_topic_hashtags(theme)
+    if topic:
+        topic_tag = topic.split()[0]
+        tags = [t for t in tags if t not in drop_on_topic]
+        if topic_first:
+            tags = [topic_tag] + tags
+        else:
+            tags = tags + [topic_tag]
+    seen = set()
+    unique_tags = []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            unique_tags.append(t)
+    line = " ".join(unique_tags[:cap])
+    return re.sub(r" {2,}", " ", line)
+
+
 def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_shorts: bool = False, is_slow_english: bool = False) -> str:
     """Ensure hashtags appear at the end of the description — capped at 5 max for YouTube SEO.
     
     For longform/podcast: #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice
     For slow-english: #EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice #<TopicRelated>
     For shorts/quiz: #Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish
+
+    When the video theme matches a curated topic, the topic tag replaces the
+    generic #EnglishForBeginners and leads the line (e.g. #EnglishIdioms first).
     """
     text = str(description or "").strip()
     
@@ -280,15 +317,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
             return "#Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish"
         cleaned_text = _strip_all_hashtags(text)
         core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
-        tags = core_tags
-        seen = set()
-        unique_tags = []
-        for t in tags:
-            if t not in seen:
-                seen.add(t)
-                unique_tags.append(t)
-        hashtag_line = " ".join(unique_tags[:5])
-        hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
+        hashtag_line = _compose_hashtag_line(core_tags, theme)
         cleaned_text = cleaned_text.strip()
         if cleaned_text and not cleaned_text.endswith("\n"):
             cleaned_text += "\n\n"
@@ -302,16 +331,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
             return "#EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice"
         cleaned_text = _strip_all_hashtags(text)
         core_tags = ["#EnglishForBeginners", "#SlowEnglish", "#EnglishPractice", "#EnglishSpeakingPractice"]
-        topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
-        tags = core_tags + topic_tags_list[:1]
-        seen = set()
-        unique_tags = []
-        for t in tags:
-            if t not in seen:
-                seen.add(t)
-                unique_tags.append(t)
-        hashtag_line = " ".join(unique_tags[:5])
-        hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
+        hashtag_line = _compose_hashtag_line(core_tags, theme, topic_first=False, drop_on_topic=())
         cleaned_text = cleaned_text.strip()
         if cleaned_text and not cleaned_text.endswith("\n"):
             cleaned_text += "\n\n"
@@ -328,16 +348,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
     # Build hashtag line — exactly 5 high-volume tags for longform/podcast
     core_tags = ["#LearnEnglish", "#EnglishPractice", "#EnglishListeningPractice", "#EnglishForBeginners", "#EnglishSpeakingPractice"]
     
-    tags = core_tags
-    # Deduplicate while preserving order
-    seen = set()
-    unique_tags = []
-    for t in tags:
-        if t not in seen:
-            seen.add(t)
-            unique_tags.append(t)
-    hashtag_line = " ".join(unique_tags[:5])
-    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
+    hashtag_line = _compose_hashtag_line(core_tags, theme)
     
     # Append hashtags at the very end with blank line separator
     cleaned_text = cleaned_text.strip()
@@ -1340,9 +1351,7 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
     # Build hashtag line — cap at 5 total
     core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
 
-    tags = core_tags
-    hashtag_line = " ".join(tags[:5])
-    hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
+    hashtag_line = _compose_hashtag_line(core_tags, theme)
 
     # Append hashtags at the very end with blank line separator
     cleaned_text = cleaned_text.strip()

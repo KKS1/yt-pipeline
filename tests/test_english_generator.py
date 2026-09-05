@@ -153,6 +153,38 @@ def test_ensure_english_shorts_hashtags_include_practice():
     assert "#EnglishVibesHub" not in hashtag_line
 
 
+def test_ensure_english_vibes_hashtags_topic_prepends_and_drops_beginner():
+    cleaned = ensure_english_vibes_hashtags(
+        "Learn English today.\n\n#LearnEnglish",
+        theme="Master Conversational Idioms to Speak Natural English Fast",
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert hashtag_line == "#EnglishIdioms #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishSpeakingPractice"
+    assert "#EnglishForBeginners" not in hashtag_line
+    assert "#NaturalEnglish" not in hashtag_line
+
+
+def test_ensure_english_shorts_hashtags_topic_prepends():
+    cleaned = ensure_english_vibes_hashtags(
+        "Airport English quiz short.\n\n#EnglishQuiz",
+        theme="Airport Vocabulary",
+        is_shorts=True,
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert hashtag_line == "#AirportEnglish #Shorts #EnglishQuiz #EnglishPractice #LearnEnglish"
+    assert "#EnglishForBeginners" not in hashtag_line
+
+
+def test_ensure_english_slow_keeps_beginner_and_appends_topic():
+    cleaned = ensure_english_vibes_hashtags(
+        "Slow English story.\n\n#SlowEnglish",
+        theme="At the Airport",
+        is_slow_english=True,
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert hashtag_line == "#EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice #AirportEnglish"
+
+
 def test_finalize_english_description_includes_opener_and_hashtag():
     cleaned = finalize_english_description("Practice phrasal verbs today.", is_quiz=True)
     assert "🎯" in cleaned.splitlines()[0]
