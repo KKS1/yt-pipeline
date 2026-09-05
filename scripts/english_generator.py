@@ -32,7 +32,7 @@ METADATA RULES:
 - Include chosen structure letter (A-J) as "title_structure" field. Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO line ("English listening practice for [topic]"), include "Natural English" and "Speak like a native" in first 2-3 lines. Use keyword variations.
 - Include playlist CTA (📺 Watch the Everyday English Practice playlist here: {playlist_url}), comment CTA, subscribe CTA, and hashtags (max 5).
-- Hashtags: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
+- Hashtags: #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice
 - Use ONLY {playlist_url} placeholder (not actual URLs).
 - Tags: high-intent SEO mixing broad English-learning + topic-specific terms. Pinned comments: specific question viewers can answer quickly.
 - SPOKEN DIALOGUE: Never use forward slashes ('/') in spoken dialogue text — write out 'or' or separate options with commas (e.g., 'Option A or Option B', 'he or she', 'either or').
@@ -46,7 +46,7 @@ METADATA RULES (PODCAST — under 3 min clips):
 - Include chosen letter as "title_structure". Selective ALL CAPS for 1-2 power words max.
 - Descriptions: Front-load SEO ("English podcast: [topic]"), include "Natural English" and "Speak like a native".
 - Include {playlist_url} placeholder, comment CTA, subscribe CTA, hashtags (max 5).
-- Hashtags: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
+- Hashtags: #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice
 """
 
 ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (
@@ -85,19 +85,6 @@ _PLAYLIST_LINE_RE = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-
-_TOPIC_STOP_WORDS = frozenset({
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "up", "about", "into", "through", "during", "before", "after",
-    "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
-    "neither", "each", "every", "all", "any", "few", "more", "most",
-    "other", "some", "such", "no", "only", "own", "same", "than",
-    "too", "very", "just", "because", "as", "until", "while",
-    "disaster", "nightmare", "story", "practice", "learn", "english",
-})
 
 # Map English-learning themes to high-value related hashtags
 _THEME_HASHTAG_MAP = {
@@ -245,32 +232,19 @@ _THEME_HASHTAG_MAP = {
 def _build_topic_hashtags(theme: str) -> str:
     """Extract 1-2 high-value topic hashtags from a theme string.
 
-    Uses a known-theme lookup first, then falls back to extracting the
-    most meaningful noun-like words from the theme.
+    Only returns curated tags from the known-theme map to avoid inventing
+    absurd or off-key hashtags (e.g. "#EnglishDont" from "I don't know").
+    Returns "" when the theme has no curated match.
     """
     if not theme:
         return ""
     theme_lower = theme.lower()
 
-    # Check known-theme map for high-value related hashtags
     for keyword, tags in _THEME_HASHTAG_MAP.items():
         if keyword in theme_lower:
             return " ".join(tags)
 
-    # Fallback: extract meaningful words from theme
-    theme_clean = re.sub(r"[^\w\s]", "", theme_lower).strip()
-    words = [
-        w for w in theme_clean.split()
-        if w not in _TOPIC_STOP_WORDS and len(w) > 2
-    ]
-    if not words:
-        return ""
-    # Use the longest word as primary topic hashtag (most likely the noun/topic)
-    words_sorted = sorted(words, key=len, reverse=True)
-    primary = words_sorted[0].capitalize()
-    if len(words_sorted) >= 2 and words_sorted[1] != words_sorted[0]:
-        return f"#English{primary} #English{words_sorted[1].capitalize()}"
-    return f"#English{primary}"
+    return ""
 
 
 def _strip_all_hashtags(text: str) -> str:
@@ -294,20 +268,19 @@ def _strip_all_hashtags(text: str) -> str:
 def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_shorts: bool = False, is_slow_english: bool = False) -> str:
     """Ensure hashtags appear at the end of the description — capped at 5 max for YouTube SEO.
     
-    For longform/podcast: #LearnEnglish #EnglishListeningPractice #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
-    For slow-english: #EnglishForBeginners #SlowEnglish #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub
-    For shorts/quiz: Uses existing strategy (unchanged)
+    For longform/podcast: #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice
+    For slow-english: #EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice #<TopicRelated>
+    For shorts/quiz: #Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish
     """
     text = str(description or "").strip()
     
-    # Shorts/quiz keep existing strategy
+    # Shorts/quiz
     if is_shorts:
         if not text:
-            return "#Shorts #EnglishQuiz #LearnEnglish"
+            return "#Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish"
         cleaned_text = _strip_all_hashtags(text)
-        core_tags = ["#Shorts", "#EnglishQuiz", "#LearnEnglish"]
-        topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
-        tags = core_tags + topic_tags_list[:2]
+        core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
+        tags = core_tags
         seen = set()
         unique_tags = []
         for t in tags:
@@ -323,12 +296,12 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
         cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
         return cleaned_text.strip()
     
-    # Slow-english: special beginner-focused strategy
+    # Slow-english: beginner-focused strategy
     if is_slow_english:
         if not text:
-            return "#EnglishForBeginners #SlowEnglish #SpeakEnglishNaturally #EnglishVibesHub"
+            return "#EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice"
         cleaned_text = _strip_all_hashtags(text)
-        core_tags = ["#EnglishForBeginners", "#SlowEnglish", "#SpeakEnglishNaturally", "#EnglishVibesHub"]
+        core_tags = ["#EnglishForBeginners", "#SlowEnglish", "#EnglishPractice", "#EnglishSpeakingPractice"]
         topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
         tags = core_tags + topic_tags_list[:1]
         seen = set()
@@ -346,18 +319,16 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
         cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
         return cleaned_text.strip()
     
-    # Longform/podcast: new 5-tag strategy
+    # Longform/podcast: high-volume 5-tag strategy
     if not text:
-        return "#LearnEnglish #EnglishListeningPractice #SpeakEnglishNaturally #EnglishVibesHub"
+        return "#LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice"
     
     cleaned_text = _strip_all_hashtags(text)
     
-    # Build hashtag line — exactly 5 tags for longform/podcast
-    core_tags = ["#LearnEnglish", "#EnglishListeningPractice", "#SpeakEnglishNaturally", "#EnglishVibesHub"]
-    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
+    # Build hashtag line — exactly 5 high-volume tags for longform/podcast
+    core_tags = ["#LearnEnglish", "#EnglishPractice", "#EnglishListeningPractice", "#EnglishForBeginners", "#EnglishSpeakingPractice"]
     
-    # Assemble: core (4) + topic (1) = 5
-    tags = core_tags + topic_tags_list[:1]
+    tags = core_tags
     # Deduplicate while preserving order
     seen = set()
     unique_tags = []
@@ -1362,16 +1333,14 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
     """Place quiz Shorts hashtags at the END — capped at 5 max for YouTube SEO."""
     text = str(description or "").strip()
     if not text:
-        return "#Shorts #EnglishQuiz #LearnEnglish"
+        return "#Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish"
 
     cleaned_text = _strip_all_hashtags(text)
 
     # Build hashtag line — cap at 5 total
-    core_tags = ["#Shorts", "#EnglishQuiz", "#LearnEnglish"]
-    topic_tags_list = _build_topic_hashtags(theme).split() if _build_topic_hashtags(theme) else []
-    
-    # Assemble: core (3) + topic (0-2) = 3-5
-    tags = core_tags + topic_tags_list[:2]
+    core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
+
+    tags = core_tags
     hashtag_line = " ".join(tags[:5])
     hashtag_line = re.sub(r" {2,}", " ", hashtag_line)
 
@@ -2878,7 +2847,7 @@ JSON FORMAT:
 
 SLOW_ENGLISH_METADATA_RULES = """
 Title (under 70 chars, rotate): A) "English You Can ACTUALLY Understand: {topic}" B) "Your First English Conversation: {topic}" C) "This Is How {topic} Sounds in Slow English" D) "Can You Follow This? Slow English — {topic}" E) "Finally Understand English: {topic} (Slow & Clear)" F) "A Day at [Place]: Slow English Story for Beginners" G) "[X] Minutes of Slow English You'll Love: {topic}" H) "1000s of Beginners Learned English With This: {topic}". ALL CAPS on 1-2 power words. No "|".
-Description: First line must match a beginner search query (e.g. "slow english {topic}", "easy english listening practice for beginners"). Second line = benefit statement. Include 2-3 long-tail keywords naturally (slow english listening practice, english for beginners, a1 english, learn english with stories). Timeline: {scene_timeline}. Playlist: {playlist_url}. 5 hashtags: #EnglishForBeginners #SlowEnglish #<TopicRelated> #SpeakEnglishNaturally #EnglishVibesHub.
+Description: First line must match a beginner search query (e.g. "slow english {topic}", "easy english listening practice for beginners"). Second line = benefit statement. Include 2-3 long-tail keywords naturally (slow english listening practice, english for beginners, a1 english, learn english with stories). Timeline: {scene_timeline}. Playlist: {playlist_url}. 5 hashtags: #EnglishForBeginners #SlowEnglish #EnglishPractice #EnglishSpeakingPractice #<TopicRelated>.
 """
 
 SLOW_ENGLISH_STORYBOARD_STYLE_SUFFIX_LANDSCAPE = (

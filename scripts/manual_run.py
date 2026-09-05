@@ -2148,14 +2148,14 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
             f"Each day covers a new focus area with practical tasks, idioms, and phrasal verbs "
             f"to help you build confidence in real-world conversations.\n\n"
             f"Join Emma and Liam as they guide you through this journey!\n\n"
-            f"#LearnEnglish #EnglishChallenge #EnglishForBeginners"
+            f"#LearnEnglish #EnglishPractice #EnglishChallenge #EnglishForBeginners"
         )
 
         quiz_playlist_title = f"{package.get('series_title', 'English Challenge')} | Daily Quizzes"
         quiz_playlist_description = (
             f"Quick quizzes to test your knowledge from the {package.get('series_title')}! "
             f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
-            f"#Shorts #EnglishQuiz #EnglishChallenge"
+            f"#Shorts #EnglishQuiz #EnglishPractice #EnglishChallenge"
         )
         try:
             from youtube_uploader import create_playlist
@@ -2365,7 +2365,7 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
         quiz_playlist_description = (
             f"Quick quizzes to test your knowledge from the {package.get('series_title')}! "
             f"Master one skill a day with Emma and Liam from @EnglishVibesHub-s6w.\n\n"
-            f"#Shorts #EnglishQuiz #EnglishChallenge"
+            f"#Shorts #EnglishQuiz #EnglishPractice #EnglishChallenge"
         )
         try:
             from youtube_uploader import create_playlist

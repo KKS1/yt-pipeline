@@ -68,7 +68,7 @@ else:
 hashtag_lines = [line.strip() for line in lines if line.strip().startswith("#")]
 if hashtag_lines:
     hashtag_text = " ".join(hashtag_lines)
-    required_tags = ["#LearnEnglish", "#EnglishListeningPractice", "#SpeakEnglishNaturally", "#EnglishVibesHub"]
+    required_tags = ["#LearnEnglish", "#EnglishPractice", "#EnglishListeningPractice", "#EnglishForBeginners", "#EnglishSpeakingPractice"]
     missing_tags = [tag for tag in required_tags if tag not in hashtag_text]
     if not missing_tags:
         print("✅ Comprehensive hashtags present")

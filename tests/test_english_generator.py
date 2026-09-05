@@ -1,4 +1,5 @@
 from scripts.english_generator import (
+    _build_topic_hashtags,
     _clean_challenge_dialogue,
     align_scenes_to_turns,
     build_scene_timeline,
@@ -18,6 +19,13 @@ def test_is_outro_line_detects_cta():
     assert is_outro_line("Let's take a quick break before the next section.")
     assert is_outro_line("Stay tuned for the next episode, where we'll explore travel idioms.")
     assert is_outro_line("Looking forward to it!")
+
+
+def test_build_topic_hashtags_no_absurd_invented_tags():
+    assert _build_topic_hashtags("Replacing I Don't Know") == ""
+    assert "#EnglishDont" not in _build_topic_hashtags("I Don't Know")
+    assert _build_topic_hashtags("Airport") == "#AirportEnglish #TravelEnglish"
+    assert _build_topic_hashtags("") == ""
     assert not is_outro_line("Welcome to EnglishVibesHub, today we talk about travel.")
 
 
@@ -116,7 +124,33 @@ def test_ensure_english_description_cta_adds_scene_timeline_placeholder():
 
 def test_ensure_english_vibes_hashtags():
     cleaned = ensure_english_vibes_hashtags("Learn English today.\n\n#LearnEnglish")
-    assert "#EnglishListeningPractice" in cleaned
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert hashtag_line == "#LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishForBeginners #EnglishSpeakingPractice"
+    assert "#EnglishVibesHub" not in hashtag_line
+
+
+def test_ensure_english_slow_hashtags_include_practice():
+    cleaned = ensure_english_vibes_hashtags(
+        "Slow English story for beginners.\n\n#SlowEnglish", is_slow_english=True
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert "#EnglishForBeginners" in hashtag_line
+    assert "#SlowEnglish" in hashtag_line
+    assert "#EnglishPractice" in hashtag_line
+    assert "#EnglishSpeakingPractice" in hashtag_line
+    assert "#EnglishVibesHub" not in hashtag_line
+
+
+def test_ensure_english_shorts_hashtags_include_practice():
+    cleaned = ensure_english_vibes_hashtags(
+        "English quiz short.\n\n#EnglishQuiz", is_shorts=True
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert "#Shorts" in hashtag_line
+    assert "#EnglishQuiz" in hashtag_line
+    assert "#EnglishPractice" in hashtag_line
+    assert "#EnglishForBeginners" in hashtag_line
+    assert "#EnglishVibesHub" not in hashtag_line
 
 
 def test_finalize_english_description_includes_opener_and_hashtag():
@@ -187,6 +221,7 @@ Practice today's idiom with Emma and Liam.
     assert "#Shorts" in hashtag_lines[0]
     assert "#EnglishQuiz" in hashtag_lines[0]
     assert "#LearnEnglish" in hashtag_lines[0]
+    assert "#EnglishPractice" in hashtag_lines[0]
     # Original hashtags (#Grammar, #Vocabulary) are stripped from body
     assert "#Grammar" not in cleaned
     assert "#Vocabulary" not in cleaned
@@ -199,6 +234,7 @@ def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     assert "#Shorts" in last_line
     assert "#EnglishQuiz" in last_line
     assert "#LearnEnglish" in last_line
+    assert "#EnglishPractice" in last_line
 
 
 def test_flatten_dialogue():
