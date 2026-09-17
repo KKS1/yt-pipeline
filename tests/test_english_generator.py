@@ -323,3 +323,65 @@ def test_align_scenes_to_turns_normalizes_extensions():
     aligned = align_scenes_to_turns(scenes, dialogue)
     assert aligned[0]["image_filename"] == "scene_1_intro.png"
     assert aligned[1]["image_filename"] == "scene_2_body.png"
+
+
+def test_ensure_answer_reveal_appends_when_dialogue_ends_on_pause(monkeypatch):
+    from scripts import english_generator
+
+    dialogue = [
+        {"turn_number": 1, "speaker": "Narrator", "text": "Quick test: pick the natural option."},
+        {"turn_number": 2, "speaker": "Emma", "text": "Option A: When's your birthday?"},
+        {"turn_number": 3, "speaker": "Liam", "text": "Option B: How long have you worked here?"},
+        {"turn_number": 4, "speaker": "Emma", "text": "Option C: What year were you born?"},
+        {"turn_number": 5, "speaker": "Emma", "text": "[PAUSE 3 SECONDS]"},
+    ]
+    script = {"dialogue": dialogue}
+
+    monkeypatch.setattr(
+        english_generator,
+        "call_groq_json",
+        lambda prompt: {
+            "speaker": "Narrator",
+            "text": "The correct answer is Option A: 'When's your birthday?'",
+        },
+    )
+
+    result = english_generator.ensure_answer_reveal_after_pause(script)
+    assert len(result["dialogue"]) == 6
+    last = result["dialogue"][-1]
+    assert last["speaker"] == "Narrator"
+    assert last["turn_number"] == 6
+    assert "Option A" in last["text"]
+
+
+def test_ensure_answer_reveal_noop_when_not_ending_on_pause(monkeypatch):
+    from scripts import english_generator
+
+    dialogue = [
+        {"turn_number": 1, "speaker": "Emma", "text": "That's it for today."},
+        {"turn_number": 2, "speaker": "Narrator", "text": "The correct answer is Option A."},
+    ]
+    script = {"dialogue": dialogue}
+
+    monkeypatch.setattr(english_generator, "call_groq_json", lambda prompt: {"text": "unused"})
+
+    result = english_generator.ensure_answer_reveal_after_pause(script)
+    assert len(result["dialogue"]) == 2
+    assert result["dialogue"][-1]["speaker"] == "Narrator"
+
+
+def test_ensure_answer_reveal_falls_back_gracefully_on_groq_error(monkeypatch):
+    from scripts import english_generator
+
+    dialogue = [
+        {"turn_number": 1, "speaker": "Emma", "text": "[PAUSE 3 SECONDS]"},
+    ]
+    script = {"dialogue": dialogue}
+
+    def boom(prompt):
+        raise RuntimeError("Groq API error")
+
+    monkeypatch.setattr(english_generator, "call_groq_json", boom)
+
+    result = english_generator.ensure_answer_reveal_after_pause(script)
+    assert len(result["dialogue"]) == 1

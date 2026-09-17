@@ -2732,6 +2732,67 @@ def generate_weekly_challenge_scripts(topic=None) -> dict:
     return return_data
 
 
+def ensure_answer_reveal_after_pause(script_data: dict) -> dict:
+    """If the dialogue ends on a [PAUSE] marker with no answer reveal after it,
+    generate the missing Narrator answer-reveal turn via a targeted Groq call.
+
+    The interactive challenge prompt requires the sequence:
+      ... -> Options A/B/C -> [PAUSE] -> Narrator reveals answer
+    But the LLM sometimes runs out of tokens before generating the final reveal.
+    """
+    dialogue = script_data.get("dialogue", [])
+    if not dialogue:
+        return script_data
+
+    last_turn = dialogue[-1]
+    last_text = (last_turn.get("text") or "").strip()
+
+    if not PAUSE_CUE_RE.match(last_text):
+        return script_data
+
+    turns_summary = "\n".join(
+        f"{i}: [{line.get('speaker', '?')}] {line.get('text', '')[:120]}"
+        for i, line in enumerate(dialogue)
+    )
+
+    prompt = f"""The following English-learning dialogue ends with a [PAUSE] marker but is missing the answer reveal turn.
+
+DIALOGUE:
+{turns_summary}
+
+The quiz question presents three options (A, B, C). The correct answer is the one that best fits the topic being taught. Generate ONLY a single JSON object with these keys:
+{{
+  "speaker": "Narrator",
+  "text": "The correct answer is [correct option]. [1-2 sentence explanation tying back to the lesson topic]."
+}}
+
+RULES:
+- The speaker MUST be "Narrator".
+- Keep the explanation brief (2-3 sentences max).
+- Reference the specific correct option letter and restate the key phrase.
+- End with a natural closing line that references what was learned.
+- Return ONLY valid JSON, no markdown."""
+
+    try:
+        res = call_groq_json(prompt)
+        speaker = res.get("speaker", "Narrator")
+        text = res.get("text", "")
+        if text:
+            next_turn_num = last_turn.get("turn_number", len(dialogue)) + 1
+            reveal_turn = {
+                "turn_number": next_turn_num,
+                "speaker": speaker,
+                "text": text,
+            }
+            dialogue.append(reveal_turn)
+            script_data["dialogue"] = dialogue
+            print(f"  [answer_reveal] Appended missing answer reveal turn {next_turn_num} ({speaker})")
+    except Exception as exc:
+        print(f"  [answer_reveal] Failed to generate answer reveal: {exc}")
+
+    return script_data
+
+
 def generate_english_script(topic=None):
     if not topic:
         topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
@@ -2835,6 +2896,9 @@ JSON FORMAT:
 
     if not is_valid:
         print("⚠️ Groq failed to generate a perfect script after 3 tries. Using last attempt.")
+
+    # ── Ensure the answer reveal turn exists after the [PAUSE] marker ──
+    script = ensure_answer_reveal_after_pause(script)
 
     # ── POST-PROCESS: description pipeline (same as shorts/quiz) ──
     theme = script.get("theme") or script.get("title", "")
