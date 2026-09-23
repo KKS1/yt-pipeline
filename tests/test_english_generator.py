@@ -153,25 +153,25 @@ def test_ensure_english_shorts_hashtags_include_practice():
     assert "#EnglishVibesHub" not in hashtag_line
 
 
-def test_ensure_english_vibes_hashtags_topic_prepends_and_drops_beginner():
+def test_ensure_english_vibes_hashtags_topic_appends_and_drops_beginner():
     cleaned = ensure_english_vibes_hashtags(
         "Learn English today.\n\n#LearnEnglish",
         theme="Master Conversational Idioms to Speak Natural English Fast",
     )
     hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
-    assert hashtag_line == "#EnglishIdioms #LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishSpeakingPractice"
+    assert hashtag_line == "#LearnEnglish #EnglishPractice #EnglishListeningPractice #EnglishSpeakingPractice #EnglishIdioms"
     assert "#EnglishForBeginners" not in hashtag_line
     assert "#NaturalEnglish" not in hashtag_line
 
 
-def test_ensure_english_shorts_hashtags_topic_prepends():
+def test_ensure_english_shorts_hashtags_topic_appends():
     cleaned = ensure_english_vibes_hashtags(
         "Airport English quiz short.\n\n#EnglishQuiz",
         theme="Airport Vocabulary",
         is_shorts=True,
     )
     hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
-    assert hashtag_line == "#AirportEnglish #Shorts #EnglishQuiz #EnglishPractice #LearnEnglish"
+    assert hashtag_line == "#Shorts #EnglishQuiz #EnglishPractice #LearnEnglish #AirportEnglish"
     assert "#EnglishForBeginners" not in hashtag_line
 
 
@@ -267,6 +267,16 @@ def test_ensure_english_quiz_shorts_hashtags_appends_when_missing():
     assert "#EnglishQuiz" in last_line
     assert "#LearnEnglish" in last_line
     assert "#EnglishPractice" in last_line
+
+
+def test_ensure_english_quiz_shorts_hashtags_topic_appends():
+    cleaned = ensure_english_quiz_shorts_hashtags(
+        "Airport English quiz for beginners. Practice with Emma and Liam.",
+        theme="Airport Vocabulary",
+    )
+    hashtag_line = [l for l in cleaned.splitlines() if l.startswith("#")][0]
+    assert hashtag_line == "#Shorts #EnglishQuiz #EnglishPractice #LearnEnglish #AirportEnglish"
+    assert "#EnglishForBeginners" not in hashtag_line
 
 
 def test_flatten_dialogue():

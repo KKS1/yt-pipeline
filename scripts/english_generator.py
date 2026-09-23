@@ -307,7 +307,8 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
     For shorts/quiz: #Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish
 
     When the video theme matches a curated topic, the topic tag replaces the
-    generic #EnglishForBeginners and leads the line (e.g. #EnglishIdioms first).
+    generic #EnglishForBeginners and is appended at the END of the line so the
+    evergreen format tags stay front-loaded.
     """
     text = str(description or "").strip()
     
@@ -317,7 +318,7 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
             return "#Shorts #EnglishQuiz #EnglishPractice #EnglishForBeginners #LearnEnglish"
         cleaned_text = _strip_all_hashtags(text)
         core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
-        hashtag_line = _compose_hashtag_line(core_tags, theme)
+        hashtag_line = _compose_hashtag_line(core_tags, theme, topic_first=False)
         cleaned_text = cleaned_text.strip()
         if cleaned_text and not cleaned_text.endswith("\n"):
             cleaned_text += "\n\n"
@@ -348,8 +349,8 @@ def ensure_english_vibes_hashtags(description: str, theme: str = "", *, is_short
     # Build hashtag line — exactly 5 high-volume tags for longform/podcast
     core_tags = ["#LearnEnglish", "#EnglishPractice", "#EnglishListeningPractice", "#EnglishForBeginners", "#EnglishSpeakingPractice"]
     
-    hashtag_line = _compose_hashtag_line(core_tags, theme)
-    
+    hashtag_line = _compose_hashtag_line(core_tags, theme, topic_first=False)
+
     # Append hashtags at the very end with blank line separator
     cleaned_text = cleaned_text.strip()
     if cleaned_text and not cleaned_text.endswith("\n"):
@@ -1351,7 +1352,7 @@ def ensure_english_quiz_shorts_hashtags(description: str, theme: str = "") -> st
     # Build hashtag line — cap at 5 total
     core_tags = ["#Shorts", "#EnglishQuiz", "#EnglishPractice", "#EnglishForBeginners", "#LearnEnglish"]
 
-    hashtag_line = _compose_hashtag_line(core_tags, theme)
+    hashtag_line = _compose_hashtag_line(core_tags, theme, topic_first=False)
 
     # Append hashtags at the very end with blank line separator
     cleaned_text = cleaned_text.strip()
