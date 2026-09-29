@@ -1667,9 +1667,19 @@ def run_resume_from_manifest(manifest_path_str: str):
                 pinned_comment=script.get("pinned_comment"),
                 command_channel=command_channel if command_channel in ENGLISH_DESCRIPTION_PLAYLIST_URLS else "english",
             )
-            if (result or {}).get("youtube_id"):
-                _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge", "english-slow": "slow", "english-traditional": "traditional"}.get(command_channel, "podcast")
-                save_published_topic(script.get("title", entry.topic), topic_type=_topic_type)
+            if not (result or {}).get("youtube_id"):
+                # Upload failed, so nothing reached the channel — leave the ledger
+                # alone so a retry of this manifest is not blocked as a repeat.
+                print("  No YouTube ID returned — skipping history entry.")
+                print(f"  ✓ Done: {entry.label} (not uploaded)")
+                continue
+        else:
+            print("  Skipping upload (topic still recorded in history).")
+
+        # A video that reached YouTube — or was deliberately held back — is now a
+        # published concept, so it belongs in the ledger the dedup checks read.
+        _topic_type = {"english": "podcast", "english-shorts": "shorts", "english-quiz": "quiz", "english-challenge": "challenge", "english-slow": "slow", "english-traditional": "traditional"}.get(command_channel, "podcast")
+        save_published_topic(script.get("title", entry.topic), topic_type=_topic_type)
 
         print(f"  ✓ Done: {entry.label}")
 
@@ -1914,11 +1924,11 @@ def run_english(topic=None, upload=True, schedule_time=None, notify_subscribers=
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
 
-        save_published_topic(title, topic_type="podcast")
-        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
 
+    save_published_topic(title, topic_type="podcast")
+    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     print("\nDone!\n")
 
 
@@ -1998,11 +2008,11 @@ def run_english_traditional(topic=None, upload=True, schedule_time=None, notify_
             notify_subscribers=notify_subscribers,
             slot=slot_name
         )
-        save_published_topic(title, topic_type="traditional")
-        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
 
+    save_published_topic(title, topic_type="traditional")
+    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     print("\nDone!\n")
 
 
@@ -2099,12 +2109,11 @@ def run_english_podcast(topic=None, upload=True, schedule_time=None, notify_subs
                 )
             except Exception as e:
                 print(f"  Could not add to playlist: {e}")
-
-        save_published_topic(title, topic_type="podcast")
-        print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
 
+    save_published_topic(title, topic_type="podcast")
+    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
     print("\nDone!\n")
 
 
@@ -2332,6 +2341,8 @@ def run_english_challenge(topic=None, upload=True, start_date=None, publish_hour
                     save_published_topic(quiz_script.get("title"), topic_type="quiz")
                 except Exception as e:
                     print(f"  Quiz upload failed for Day {day_number}: {e}")
+            else:
+                save_published_topic(quiz_script.get("title"), topic_type="quiz")
 
             cleanup_english_temp()
 
@@ -2450,6 +2461,8 @@ def run_english_challenge_shorts_only(json_path, start_date, publish_hour=6, upl
                 save_published_topic(quiz_script.get("title"), topic_type="quiz")
             except Exception as e:
                 print(f"  Quiz upload failed for Day {day_number}: {e}")
+            else:
+                save_published_topic(quiz_script.get("title"), topic_type="quiz")
 
         cleanup_english_temp()
 
@@ -2562,7 +2575,7 @@ def run_english_challenge_fixup(json_path, long_ids_str, short_ids_str, channel=
 
 def run_english_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False):
     from english_assembler import cleanup_english_temp, generate_podcast_audio
-    from english_generator import generate_english_shorts_script
+    from english_generator import generate_english_shorts_script, save_published_topic
     from ffmpeg_assembler import assemble_shorts_video, generate_captions
 
     print("\n" + "=" * 50)
@@ -2708,6 +2721,11 @@ def run_english_shorts(topic=None, upload=True, schedule_time=None, notify_subsc
     else:
         print(f"\nVideo assembled without upload: {out_path}")
 
+    # Record the title regardless of upload so the dedup ledger stays current —
+    # otherwise the 'shorts' avoid-list goes stale and repeats creep back in.
+    save_published_topic(title, topic_type="shorts")
+    print(f"\nPINNED COMMENT: {script.get('pinned_comment')}")
+
     print("\nDone!\n")
 
 def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_subscribers=None, review_visuals=False):
@@ -2828,11 +2846,11 @@ def run_english_quiz_shorts(topic=None, upload=True, schedule_time=None, notify_
                 )
             except Exception as e:
                 print(f"  Could not add quiz to master playlist: {e}")
-
-        save_published_topic(script.get("title", topic), topic_type="quiz")
-        print(f"PINNED COMMENT: {script.get('pinned_comment')}")
     else:
         print(f"\nVideo assembled without upload: {out_path}")
+
+    save_published_topic(script.get("title", topic), topic_type="quiz")
+    print(f"PINNED COMMENT: {script.get('pinned_comment')}")
 
     cleanup_english_temp()
 
@@ -3351,6 +3369,11 @@ def main():
         help="Force generation of a new topic/script even if an existing one is available.",
     )
     parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Accept the generated topic without the [Y]es/[R]etry/[Q]uit confirmation prompt.",
+    )
+    parser.add_argument(
         "--fetch-scenes-only",
         help="Retry Gemini scene image generation for an existing manifest JSON.",
     )
@@ -3367,6 +3390,10 @@ def main():
 
     if args.publish_hour < 0 or args.publish_hour > 23:
         parser.error("--publish-hour must be between 0 and 23")
+
+    if args.yes:
+        from english_generator import set_auto_confirm_topic
+        set_auto_confirm_topic(True)
 
     # Calculate a UTC schedule time if local date/hour are provided
     effective_schedule_time = args.schedule_time

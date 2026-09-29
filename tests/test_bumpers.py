@@ -178,9 +178,10 @@ class BumperSupportTests(unittest.TestCase):
                             with patch("english_assembler.cleanup_english_temp"):
                                 with patch("english_assembler.generate_podcast_audio", return_value=str(tmp_path / "voice.m4a")):
                                     with patch("ffmpeg_assembler.generate_captions", return_value=str(output / "captions.srt")):
-                                        with patch("ffmpeg_assembler.assemble_shorts_video") as assemble:
-                                            with patch("random.choice", return_value=visual):
-                                                manual_run.run_english_shorts(upload=False)
+                                            with patch("ffmpeg_assembler.assemble_shorts_video") as assemble:
+                                                with patch("random.choice", return_value=visual):
+                                                    with patch("english_generator.save_published_topic"):
+                                                        manual_run.run_english_shorts(upload=False)
             finally:
                 os.chdir(old_cwd)
 

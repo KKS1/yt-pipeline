@@ -1783,15 +1783,94 @@ def get_published_topics() -> dict:
             print(f"Error loading published topics: {e}")
     return {"podcast": [], "shorts": [], "challenge": [], "slow": [], "quiz": [], "post": []}
 
+_TOPIC_NOISE_WORDS = {
+    # CTR formula scaffolding that wraps every generated title and carries no
+    # topical meaning. Stripped before comparing topics so that
+    # "Only 10% Pass This Make vs Do Test" and "Make vs Do: One Makes You Look
+    # Dumb" are recognised as the same subject.
+    "only", "pass", "test", "stop", "using", "use", "here", "why", "sound",
+    "sounding", "sounds", "rude", "say", "saying", "says", "said", "native",
+    "speakers", "speaker", "never", "secret", "secrets", "nobody", "teaches",
+    "teach", "look", "looks", "looking", "one", "wrong", "everybody", "everyone",
+    "english", "practice", "video", "short", "shorts", "second", "seconds",
+    "actually", "everyday", "make", "makes", "making", "just", "really",
+    "im", "ive", "dont", "youre", "thats", "lets", "get",
+}
+
+_TOPIC_STOPWORDS = {
+    "a", "an", "the", "and", "or", "but", "if", "of", "to", "in", "on", "at",
+    "for", "from", "with", "about", "as", "by", "is", "are", "was", "were",
+    "be", "been", "it", "its", "this", "that", "these", "those", "i", "you",
+    "your", "my", "our", "their", "his", "her", "them", "they", "he", "she",
+    "we", "us", "me", "can", "will", "would", "should", "could", "may",
+    "might", "must", "not", "no", "so", "than", "then", "there", "here",
+    "when", "where", "what", "which", "who", "how", "why", "vs", "10", "00",
+}
+
+
+def _normalize_topic_text(text: str) -> str:
+    # Drop clitic "'s"/"'t" before stripping punctuation, otherwise "here's"
+    # tokenizes to a stray "s" and dilutes the comparison.
+    text = re.sub(r"['’]s\b|['’]t\b|['’]re\b|['’]ll\b|['’]ve\b|['’]d\b|['’]m\b", "", str(text).lower())
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _topic_tokens(text: str) -> set:
+    """Significant words in a topic, with formula scaffolding and stopwords removed."""
+    return {
+        token
+        for token in _normalize_topic_text(text).split()
+        if len(token) > 1
+        and token not in _TOPIC_NOISE_WORDS
+        and token not in _TOPIC_STOPWORDS
+    }
+
+
+def _topics_overlap(a: str, b: str) -> bool:
+    """True when two topics share essentially all of their significant words."""
+    tokens_a, tokens_b = _topic_tokens(a), _topic_tokens(b)
+    if not tokens_a or not tokens_b:
+        return False
+
+    if tokens_a == tokens_b:
+        # Both titles reduce to the same single distinctive word, e.g.
+        # "STOP Using 'No Problem'" vs "You Sound RUDE When You Say 'No Problem'".
+        if len(tokens_a) == 1:
+            return len(next(iter(tokens_a))) >= 4
+        return True
+
+    smaller, _ = sorted((tokens_a, tokens_b), key=len)
+    return len(smaller) >= 2 and len(smaller & tokens_a & tokens_b) / len(smaller) >= 0.85
+
+
 def is_already_published(topic: str, topic_type: str) -> bool:
-    """Check if a topic or title already exists in the published history for a specific type."""
-    topics_data = get_published_topics()
-    published = topics_data.get(topic_type, [])
-    topic_lower = topic.lower().strip()
+    """Check if a topic or title duplicates something already published for a type.
+
+    Compares on significant words rather than raw substrings. An earlier
+    bidirectional ``in`` check flagged almost everything, because a short topic
+    like "Could" is a substring of nearly every history entry.
+    """
+    published = get_published_topics().get(topic_type, [])
+    if not published:
+        return False
+
+    topic_norm = _normalize_topic_text(topic)
+
     for entry in published:
-        entry_lower = str(entry).lower().strip()
-        if topic_lower in entry_lower or entry_lower in topic_lower:
+        entry_norm = _normalize_topic_text(entry)
+        if not topic_norm or not entry_norm:
+            continue
+
+        if topic_norm == entry_norm:
             return True
+
+        # Long near-identical titles still count even without shared tokens.
+        if len(topic_norm) >= 20 and (topic_norm in entry_norm or entry_norm in topic_norm):
+            return True
+
+        if _topics_overlap(topic, entry):
+            return True
+
     return False
 
 def save_published_topic(topic: str, topic_type: str = "podcast"):
@@ -1906,11 +1985,18 @@ def is_motivational_line(text: str) -> bool:
     return any(p.search(text) for p in _MOTIVATIONAL_PATTERNS)
 
 
-def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcast") -> str:
+def generate_dynamic_topic(
+    is_challenge: bool = False,
+    topic_type: str = "podcast",
+    rejected: list | None = None,
+) -> str:
     """Ask Groq to generate a fresh, high-CTR English learning topic.
 
     The prompt shows diverse topic areas as inspiration and lets the LLM
     choose freely, relying on the avoidance list to prevent repetition.
+
+    ``rejected`` holds topics already refused in this run, so a retry does not
+    re-propose the same idea.
     """
     if topic_type == "post":
         type_label = "YouTube Community quiz or poll"
@@ -1921,15 +2007,23 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     else:
         type_label = "podcast episode"
 
+    rejected = list(rejected or [])
     topics_data = get_published_topics()
     published_topics = topics_data.get(topic_type, [])
-    recent_topics = published_topics[-50:] if published_topics else []
+    recent_topics = list(published_topics[-50:]) if published_topics else []
+    recent_topics.extend(rejected)
 
     avoid_instruction = ""
     if recent_topics:
         avoid_instruction = f"""
     CRITICAL: Avoid repeating or closely matching any of these previously published topics/titles:
     {json.dumps(recent_topics, indent=2)}
+    """
+    if rejected:
+        avoid_instruction += f"""
+    These were already suggested and REJECTED as too similar to past videos.
+    Pick a completely different subject, not a reworded version:
+    {json.dumps(rejected, indent=2)}
     """
 
     prompt = f"""
@@ -1986,34 +2080,152 @@ def generate_dynamic_topic(is_challenge: bool = False, topic_type: str = "podcas
     """
     try:
         res = call_groq_json(prompt)
-        return res.get("title") or res.get("topic")
+        candidate = res.get("title") or res.get("topic")
+        if candidate:
+            return candidate
+        print("  Topic generator returned an empty result. Falling back to seed topic.")
     except Exception as e:
         print(f"  Error generating dynamic topic: {e}. Falling back to seed topic.")
-        if topic_type == "quiz":
-            return random.choice([
-                "Only 10% Pass This Phrasal Verb Test",
-                "You're Probably Saying This Idiom Wrong",
-                "STOP Making This Grammar Mistake",
-                "Confusing Words: One Makes You Look Dumb",
-                "Present Perfect vs Past Simple: You're Wrong",
-                "Can You Choose the Right Preposition?",
-                "Office English: You Sound Rude",
-                "5 Business Phrases That Make You Look Smart",
-                "Everyday English: You're Using It Wrong",
-                "Your Pronunciation Is Killing Your Accent",
-            ])
-        return random.choice([
-            "Say vs Tell: You're Using One Wrong",
-            "Small Talk at Work: You Sound AWKWARD",
-            "Why TH Breaks Your English Accent",
-            "Calling in Sick: You Sound Unprofessional",
-            "Have Been vs Have Gone: You're Wrong",
-            "Gen Z Slang That Changes Everything",
-            "Lost in a Foreign City With No Phone",
-            "Disagree With Your Boss: Don't Get Fired",
-            "Hotel Emergency: I Almost Got Arrested",
-            "IELTS Speaking: You're Losing Points",
-        ])
+
+    return _pick_seed_topic(topic_type, rejected)
+
+
+def _pick_seed_topic(topic_type: str, rejected: list | None = None) -> str:
+    """Choose a fallback seed topic that does not collide with published history."""
+    seeds = QUIZ_SEED_TOPICS if topic_type == "quiz" else PODCAST_SEED_TOPICS
+    rejected = [str(t).lower() for t in (rejected or [])]
+
+    candidates = [
+        seed for seed in seeds
+        if not is_already_published(seed, topic_type) and seed.lower() not in rejected
+    ]
+    if not candidates:
+        # History is deeper than the seed pool; re-roll rather than force a duplicate.
+        return random.choice(seeds)
+    return random.choice(candidates)
+
+
+PODCAST_SEED_TOPICS = [
+    "Say vs Tell: You're Using One Wrong",
+    "Small Talk at Work: You Sound AWKWARD",
+    "Why TH Breaks Your English Accent",
+    "Calling in Sick: You Sound Unprofessional",
+    "Have Been vs Have Gone: You're Wrong",
+    "Gen Z Slang That Changes Everything",
+    "Lost in a Foreign City With No Phone",
+    "Disagree With Your Boss: Don't Get Fired",
+    "Hotel Emergency: I Almost Got Arrested",
+    "IELTS Speaking: You're Losing Points",
+]
+
+QUIZ_SEED_TOPICS = [
+    "Only 10% Pass This Phrasal Verb Test",
+    "You're Probably Saying This Idiom Wrong",
+    "STOP Making This Grammar Mistake",
+    "Confusing Words: One Makes You Look Dumb",
+    "Present Perfect vs Past Simple: You're Wrong",
+    "Can You Choose the Right Preposition?",
+    "Office English: You Sound Rude",
+    "5 Business Phrases That Make You Look Smart",
+    "Everyday English: You're Using It Wrong",
+    "Your Pronunciation Is Killing Your Accent",
+]
+
+
+# ── Topic confirmation ──────────────────────────────────────────────────────
+# Set to True via set_auto_confirm_topic() (--yes) to skip the prompt, and forced
+# on when stdin is not a TTY so scheduled runs never block or hit EOFError.
+_AUTO_CONFIRM_TOPIC = False
+
+
+def set_auto_confirm_topic(enabled: bool) -> None:
+    """Skip the topic confirmation prompt (wired to manual_run's --yes flag)."""
+    global _AUTO_CONFIRM_TOPIC
+    _AUTO_CONFIRM_TOPIC = bool(enabled)
+
+
+def _can_prompt() -> bool:
+    if _AUTO_CONFIRM_TOPIC:
+        return False
+    try:
+        return bool(sys.stdin) and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _recent_topic_examples(topic_type: str, limit: int = 5) -> list:
+    return get_published_topics().get(topic_type, [])[-limit:]
+
+
+def _confirm_topic_choice(topic: str, topic_type: str, is_challenge: bool) -> bool:
+    """Show a candidate topic and ask whether to use it. Returns False to retry."""
+    if not _can_prompt():
+        return True
+
+    print(f"\n{'=' * 50}")
+    print("PROPOSED TOPIC")
+    print("=" * 50)
+    print(f"  Topic: {topic}")
+
+    if is_already_published(topic, topic_type):
+        print(f"\n  ⚠ WARNING: this looks very similar to an already-published '{topic_type}' video.")
+        for entry in _recent_topic_examples(topic_type, 50):
+            if _topics_overlap(topic, entry):
+                print(f"    - {entry}")
+
+    recent = _recent_topic_examples(topic_type)
+    if recent:
+        print(f"\n  Last {len(recent)} published {topic_type} topics:")
+        for entry in recent:
+            print(f"    - {entry}")
+
+    while True:
+        try:
+            answer = input("\n  [Y] Proceed  [R] Try another topic  [Q] Quit: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return True
+        if answer in ("", "y", "yes"):
+            return True
+        if answer in ("r", "retry", "n", "no", "again"):
+            return False
+        if answer in ("q", "quit", "exit"):
+            raise SystemExit(0)
+        print("  Unrecognised choice. Use Y, R or Q.")
+
+
+def select_topic_interactive(
+    topic: str = None,
+    topic_type: str = "podcast",
+    is_challenge: bool = False,
+    max_attempts: int = 5,
+) -> str:
+    """Resolve a topic for a run, confirming with the user before the script is written.
+
+    A manually supplied ``topic`` is checked against history and confirmed too;
+    refusing it falls through to auto-generation rather than aborting the run.
+    """
+    if topic:
+        if is_already_published(topic, topic_type):
+            print(f"\n  [WARNING] Topic '{topic}' matches existing '{topic_type}' history.")
+        if _confirm_topic_choice(topic, topic_type, is_challenge):
+            return topic
+        print("\n  Falling back to a generated topic...")
+
+    rejected: list = []
+    for attempt in range(1, max_attempts + 1):
+        candidate = generate_dynamic_topic(
+            is_challenge=is_challenge,
+            topic_type=topic_type,
+            rejected=rejected,
+        )
+        if _confirm_topic_choice(candidate, topic_type, is_challenge):
+            return candidate
+        rejected.append(candidate)
+        print(f"\n  Rejected. Generating another topic ({attempt}/{max_attempts})...")
+
+    print(f"\n  Reached {max_attempts} rejections — proceeding with the last topic: {rejected[-1]}")
+    return rejected[-1]
 
 
 def generate_thumbnail_text(topic: str, is_challenge: bool = False) -> dict:
@@ -2365,12 +2577,7 @@ def _clean_challenge_dialogue(script: dict, day_number: int) -> dict:
 
 
 def generate_weekly_challenge_plan(topic=None) -> dict:
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=True, topic_type="challenge")
-    else:
-        # Check if manual topic is already published
-        if is_already_published(topic, "challenge"):
-            print(f"\n  [WARNING] Manual challenge topic '{topic}' was found in 'challenge' history.")
+    topic = select_topic_interactive(topic, topic_type="challenge", is_challenge=True)
 
     # History injection
     topics_data = get_published_topics()
@@ -2470,12 +2677,7 @@ def generate_english_community_content(topic: str = None, content_type: str = "q
     Generates content for YouTube Community Tab: 
     types: 'quiz' (text poll with 1 right answer) or 'image_poll' (visual choices).
     """
-    if not topic:
-        topic = generate_dynamic_topic(topic_type="post")
-    else:
-        # Check if manual topic is already published
-        if is_already_published(topic, "post"):
-            print(f"\n  [WARNING] Manual community topic '{topic}' was found in 'post' history.")
+    topic = select_topic_interactive(topic, topic_type="post")
 
     print(f"\nSelected community topic: {topic}")
     
@@ -2657,12 +2859,7 @@ JSON SCHEMA:
 
 def generate_traditional_english_script(topic=None) -> dict:
     """Generate a standalone traditional English learning script using Emma/Liam format."""
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=False, topic_type="traditional")
-    else:
-        # Check if manual topic is already published
-        if is_already_published(topic, "traditional"):
-            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'traditional' history.")
+    topic = select_topic_interactive(topic, topic_type="traditional")
 
     # History injection
     topics_data = get_published_topics()
@@ -2795,12 +2992,7 @@ RULES:
 
 
 def generate_english_script(topic=None):
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
-    else:
-        # Check if manual topic is already published
-        if is_already_published(topic, "podcast"):
-            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'podcast' history.")
+    topic = select_topic_interactive(topic, topic_type="podcast")
 
     # History injection
     topics_data = get_published_topics()
@@ -3135,13 +3327,7 @@ SLOW_IDIOM_POOL = [
 
 
 def generate_english_shorts_script(topic=None):
-
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=False, topic_type="shorts")
-    else:
-        # Check if manual topic is already published
-        if is_already_published(topic, "shorts"):
-            print(f"\n  [WARNING] Manual shorts topic '{topic}' was found in 'shorts' history.")
+    topic = select_topic_interactive(topic, topic_type="shorts")
 
     # History injection
     topics_data = get_published_topics()
@@ -3213,10 +3399,7 @@ def generate_english_quiz_shorts_script(topic: str = None) -> dict:
     topics_data = get_published_topics()
     published_quizzes = topics_data.get("quiz", [])
 
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=False, topic_type="quiz")
-    elif is_already_published(topic, "quiz"):
-        print(f"\n  [WARNING] Manual quiz topic '{topic}' was found in 'quiz' history.")
+    topic = select_topic_interactive(topic, topic_type="quiz")
 
     print(f"\nSelected Quiz topic: {topic}")
 
@@ -3742,11 +3925,7 @@ Output ONLY valid JSON with this schema:
 
 def generate_english_podcast_script(topic=None):
     """Generate a podcast script with Emma & Liam as hosts and dynamic scenes."""
-    if not topic:
-        topic = generate_dynamic_topic(is_challenge=False, topic_type="podcast")
-    else:
-        if is_already_published(topic, "podcast"):
-            print(f"\n  [WARNING] Manual topic '{topic}' was found in 'podcast' history.")
+    topic = select_topic_interactive(topic, topic_type="podcast")
 
     topics_data = get_published_topics()
     recent = topics_data.get("podcast", [])[-50:]
