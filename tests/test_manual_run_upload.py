@@ -247,5 +247,168 @@ class ManualRunUploadTests(unittest.TestCase):
         )
 
 
+class FacebookCrossPostTests(unittest.TestCase):
+    """The Facebook Reel cross-post fires only for the intended channels.
+
+    These patch the *inner* _publish_to_facebook so the real channel gate in
+    _maybe_publish_to_facebook actually executes.
+    """
+
+    def _upload(self, tmp_path, command_channel, fb_side_effect=None, patch_inner=True, **kwargs):
+        assets = tmp_path / "assets"
+        assets.mkdir(exist_ok=True)
+        (assets / "yt_credentials_english.json").write_text("{}", encoding="utf-8")
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"fake video")
+
+        seen = {}
+
+        def fake_facebook(video_path, title, description, youtube_id=None, schedule_time=None):
+            # Capture whether the MP4 still exists at the moment Facebook runs —
+            # _cleanup_uploaded_video_files deletes it right after.
+            seen["video_existed"] = Path(video_path).exists()
+            seen["youtube_id"] = youtube_id
+            seen["title"] = title
+            return {"facebook_video_id": "fb123", "video_state": "DRAFT"}
+
+        side_effect = fb_side_effect or fake_facebook
+        gate_calls = []
+        real_gate = manual_run._maybe_publish_to_facebook
+
+        def spy_gate(*args, **kwargs):
+            # Record the channel the real gate was handed, then let it run for
+            # real so the actual channel check executes.
+            gate_calls.append(args[3] if len(args) > 3 else kwargs.get("command_channel"))
+            if not patch_inner:
+                raise RuntimeError("gate exploded")
+            return real_gate(*args, **kwargs)
+
+        with patch.object(manual_run, "ASSETS_DIR", assets):
+            with patch("youtube_uploader.youtube_upload") as upload:
+                upload.return_value = {"youtube_id": "yt123"}
+                with patch.object(
+                    manual_run, "_maybe_publish_to_facebook", side_effect=spy_gate
+                ) as gate:
+                    with patch.object(
+                        manual_run, "_publish_to_facebook", side_effect=side_effect
+                    ) as fb:
+                        with redirect_stdout(StringIO()):
+                            result = manual_run._upload_video(
+                                str(video),
+                                "Title",
+                                "Description",
+                                ["tag"],
+                                "english",
+                                command_channel=command_channel,
+                                **kwargs,
+                            )
+        seen["gate_channels"] = gate_calls
+        return result, fb, gate, seen, video
+
+    def test_shorts_and_quiz_cross_post(self):
+        for channel in ("english-shorts", "english-quiz"):
+            with self.subTest(channel=channel):
+                with tempfile.TemporaryDirectory() as tmp:
+                    _, fb, _, seen, _ = self._upload(Path(tmp), channel)
+                    fb.assert_called_once()
+                    self.assertEqual(seen["gate_channels"], [channel])
+                    self.assertEqual(seen["youtube_id"], "yt123")
+
+    def test_other_channels_do_not_cross_post(self):
+        for channel in ("english", "family", "trending", "english-challenge", None):
+            with self.subTest(channel=channel):
+                with tempfile.TemporaryDirectory() as tmp:
+                    _, fb, _, _, _ = self._upload(Path(tmp), channel)
+                    fb.assert_not_called()
+
+    def test_facebook_runs_before_cleanup_deletes_the_mp4(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, fb, _, seen, video = self._upload(Path(tmp), "english-shorts")
+
+            fb.assert_called_once()
+            self.assertTrue(seen["video_existed"], "MP4 was already deleted before Facebook ran")
+            self.assertEqual(result["youtube_id"], "yt123")
+            self.assertFalse(video.exists(), "cleanup should still have removed the MP4")
+
+    def test_skip_facebook_suppresses_the_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, fb, _, _, _ = self._upload(Path(tmp), "english-shorts", publish_facebook=False)
+            fb.assert_not_called()
+
+    def test_default_respects_the_module_level_switch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(manual_run, "FACEBOOK_PUBLISH_ENABLED", False):
+                _, fb, _, _, _ = self._upload(Path(tmp), "english-shorts")
+            fb.assert_not_called()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(manual_run, "FACEBOOK_PUBLISH_ENABLED", True):
+                _, fb, _, _, _ = self._upload(Path(tmp), "english-shorts")
+            fb.assert_called_once()
+
+    def test_youtube_result_survives_a_facebook_upload_failure(self):
+        """A raised Facebook error must not cost a successful YouTube upload."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _, _, _, video = self._upload(
+                Path(tmp),
+                "english-shorts",
+                fb_side_effect=RuntimeError("Facebook exploded"),
+            )
+
+            self.assertEqual(result["youtube_id"], "yt123")
+            self.assertFalse(video.exists())
+
+    def test_youtube_result_survives_a_facebook_gate_failure(self):
+        """Even a broken gate must not abort the run after YouTube succeeded."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result, fb, gate, seen, video = self._upload(
+                Path(tmp),
+                "english-shorts",
+                patch_inner=False,
+            )
+
+            # The gate was reached with the right channel and did raise...
+            self.assertEqual(gate.call_count, 1)
+            self.assertEqual(seen["gate_channels"], ["english-shorts"])
+            # ...yet the upload itself was never even attempted.
+            fb.assert_not_called()
+            self.assertEqual(result["youtube_id"], "yt123")
+            self.assertFalse(video.exists())
+
+    def test_publish_helper_swallows_facebook_errors(self):
+        """The retry-then-warn behaviour lives in the helper itself."""
+        with patch("facebook_uploader.facebook_credentials_present", return_value=True):
+            with patch(
+                "facebook_uploader.facebook_upload_reel",
+                side_effect=RuntimeError("graph exploded"),
+            ):
+                with redirect_stdout(StringIO()):
+                    result = manual_run._publish_to_facebook(
+                        "output/video.mp4", "Title", "Desc"
+                    )
+
+        self.assertIsNone(result)
+
+    def test_publish_helper_skips_when_credentials_missing(self):
+        with patch("facebook_uploader.facebook_credentials_present", return_value=False):
+            with patch("facebook_uploader.facebook_upload_reel") as upload_reel:
+                with redirect_stdout(StringIO()):
+                    result = manual_run._publish_to_facebook(
+                        "output/video.mp4", "Title", "Desc"
+                    )
+
+        upload_reel.assert_not_called()
+        self.assertIsNone(result)
+
+    def test_gate_honours_channel_env_override(self):
+        with patch("facebook_uploader.facebook_channel_enabled", return_value=False):
+            with patch.object(manual_run, "_publish_to_facebook") as inner:
+                with redirect_stdout(StringIO()):
+                    manual_run._maybe_publish_to_facebook(
+                        "output/video.mp4", "Title", "Desc", "english-shorts"
+                    )
+        inner.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

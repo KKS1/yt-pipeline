@@ -91,6 +91,16 @@ ENGLISH_SHORTS_TTS_SPEED = 0.98
 ENGLISH_QUIZ_TTS_SPEED = 0.98
 ENGLISH_SLOW_TTS_SPEED = 0.80
 
+# Facebook cross-posting is gated by facebook_uploader.facebook_channel_enabled(),
+# which defaults to english-shorts + english-quiz and honours
+# FACEBOOK_ENABLED_CHANNELS in .env. Keep that single source of truth here rather
+# than duplicating the set.
+#
+# Set False by --skip-facebook. A module global because
+# run_resume_from_manifest() takes no other arguments and is reached from three
+# separate call sites.
+FACEBOOK_PUBLISH_ENABLED = True
+
 def get_family_history(tag: str = "family") -> list:
     if FAMILY_PUBLISHED_FILE.exists():
         try:
@@ -3162,6 +3172,65 @@ def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
+def _publish_to_facebook(video_path, title, description, youtube_id=None, schedule_time=None):
+    """Cross-post an uploaded video to the Facebook Page as a Reel.
+
+    Facebook has no "unlisted" visibility for Page content, so reels are
+    created as DRAFTs by default and released manually from Meta Business Suite.
+    Never lets a Facebook problem break an otherwise successful YouTube upload.
+    """
+    from facebook_uploader import (
+        facebook_credentials_present,
+        facebook_upload_reel,
+    )
+
+    if not facebook_credentials_present():
+        print("\n  Facebook: no credentials in .env — skipping Reel upload.")
+        print("  Set FACEBOOK_PAGE_ID and FACEBOOK_PAGE_ACCESS_TOKEN, or run:")
+        print("    python scripts/facebook_setup.py")
+        return None
+
+    try:
+        return facebook_upload_reel(
+            video_path=video_path,
+            title=title,
+            description=description,
+            schedule_time=schedule_time,
+            youtube_id=youtube_id,
+        )
+    except Exception as e:
+        print("\n  Facebook: Reel upload failed — the YouTube upload is unaffected.")
+        print(f"  Facebook: {type(e).__name__}: {e}")
+        print("  Facebook: nothing was created on the Page. The assembled MP4 is")
+        print("  deleted right after this step (--upload-existing included), so to")
+        print("  retry later, pull the file from YouTube Studio and run:")
+        print("    python scripts/facebook_setup.py --test-upload --video <path>")
+        return None
+
+
+def _maybe_publish_to_facebook(video_path, title, description, command_channel, youtube_id=None, schedule_time=None):
+    """Gate on channel, then hand off to the Reel uploader.
+
+    Wrapped defensively: a Facebook problem must never cost an already
+    successful YouTube upload its ledger entry or its cleanup.
+    """
+    try:
+        from facebook_uploader import facebook_channel_enabled
+
+        if not facebook_channel_enabled(command_channel):
+            return None
+        return _publish_to_facebook(
+            video_path,
+            title,
+            description,
+            youtube_id=youtube_id,
+            schedule_time=schedule_time,
+        )
+    except Exception as e:
+        print(f"\n  Facebook: cross-post skipped ({type(e).__name__}: {e})")
+        return None
+
+
 def _upload_video(
     video_path,
     title,
@@ -3175,7 +3244,8 @@ def _upload_video(
     pinned_comment=None,
     notify_subscribers=True,
     command_channel=None,
-    slot=None
+    slot=None,
+    publish_facebook=None
 ):
     print(f"\nVideo ready: {video_path}")
     print(f"Size: {Path(video_path).stat().st_size / 1024 / 1024:.1f} MB")
@@ -3219,6 +3289,25 @@ def _upload_video(
     if "youtube_id" in result:
         status = "Scheduled" if schedule_time else "Published"
         print(f"\n{status}: https://youtu.be/{result['youtube_id']}")
+
+        # Facebook must run BEFORE _cleanup_uploaded_video_files, which deletes
+        # the local MP4 that the Reel upload still needs.
+        if publish_facebook is None:
+            publish_facebook = FACEBOOK_PUBLISH_ENABLED
+        if publish_facebook:
+            try:
+                _maybe_publish_to_facebook(
+                    video_path,
+                    title,
+                    description,
+                    command_channel or channel,
+                    youtube_id=result["youtube_id"],
+                    schedule_time=schedule_time,
+                )
+            except Exception as e:
+                # Last-resort guard: YouTube already succeeded, so the ledger
+                # entry and cleanup below must still run.
+                print(f"\n  Facebook: cross-post skipped ({type(e).__name__}: {e})")
 
         if schedule_time and command_channel:
             try:
@@ -3305,6 +3394,7 @@ def _upload_existing_video(video_path, channel, title=None, description=None, ta
 # ─────────────────────────────────────────────
 
 def main():
+    global FACEBOOK_PUBLISH_ENABLED
     parser = argparse.ArgumentParser(description="Manual YouTube pipeline runner — free mode")
     parser.add_argument("--channel", choices=["lofi", "family", "trending", "english", "english-challenge", "english-shorts", "english-quiz", "english-challenge-shorts", "english-community", "english-podcast", "english-slow", "english-traditional"],
                         help="Which channel to produce for")
@@ -3318,6 +3408,11 @@ def main():
     )
     parser.add_argument("--type", choices=["quiz", "image_poll"], default="quiz", help="Type of community post")
     parser.add_argument("--no-upload", action="store_true", help="Assemble the video but skip YouTube upload")
+    parser.add_argument(
+        "--skip-facebook",
+        action="store_true",
+        help="Skip the Facebook Reel cross-post (affects english-shorts and english-quiz)",
+    )
     parser.add_argument("--start-date", help="First publish date for english-challenge, YYYY-MM-DD")
     parser.add_argument("--publish-hour", type=int, default=6, help="Local publish hour for scheduled english-challenge videos")
     parser.add_argument("--upload-existing", help="Upload an existing MP4 without rebuilding it")
@@ -3387,6 +3482,9 @@ def main():
         help="Shortcut for --resume-from-manifest (accepts path to manifest JSON)",
     )
     args = parser.parse_args()
+
+    if args.skip_facebook:
+        FACEBOOK_PUBLISH_ENABLED = False
 
     if args.publish_hour < 0 or args.publish_hour > 23:
         parser.error("--publish-hour must be between 0 and 23")
