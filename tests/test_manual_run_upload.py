@@ -358,6 +358,81 @@ class FacebookCrossPostTests(unittest.TestCase):
             self.assertEqual(result["youtube_id"], "yt123")
             self.assertFalse(video.exists())
 
+    def _upload_real_facebook(self, tmp_path, retry_root, upload_side_effect):
+        """Drive _upload_video with the real _publish_to_facebook in play.
+
+        Needed because the retry quarantine lives inside _publish_to_facebook;
+        stubbing that helper out would skip the behaviour under test.
+        """
+        assets = tmp_path / "assets"
+        assets.mkdir(exist_ok=True)
+        (assets / "yt_credentials_english.json").write_text("{}", encoding="utf-8")
+        video = tmp_path / "video.mp4"
+        video.write_bytes(b"fake video")
+
+        with patch.object(manual_run, "ASSETS_DIR", assets):
+            with patch.object(manual_run, "OUTPUT_DIR", tmp_path):
+                with patch.object(
+                    manual_run, "_facebook_retry_dir", return_value=retry_root
+                ):
+                    with patch("youtube_uploader.youtube_upload") as upload:
+                        upload.return_value = {"youtube_id": "yt123"}
+                        with patch(
+                            "facebook_uploader.facebook_credentials_present",
+                            return_value=True,
+                        ):
+                            upload_reel = patch(
+                                "facebook_uploader.facebook_upload_reel",
+                                side_effect=upload_side_effect,
+                            )
+                            if upload_side_effect is None:
+                                upload_reel = patch(
+                                    "facebook_uploader.facebook_upload_reel",
+                                    return_value={"facebook_video_id": "fb1"},
+                                )
+                            with upload_reel:
+                                with redirect_stdout(StringIO()):
+                                    result = manual_run._upload_video(
+                                        str(video),
+                                        "Title",
+                                        "Description",
+                                        ["tag"],
+                                        "english",
+                                        command_channel="english-shorts",
+                                    )
+        return result, video
+
+    def test_failed_crosspost_keeps_the_mp4_for_a_retry(self):
+        """A transient Facebook failure must not destroy the only local copy."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            retry_root = tmp_path / "retry"
+            result, video = self._upload_real_facebook(
+                tmp_path, retry_root, RuntimeError("token expired")
+            )
+
+            self.assertEqual(result["youtube_id"], "yt123")
+            self.assertFalse(video.exists(), "should no longer sit at the upload path")
+            kept = list(retry_root.glob("*.mp4"))
+            self.assertEqual(len(kept), 1, "MP4 should be preserved for a retry")
+            self.assertTrue(kept[0].with_suffix(".txt").is_file())
+
+    def test_successful_crosspost_leaves_no_retry_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            retry_root = tmp_path / "retry"
+            result, video = self._upload_real_facebook(
+                tmp_path,
+                retry_root,
+                None,  # side_effect=None -> facebook_upload_reel succeeds
+            )
+
+            self.assertFalse(video.exists(), "cleanup should remove the MP4")
+            self.assertFalse(
+                retry_root.exists() and any(retry_root.iterdir()),
+                "a successful cross-post must not leave retry files",
+            )
+
     def test_youtube_result_survives_a_facebook_gate_failure(self):
         """Even a broken gate must not abort the run after YouTube succeeded."""
         with tempfile.TemporaryDirectory() as tmp:

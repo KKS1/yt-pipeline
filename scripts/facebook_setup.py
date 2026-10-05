@@ -124,8 +124,17 @@ def _report_scopes() -> bool:
         app_secret = ""
 
     scopes = set(data.get("scopes") or [])
+    granular = data.get("granular_scopes") or []
     issuing_app = data.get("app_id")
-    is_page_token = bool(data.get("target_ids"))
+    page_id = (os.getenv("FACEBOOK_PAGE_ID") or "").strip()
+
+    # Meta reports the token kind in `type`; `target_ids` on the top level is
+    # absent on current responses (the per-scope copies live in
+    # `granular_scopes`), so keying off target_ids misreads valid Page tokens
+    # as User tokens. Fall back to matching profile_id for older responses.
+    token_type = (data.get("type") or "").strip().upper()
+    profile_id = str(data.get("profile_id") or "")
+    is_page_token = token_type == "PAGE" or (not token_type and profile_id == page_id)
 
     print("Token scopes")
     print("────────────")
@@ -135,23 +144,41 @@ def _report_scopes() -> bool:
         print(f"     FACEBOOK_APP_ID ({app_id}). It can read the Page but was")
         print("     never granted your app's write permissions. Re-mint it from a")
         print("     token generated while your app is selected.")
-    print(f"  type          : {'Page' if is_page_token else 'User'}")
+    print(f"  type          : {token_type or 'unknown'}")
+    print(f"  profile       : {profile_id or '(none)'}")
     print(f"  expires       : {_expiry_text(data.get('expires_at'))}")
 
-    missing = [s for s in SCOPES_NEEDED_FOR_UPLOAD if s not in scopes]
+    # A scope only counts if it is either unscoped or scoped to *this* page.
+    scoped_to_page = {
+        entry.get("scope")
+        for entry in granular
+        if isinstance(entry, dict)
+        and page_id in (entry.get("target_ids") or [])
+    }
+    unscoped = not granular
+
+    def granted(scope: str) -> bool:
+        if scope not in scopes:
+            return False
+        return unscoped or scope in scoped_to_page
+
+    missing = [s for s in SCOPES_NEEDED_FOR_UPLOAD if not granted(s)]
     for scope in SCOPES_NEEDED_FOR_UPLOAD:
-        print(f"  {'[x]' if scope in scopes else '[ ]'} {scope}")
+        print(f"  {'[x]' if granted(scope) else '[ ]'} {scope}")
 
     if not is_page_token:
-        print("\n  !! This is a User token, not a Page token. Take the access_token")
-        print("     from your page's row of GET /me/accounts?fields=id,name,access_token")
+        print("\n  !! This is a User token, not a Page token. It can read the Page")
+        print("     but the Reels write phase will be rejected. Take the")
+        print("     access_token from your page's row of /accounts and store it as")
+        print("     FACEBOOK_PAGE_ACCESS_TOKEN.")
         return False
 
     if missing:
         print(f"\n  Missing upload scope(s): {', '.join(missing)}")
         return False
 
-    print("\n  All upload scopes present.")
+    print("\n  All upload scopes present, bound to this Page.")
+    print("  Run --test-upload to confirm the write path end to end.")
     return True
 
 
@@ -181,15 +208,34 @@ def _explain_failure(exc: FacebookGraphError, stage: str = "verify") -> None:
     lowered = message.lower()
 
     if code == 190 or "cannot parse access token" in lowered:
-        print("\n  The token is invalid or expired. A Page token derived from a")
-        print("  *long-lived* user token does not expire; one from a short-lived")
-        print("  token stops working after about an hour.")
-        print("  Refresh it in Graph API Explorer:")
-        print("    GET /me/accounts?fields=id,name,access_token")
+        print("\n  The token is no longer valid. Page tokens inherit the lifetime of")
+        print("  the user token they were derived from: a Page token derived from a")
+        print("  SHORT-LIVED user token dies with it (roughly an hour), which is")
+        print("  almost certainly what happened here.")
+        print("\n  The durable fix is to mint a LONG-LIVED user token first, then")
+        print("  derive the Page token from that:")
+        print("\n    1. Get a short-lived user token with the needed scopes.")
+        print("    2. Exchange it for a long-lived user token:")
+        print("       GET /oauth/access_token?grant_type=fb_exchange_token")
+        print("           &client_id=<APP_ID>&client_secret=<APP_SECRET>")
+        print("           &fb_exchange_token=<SHORT_LIVED_TOKEN>")
+        print("    3. Derive the Page token using the LONG-LIVED token:")
+        print("       GET /me/accounts?fields=id,name,access_token")
+        print("    4. Store that Page token in .env.")
+        print("\n  Step 3 is the one people skip: re-deriving from the original")
+        print("  short-lived token yields a Page token that expires again in an hour.")
     elif code == 240:
         print("\n  The Page node does not accept POST — reads must use GET.")
     elif code == 200 or "permission" in lowered:
-        if phase == "start" or "pages_manage_posts" in lowered:
+        if "impersonating a user" in lowered:
+            # Distinct from a scope problem: the Page token is well-formed and
+            # carries its scopes, but the grant behind it has lapsed.
+            print("\n  This is a lapsed Page token, not a missing scope. Meta is")
+            print("  refusing to impersonate the Page because the underlying user")
+            print("  grant expired — typically a Page token derived from a")
+            print("  short-lived user token. Re-derive from a LONG-LIVED user token;")
+            print("  see the runbook printed for error 190.")
+        elif phase == "start" or "pages_manage_posts" in lowered:
             print("\n  The token can READ the Page but was never granted write access.")
             print("  This is the expected symptom of a Page token derived from a user")
             print("  token that lacked pages_manage_posts. A Page token cannot gain")

@@ -24,6 +24,7 @@ import textwrap
 import shutil
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 import cProfile
 import pstats
@@ -3172,12 +3173,64 @@ def run_trending_pair(topic=None, region="CA", upload=True, schedule_time=None):
 # SHARED UPLOAD
 # ─────────────────────────────────────────────
 
+def _now_local_stamp():
+    """Local-time string for retry notes, matching the pipeline's timezone."""
+    tz = ZoneInfo(os.getenv("LOCAL_TIMEZONE", "America/Regina"))
+    return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def _facebook_retry_dir():
+    return OUTPUT_DIR / "facebook_retry"
+
+
+def _quarantine_for_facebook_retry(video_path, title=None, youtube_id=None):
+    """Move the MP4 aside instead of deleting it, so a failed Reel is re-postable.
+
+    A failed Facebook cross-post is usually a transient credential or network
+    problem, not a bad video. Deleting the only local copy forces a re-download
+    from YouTube Studio, so on failure the file is moved to
+    output/facebook_retry/ with a sidecar note instead.
+
+    Returns the quarantine path, or None if the move failed.
+    """
+    video = Path(video_path)
+    if not video.is_file():
+        return None
+
+    try:
+        target_dir = _facebook_retry_dir()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / video.name
+        if target.exists():
+            target = target_dir / f"{video.stem}_{uuid4().hex[:8]}{video.suffix}"
+        video.replace(target)
+
+        note = target.with_suffix(".txt")
+        note.write_text(
+            "Facebook Reel cross-post failed for this video.\n\n"
+            f"Title       : {title or '(unknown)'}\n"
+            f"YouTube ID  : {youtube_id or '(unknown)'}\n"
+            f"Saved       : {_now_local_stamp()}\n\n"
+            "Re-post with:\n"
+            f"  python scripts/facebook_setup.py --test-upload --video {target}\n\n"
+            "Delete this file once the Reel exists (or after it is published).\n",
+            encoding="utf-8",
+        )
+        return target
+    except OSError as e:
+        print(f"  Facebook: could not save for retry ({e})")
+        return None
+
+
 def _publish_to_facebook(video_path, title, description, youtube_id=None, schedule_time=None):
     """Cross-post an uploaded video to the Facebook Page as a Reel.
 
     Facebook has no "unlisted" visibility for Page content, so reels are
     created as DRAFTs by default and released manually from Meta Business Suite.
     Never lets a Facebook problem break an otherwise successful YouTube upload.
+
+    Returns the uploader result on success, or None on failure (with the MP4
+    moved to output/facebook_retry/ so the cross-post can be retried).
     """
     from facebook_uploader import (
         facebook_credentials_present,
@@ -3201,10 +3254,12 @@ def _publish_to_facebook(video_path, title, description, youtube_id=None, schedu
     except Exception as e:
         print("\n  Facebook: Reel upload failed — the YouTube upload is unaffected.")
         print(f"  Facebook: {type(e).__name__}: {e}")
-        print("  Facebook: nothing was created on the Page. The assembled MP4 is")
-        print("  deleted right after this step (--upload-existing included), so to")
-        print("  retry later, pull the file from YouTube Studio and run:")
-        print("    python scripts/facebook_setup.py --test-upload --video <path>")
+        print("  Facebook: nothing was created on the Page. Keeping the MP4 for a retry:")
+        saved = _quarantine_for_facebook_retry(video_path, title=title, youtube_id=youtube_id)
+        if saved:
+            print(f"    {saved}")
+            print("  Re-post later with:")
+            print(f"    python scripts/facebook_setup.py --test-upload --video \"{saved}\"")
         return None
 
 
@@ -3323,6 +3378,10 @@ def _upload_video(
             except Exception as e:
                 print(f"  Warning: Failed to record upload in ledger: {e}")
 
+        # On a Facebook failure the MP4 has already been moved to
+        # output/facebook_retry/, so it is gone from its original path here and
+        # cleanup is a no-op for it. That is deliberate: the file is preserved
+        # for a re-post instead of being destroyed.
         _cleanup_uploaded_video_files(video_path)
         return result
     else:
