@@ -40,6 +40,7 @@ Mix of plain pytest functions and `unittest.TestCase`. Some tests (English audio
 - **`.env` keys**: `.env` is gitignored and untracked — live credentials live there and are never committed. Do not hardcode credentials.
 - **Chrome AI full-res images**: Chrome AI accumulates generated images in one conversation. Each image has a thumbnail (data URL, ~0.1MB) plus a hidden full-res `img.fRm5F` element (`lens.usercontent.google.com/banana` URL) — the banana URL fetched raw yields the full-res (~2MB) image. MUST select the banana element at the scene's `new_image_index` (not the first via `querySelector`), or every scene silently saves the same first image.
 - **Chrome AI download button**: `button[aria-label="Download this AI generated image"]` is `disabled` and never emits a real browser `download` event; don't rely on it. DOM banana fetch is the winning path.
+- **Chrome AI navigation**: `_navigate_to_ai_mode()` goes straight to `google.com/aimode` (fallbacks: `/ai/`, `search?udm=48`) rather than hunting for the AI button on the google.com homepage — that button's aria-label/markup changes often and is region/account gated. If direct navigation fails it falls back to the homepage entry and, on any failure, dumps all button/input aria-labels to stdout. If you see "Could not find AI mode button in Chrome", check that dump for a sign-in wall or "not available in your region" before changing selectors.
 
 ## Structure
 

@@ -28,6 +28,59 @@ CHROME_AI_HEADLESS = os.getenv("CHROME_AI_HEADLESS", "false").lower() == "true"
 CHROME_AI_RATE_LIMIT_DELAY = int(os.getenv("CHROME_AI_RATE_LIMIT_DELAY", "2"))
 CHROME_AI_MAX_RETRIES = int(os.getenv("CHROME_AI_MAX_RETRIES", "3"))
 
+# Google AI Mode entry points. Going straight to AI Mode avoids depending on
+# whichever AI button Google currently renders on the google.com homepage.
+AI_MODE_URLS = [
+    "https://www.google.com/aimode",
+    "https://www.google.com/ai/",
+    "https://www.google.com/search?udm=48",
+]
+
+# Selectors that detect the AI Mode "Ask anything" / "Describe your image" box.
+AI_MODE_PROMPT_SELECTORS = [
+    'textarea[placeholder*="Ask anything"]',
+    'textarea[placeholder*="Describe your image"]',
+    'textarea[placeholder*="Ask Google"]',
+    'textarea[aria-label*="Ask anything"]',
+    'div[contenteditable="true"][role="textbox"]',
+]
+
+# The "+" / tools button inside the AI Mode prompt bar. Google has changed its
+# aria-label over time, so match on several stable-ish fragments plus text.
+AI_TOOLS_BUTTON_SELECTORS = [
+    'button[aria-label="Add files, tools, and select a model"]',
+    'button[aria-label*="Add files"]',
+    'button[aria-label*="files, tools"]',
+    'button[aria-label*="tools, and select a model"]',
+    'button[aria-label*="Enhance your search with tabs, files, or an AI tool"]',
+    'button[aria-label*="AI Mode"]',
+    'button[aria-label*="AI tools"]',
+    'button[aria-label*="Tools"]',
+    'button[aria-label*="Add"]',
+    'button:has-text("+")',
+    '[role="button"]:has-text("+")',
+]
+
+# "Create images" tool inside the plus menu (data-tool="4" historically).
+CREATE_IMAGE_SELECTORS = [
+    'button[data-tool="4"]',
+    '[role="menuitemradio"][data-tool="4"]',
+    '[role="menuitemradio"]:has-text("Create image")',
+    '[role="menuitem"]:has-text("Create image")',
+    '[role="option"]:has-text("Create image")',
+    'button:has-text("Create image")',
+    'div[role="button"]:has-text("Create image")',
+    'button:has-text("🍌")',
+]
+
+# Homepage fallback entry points (AI Mode tab or the search-bar plus button).
+AI_MODE_ENTRY_SELECTORS = AI_TOOLS_BUTTON_SELECTORS + [
+    'button:has-text("AI Mode")',
+    '[role="button"]:has-text("AI Mode")',
+    'a:has-text("AI Mode")',
+    '[aria-label*="AI Mode"]',
+]
+
 
 class ChromeAIGenerator:
     """Automate Chrome AI image generation using existing Google sessions."""
@@ -273,99 +326,159 @@ class ChromeAIGenerator:
             print(f"  Warning: Failed to switch account: {e}")
             return False
     
-    async def _navigate_to_ai_mode(self):
-        """Navigate to Chrome AI mode for image generation."""
+    async def _find_first(self, selectors, label: str = "element", timeout: int = 2000):
+        """Return the first visible element matching any selector, or None."""
+        for selector in selectors:
+            try:
+                element = await self.page.wait_for_selector(selector, timeout=timeout)
+                if element:
+                    print(f"  Found {label} with selector: {selector}")
+                    return element
+            except Exception:
+                continue
+        return None
+
+    async def _wait_for_ai_mode_prompt(self, timeout: int = 10000) -> bool:
+        """True when the AI Mode prompt box has rendered on the page."""
         try:
-            # Ensure browser and page are active
+            selectors = json.dumps(AI_MODE_PROMPT_SELECTORS)
+            await self.page.wait_for_function(
+                f"""() => {{
+                    const selectors = {selectors};
+                    if (selectors.some(s => document.querySelector(s))) return true;
+                    const url = location.href;
+                    if (/\\/aimode\\b|\\/ai\\/|udm=48/.test(url) &&
+                        document.querySelector('textarea, div[contenteditable="true"]')) return true;
+                    return false;
+                }}""",
+                timeout=timeout,
+            )
+            return True
+        except Exception:
+            return False
+
+    async def _dump_page_debug(self, label: str):
+        """Print the current DOM controls so a failed run can be diagnosed."""
+        print(f"  [debug] {label}")
+        try:
+            print(f"  [debug] URL: {self.page.url}")
+            print(f"  [debug] Title: {await self.page.title()}")
+        except Exception:
+            pass
+        try:
+            buttons = await self.page.query_selector_all(
+                'button, [role="button"], cr-icon-button'
+            )
+            print(f"  [debug] {len(buttons)} button-like elements:")
+            for i, btn in enumerate(buttons[:20]):
+                try:
+                    text = (await btn.inner_text()).strip().replace("\n", " ")[:60]
+                    aria = await btn.get_attribute("aria-label")
+                    cls = await btn.get_attribute("class")
+                    print(f"    [{i}] text={text!r} aria-label={aria!r} class={cls!r}")
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        try:
+            inputs = await self.page.query_selector_all(
+                'textarea, div[contenteditable="true"]'
+            )
+            print(f"  [debug] {len(inputs)} text inputs:")
+            for i, el in enumerate(inputs[:10]):
+                try:
+                    placeholder = await el.get_attribute("placeholder")
+                    aria = await el.get_attribute("aria-label")
+                    print(f"    [{i}] placeholder={placeholder!r} aria-label={aria!r}")
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    async def _navigate_to_ai_mode(self):
+        """Navigate to Google AI Mode and enable the Create images tool."""
+        try:
             await self._ensure_browser_open()
-            
-            # Navigate to Google homepage
-            await self.page.goto("https://www.google.com", timeout=30000)
-            await self.page.wait_for_load_state("networkidle")
-            
-            # Debug: Print page title and URL
-            print(f"  Current page: {self.page.url}")
-            print(f"  Page title: {await self.page.title()}")
-            
-            # Debug: Look for any buttons on the page
-            all_buttons = await self.page.query_selector_all('button, [role="button"], cr-icon-button')
-            print(f"  Found {len(all_buttons)} button-like elements on page")
-            for i, btn in enumerate(all_buttons[:10]):  # Show first 10
+
+            # Prefer a direct AI Mode URL over hunting for a homepage button —
+            # that button's label/markup changes often and is region gated.
+            in_ai_mode = False
+            for url in AI_MODE_URLS:
                 try:
-                    text = await btn.inner_text()
-                    aria_label = await btn.get_attribute('aria-label')
-                    classes = await btn.get_attribute('class')
-                    print(f"    Button {i}: text='{text}', aria-label='{aria_label}', class='{classes}'")
-                except:
-                    print(f"    Button {i}: (could not get attributes)")
-            
-            # Look for AI mode button in search bar
-            # Based on actual Chrome HTML: <cr-icon-button id="entrypoint" class="ai-mode-button" ...>
-            # Also looking for '+' button as user mentioned
-            # User provided actual button: <button jsname="ko0Zye" class="UbbAWe" aria-label="Add files, tools, and select a model">
-            # Note: jsname and class can be dynamic, so rely on aria-label
-            ai_selectors = [
-                'button[aria-label="Add files, tools, and select a model"]',
-                'button[aria-label*="Add files"]',
-                'button[aria-label*="files, tools"]',
-                'button[aria-label*="tools, and select a model"]',
-                'button[aria-label*="Enhance your search with tabs, files, or an AI tool"]',
-                'button[aria-label*="AI"]',
-                'button[aria-label*="Google AI"]',
-                'button:has-text("+")',
-                '[role="button"]:has-text("+")',
-            ]
-            
-            ai_button = None
-            for selector in ai_selectors:
-                try:
-                    ai_button = await self.page.wait_for_selector(selector, timeout=5000)
-                    if ai_button:
-                        print(f"  Found AI mode button with selector: {selector}")
+                    print(f"  Navigating to AI Mode: {url}")
+                    await self.page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                    await self.page.wait_for_timeout(2500)
+                    if await self._wait_for_ai_mode_prompt(timeout=6000):
+                        in_ai_mode = True
                         break
-                except:
-                    continue
-            
-            if not ai_button:
-                raise Exception("Could not find AI mode button in Chrome")
-            
-            # Click AI mode button
-            await ai_button.click()
-            await self.page.wait_for_timeout(2000)
-            
-            # Look for "create images" option
-            # Based on actual Chrome HTML: <button class="izN7If" data-tool="4" role="menuitemradio" ...><span>Create images</span>
-            # Note: jsname and class can be dynamic, so rely on data-tool, role, and text
-            image_selectors = [
-                'button[data-tool="4"]',
-                'button[role="menuitemradio"]:has-text("Create images")',
-                'button:has-text("Create images")',
-                '[role="menuitemradio"][data-tool="4"]',
-                'button:has-text("🍌")',
-            ]
-            
-            image_button = None
-            for selector in image_selectors:
-                try:
-                    image_button = await self.page.wait_for_selector(selector, timeout=5000)
-                    if image_button:
-                        print(f"  Found create images button with selector: {selector}")
-                        break
-                except:
-                    continue
-            
+                except Exception as e:
+                    print(f"  Direct navigation to {url} failed: {e}")
+
+            if not in_ai_mode:
+                # Fallback: open the homepage and click whichever AI Mode entry
+                # Google currently exposes (tab or search-bar plus button).
+                print("  Direct URL did not open AI Mode; trying the homepage entry point...")
+                await self.page.goto(
+                    "https://www.google.com", timeout=30000, wait_until="domcontentloaded"
+                )
+                await self.page.wait_for_timeout(2000)
+
+                entry = await self._find_first(
+                    AI_MODE_ENTRY_SELECTORS, label="AI Mode entry point", timeout=2500
+                )
+                if not entry:
+                    await self._dump_page_debug("No AI Mode entry point found")
+                    raise Exception("Could not find AI mode button in Chrome")
+
+                await entry.click()
+                await self.page.wait_for_timeout(2000)
+                in_ai_mode = await self._wait_for_ai_mode_prompt(timeout=6000)
+                if not in_ai_mode:
+                    await self._dump_page_debug("AI Mode entry clicked but prompt box missing")
+
+            # The "Create images" option may already be open (homepage plus
+            # button); only click the tools button when the menu isn't visible.
+            image_button = await self._find_first(
+                CREATE_IMAGE_SELECTORS, label="create images option", timeout=2000
+            )
             if not image_button:
+                tools_button = await self._find_first(
+                    AI_TOOLS_BUTTON_SELECTORS, label="AI Mode tools button", timeout=2500
+                )
+                if not tools_button:
+                    await self._dump_page_debug("No AI Mode tools button found")
+                    raise Exception("Could not find the AI Mode tools (+) button")
+
+                await tools_button.click()
+                await self.page.wait_for_timeout(1000)
+                image_button = await self._find_first(
+                    CREATE_IMAGE_SELECTORS, label="create images option", timeout=3000
+                )
+
+            if not image_button:
+                await self._dump_page_debug("No Create images option found")
                 raise Exception("Could not find 'create images' option")
-            
-            # Click create images
+
             await image_button.click()
-            await self.page.wait_for_timeout(2000)
-            
-            print(f"  Successfully navigated to Chrome AI image generation")
-            
+            await self.page.wait_for_timeout(1500)
+
+            try:
+                await self.page.wait_for_selector(
+                    'textarea[placeholder*="Describe your image"]', timeout=4000
+                )
+                print("  Image-generation prompt is active")
+            except Exception:
+                print(
+                    "  Warning: 'Describe your image' placeholder not detected; "
+                    "generation may still work"
+                )
+
+            print("  Successfully navigated to Chrome AI image generation")
+
         except Exception as e:
             raise Exception(f"Failed to navigate to AI mode: {e}")
-    
+
+
     async def _submit_prompt(self, prompt_text: str) -> bool:
         """Submit visual prompt to Chrome AI and wait for generation."""
         try:
@@ -374,6 +487,8 @@ class ChromeAIGenerator:
             input_selectors = [
                 'textarea[placeholder="Describe your image"]',
                 'textarea[placeholder*="Describe your"]',
+                'textarea[placeholder*="Ask anything"]',
+                'textarea[aria-label*="Ask anything"]',
                 'textarea[aria-label="Search"]',
                 'textarea[role="combobox"]',
                 'textarea[name="q"]',

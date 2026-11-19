@@ -102,3 +102,63 @@ class ChromeAIScraperTests(unittest.IsolatedAsyncioTestCase):
         
         self.assertEqual(generator.context, new_mock_context)
         self.assertEqual(generator.page, new_mock_page)
+
+    async def test_navigate_to_ai_mode_uses_direct_url(self):
+        """Direct AI Mode URL is preferred over the homepage button hunt."""
+        from scripts.chrome_ai_scraper import AI_MODE_URLS
+
+        generator = ChromeAIGenerator()
+        generator.page = AsyncMock()
+
+        tools_button = AsyncMock()
+        image_button = AsyncMock()
+
+        with patch.object(generator, "_ensure_browser_open", new_callable=AsyncMock) as ensure, \
+             patch.object(generator, "_wait_for_ai_mode_prompt", new_callable=AsyncMock, return_value=True), \
+             patch.object(generator, "_find_first", new_callable=AsyncMock,
+                          side_effect=[None, tools_button, image_button]):
+            await generator._navigate_to_ai_mode()
+
+        ensure.assert_awaited_once()
+        generator.page.goto.assert_awaited_once_with(
+            AI_MODE_URLS[0], timeout=30000, wait_until="domcontentloaded"
+        )
+        tools_button.click.assert_awaited_once()
+        image_button.click.assert_awaited_once()
+
+    async def test_navigate_to_ai_mode_falls_back_to_homepage(self):
+        """Falls back to the homepage entry point when direct URLs fail."""
+        generator = ChromeAIGenerator()
+        generator.page = AsyncMock()
+
+        entry_button = AsyncMock()
+        image_button = AsyncMock()
+
+        with patch.object(generator, "_ensure_browser_open", new_callable=AsyncMock), \
+             patch.object(generator, "_wait_for_ai_mode_prompt", new_callable=AsyncMock,
+                          side_effect=[False, False, False, True]), \
+             patch.object(generator, "_find_first", new_callable=AsyncMock,
+                          side_effect=[entry_button, image_button]):
+            await generator._navigate_to_ai_mode()
+
+        self.assertEqual(generator.page.goto.await_count, 4)
+        self.assertEqual(
+            generator.page.goto.await_args_list[-1].args[0], "https://www.google.com"
+        )
+        entry_button.click.assert_awaited_once()
+        image_button.click.assert_awaited_once()
+
+    async def test_navigate_to_ai_mode_raises_clear_error_on_failure(self):
+        """A missing entry point surfaces the original actionable message."""
+        generator = ChromeAIGenerator()
+        generator.page = AsyncMock()
+
+        with patch.object(generator, "_ensure_browser_open", new_callable=AsyncMock), \
+             patch.object(generator, "_wait_for_ai_mode_prompt", new_callable=AsyncMock,
+                          return_value=False), \
+             patch.object(generator, "_find_first", new_callable=AsyncMock, return_value=None), \
+             patch.object(generator, "_dump_page_debug", new_callable=AsyncMock) as dump:
+            with self.assertRaisesRegex(Exception, "Could not find AI mode button in Chrome"):
+                await generator._navigate_to_ai_mode()
+
+        dump.assert_awaited_once()
